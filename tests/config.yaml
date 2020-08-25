@@ -1,0 +1,127 @@
+test:
+  name: "test_run"
+  gpu: 0
+  log_level: "debug"
+  batch_log_interval: 100
+  evaluate_frequency: 2
+  overwrite_models: False
+  use_cached_files: True
+  seed: 0
+
+attacks:
+  activethief:
+    selection_strategy: "entropy"
+    k: 1500
+    iterations: 10
+    initial_seed_size: 6000
+    secret_model:
+      net:
+        name: "simplenet"
+    substitute_model:
+      net:
+        name: "simplenet"
+
+  copycat:
+    method:
+      - "npd"
+      - "pd"
+    target_model:
+      net:
+        name: "vgg_16"
+        drop: "normal"
+        act: "relu"
+        pool: "max_2"
+        ks: 3
+        n_conv: 2
+        fc: 2
+      opt:
+        name: "SGD"
+        batch_size: 64
+      crt:
+        name: "cross_entropy"
+    copycat_model:
+      net:
+        name: "vgg_16"
+        drop: "normal"
+        act: "relu"
+        pool: "max_2"
+        ks: 3
+        n_conv: 2
+        fc: 2
+      opt:
+        name: "SGD"
+        batch_size: 64
+      crt:
+        name: "cross_entropy"
+
+  kennen:
+    method:
+      i:
+        clip_range:
+          - 0
+          - 1
+        noise: "U_1_0"
+        opt:
+          lr: 0.1
+          train_batch_size: 2
+      o:
+        name: "mlp"
+        n_layer: 3
+        hidden_dim: 1000
+        opt:
+          name: "SGD"
+          lr: 1.0e-4
+          weight_decay: 0.01
+          train_batch_size: 2
+    data:
+      train_subset: 6
+      test_batch_size: 2
+    opt:
+      epochs: 400
+      sequence:
+        - "o"
+        - 200
+        - 50
+        - 50
+    setup:
+      init_type: "random_value"
+      target: "all"
+      n_query: 1
+      out_rep: "score"
+    models_dataset:
+      dataset_name: "mnist"
+      n_model: 10
+      attributes:
+        net:
+          name:
+            - "mnet"
+          drop:
+            - "normal"
+            - "none"
+          act:
+            - "relu"
+          pool:
+            - "max_2"
+            - "none"
+          ks:
+            - 3
+            - 5
+          n_conv:
+            - 2
+            - 3
+          fc:
+            - 2
+            - 3
+        opt:
+          name:
+            - "SGD"
+            - "ADAM"
+            - "RMSprop"
+          batch_size:
+            - 64
+            - 100
+        data:
+          subset:
+            - "all"
+            - "half_0"
+
