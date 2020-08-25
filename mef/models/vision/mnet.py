@@ -11,28 +11,27 @@ class Mnet(Base):
     From whitenblackbox paper. This convnet structure cover many LeNet variants.
     """
 
-    def __init__(self, sample_dimensions, n_classes, model_config):
-        super().__init__(sample_dimensions, n_classes, model_config)
+    def __init__(self, sample_dimensions, n_classes, model_details):
+        super().__init__(sample_dimensions, n_classes, model_details)
 
-        self._act = return_act(self.config["net"]["act"])
-        self._ks = self.config["net"]["ks"]
+        self._act = return_act(self.details.net.act)
+        self._ks = self.details.net.ks
 
         self._conv1 = nn.Conv2d(sample_dimensions[0], 10, kernel_size=self._ks)
         self._conv2 = nn.Conv2d(10, 20, kernel_size=self._ks)
 
         conv_iter = []
-        for _ in range(self.config["net"]["n_conv"] - 2):
+        for _ in range(self.details.net.n_conv - 2):
             conv_iter.append(ConvBlock(
                 20, 20, self._ks, padding=int((self._ks - 1) / 2)))
         self._conv_iter = nn.Sequential(*conv_iter)
 
-        if "max" in self.config["net"]["pool"]:
-            stride = int(self.config["net"]["pool"].split('_')[1])
+        self._pool = lambda a: a
+        pool_factor = 1
+        if "max" in self.details.net.pool:
+            stride = int(self.details.net.pool.split('_')[1])
             self._pool = lambda a: F.max_pool2d(a, stride)
             pool_factor = 2
-        else:
-            self._pool = lambda a: a
-            pool_factor = 1
 
         self._fc_feat_dim = int((
                                         (
@@ -49,16 +48,15 @@ class Mnet(Base):
 
         self._fc1 = nn.Linear(self._fc_feat_dim, 50)
 
-        if self.config["net"]["drop"] != "none":
-            drop = return_drop(self.config["net"]["drop"])
+        self._drop = lambda a: a
+        if self.details.net.drop != "none":
+            drop = return_drop(self.details.net.drop)
             self._drop = lambda a: drop(a)
-        else:
-            self._drop = lambda a: a
 
         fc_iter = []
-        for _ in range(self.config["net"]["n_fc"] - 2):
+        for _ in range(self.details.net.fc - 2):
             fc_iter.append(
-                LinearBlock(50, 50, self.config["net"]["drop"]))
+                LinearBlock(50, 50, self.details.net.drop))
         self._fc_iter = nn.Sequential(*fc_iter)
         self._fc_final = nn.Linear(50, n_classes)
 

@@ -21,10 +21,10 @@ class Vgg(Base):
     input size.
     """
 
-    def __init__(self, input_dimensions, n_classes, model_config):
-        super().__init__(sample_dimensions, n_classes, model_config)
+    def __init__(self, input_dimensions, n_classes, model_details):
+        super().__init__(input_dimensions, n_classes, model_details)
 
-        vgg_type = self._model_config["net"]["name"]
+        vgg_type = self.details.net.name
         if vgg_type not in VGG_TYPES:
             self._logger.error("Unknown vgg_type '{}'".format(vgg_type))
             raise ValueError

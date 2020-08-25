@@ -1,7 +1,7 @@
 
 class Base:
 
-    _config = None
+    _test_config = None
     _logger = None
 
     def __init__(self):

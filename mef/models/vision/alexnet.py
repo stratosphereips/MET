@@ -12,8 +12,8 @@ class AlexNet(Base):
     input size.
     """
 
-    def __init__(self, sample_dimensions, n_classes, model_config):
-        super().__init__(sample_dimensions, n_classes, model_config)
+    def __init__(self, sample_dimensions, n_classes, model_details):
+        super().__init__(sample_dimensions, n_classes, model_details)
 
         # Load convolutional part of resnet
         alexnet = torchvision.models.alexnet(pretrained=True)

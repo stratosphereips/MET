@@ -7,7 +7,7 @@ def return_optimizer(model, optimizer_config):
 
     Args:
         model (Mnet/Nin): Instance of the training model
-        optimizer_config (dict): Configuration for the optimizer
+        optimizer_config (OptimizerDetails): Configuration for the optimizer
 
     Raises:
         ValueError: Raised if the optimizer type is not one of
@@ -17,18 +17,18 @@ def return_optimizer(model, optimizer_config):
         SGD/Adam/RMSprop: Instance of the optimizer
     """
 
-    optimizer_name = optimizer_config["name"]
+    optimizer_name = optimizer_config.name
     if optimizer_name == "SGD":
         optimizer = optim.SGD(model.parameters(),
-                              lr=optimizer_config["lr"],
-                              momentum=optimizer_config["momentum"])
+                              lr=optimizer_config.lr,
+                              momentum=optimizer_config.momentum)
     elif optimizer_name == "ADAM":
         optimizer = optim.Adam(model.parameters(),
-                               lr=optimizer_config["lr"])
+                               lr=optimizer_config.lr)
     elif optimizer_name == "RMSprop":
         optimizer = optim.RMSprop(model.parameters(),
-                                  lr=optimizer_config["lr"],
-                                  momentum=optimizer_config["momentum"])
+                                  lr=optimizer_config.lr,
+                                  momentum=optimizer_config.momentum)
     else:
         raise ValueError(
             "Optimizer name should be one of {SGD, ADAM, RMSprop}.")
@@ -37,7 +37,7 @@ def return_optimizer(model, optimizer_config):
 
 
 def return_loss_function(loss_function_config):
-    loss_function_name = loss_function_config["name"]
+    loss_function_name = loss_function_config.name
     if loss_function_name == "cross_entropy":
         loss_function = nn.CrossEntropyLoss()
     elif loss_function_name == "mse":

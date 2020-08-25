@@ -8,19 +8,18 @@ from mef.utils.pytorch.blocks import ConvBlock, return_drop
 class SimpleNet(Base):
     """https://paperswithcode.com/paper/lets-keep-it-simple-using-simple"""
 
-    def __init__(self, sample_dimensions, n_classes, model_config):
-        super().__init__(sample_dimensions, n_classes, model_config)
+    def __init__(self, sample_dimensions, n_classes, model_details):
+        super().__init__(sample_dimensions, n_classes, model_details)
 
         self._layers = self._make_layers(sample_dimensions[0])
 
-        if self.config["net"]["pool"] != "none":
+        self._pool = lambda a: a
+        if self.details.net.pool != "none":
             self._pool = lambda a: F.max_pool2d(a, kernel_size=a.size()[2:])
-        else:
-            self._pool = lambda a: a
 
         self._drop = lambda a: a
-        if self.config["net"]["drop"] != "none":
-            drop = return_drop(self.config["net"]["drop"], p=0.1)
+        if self.details.net.drop != "none":
+            drop = return_drop(self.details.net.drop, p=0.1)
             self._drop = lambda a: drop(a)
 
         self._fc_final = nn.Linear(256, n_classes)

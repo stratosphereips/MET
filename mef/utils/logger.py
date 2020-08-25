@@ -5,10 +5,7 @@ from pathlib import Path
 from ..utils.ios import mkdir_if_missing, delete_file
 
 
-def set_up_logger(config):
-    logger_name = config.test["name"]
-    log_level = config.test["log_level"]
-
+def set_up_logger(logger_name, log_level):
     log_file = Path("log").joinpath("log_lvl_" + log_level + ".log")
     mkdir_if_missing(log_file.parent)
     delete_file(log_file)
