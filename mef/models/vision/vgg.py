@@ -57,9 +57,9 @@ class Vgg(Base):
         self._freeze_features_weights()
 
     def forward(self, x):
-        x = self.features(x)
+        x = self._features(x)
         x = x.view(x.size(0), -1)
-        x = self.classifier(x)
+        x = self._classifier(x)
         return x
 
     def _init_classifier_weights(self):

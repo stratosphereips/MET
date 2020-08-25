@@ -8,11 +8,13 @@ from mef.models.vision.simplenet import SimpleNet
 from mef.utils.details import ModelDetails
 from mef.utils.pytorch.training import ModelTraining
 
+config_file = "../config.yaml"
+data_root = "../data"
 
 class TestModelTraining(TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        mef.Test("../config.yaml")
+        mef.Test(config_file)
 
         model_details = ModelDetails(net=dict(name="simplenet",
                                               act="relu",
@@ -30,7 +32,7 @@ class TestModelTraining(TestCase):
         cls.model = SimpleNet((1, 28, 28), 10, model_details)
 
     def test1_train_model(self):
-        trainining_dataset = MNIST("./data", download=True,
+        trainining_dataset = MNIST(data_root, download=True,
                                    transform=transforms.Compose([transforms.ToTensor()]))
 
         accuracy, f1score = ModelTraining.train_model(model=self.model,
@@ -40,7 +42,7 @@ class TestModelTraining(TestCase):
         self.assertIsNone(f1score)
 
     def test2_evaluate_model(self):
-        evaluation_dataset = MNIST("./data", download=True, train=False,
+        evaluation_dataset = MNIST(data_root, download=True, train=False,
                                    transform=transforms.Compose([transforms.ToTensor()]))
 
         accuracy, f1score = ModelTraining.evaluate_model(self.model,

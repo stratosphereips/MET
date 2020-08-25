@@ -17,7 +17,7 @@ class TestConfig:
     gpu: int = None
     log_level: str = "info"
     batch_log_interval: int = 100
-    evaluate_frequency: int = 2
+    evaluation_frequency: int = 2
     overwrite_models: bool = False
     use_cached_files: bool = False
     seed: int = 0

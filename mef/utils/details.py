@@ -35,6 +35,15 @@ class ModelDetails:
     loss: LossDetails
 
     def __init__(self, net, opt, loss):
-        self.net = from_dict(NetworkDetails, net)
-        self.opt = from_dict(OptimizerDetails, opt)
-        self.loss = from_dict(LossDetails, loss)
+        if isinstance(net, dict):
+            self.net = from_dict(NetworkDetails, net)
+        else:
+            self.net = net
+        if isinstance(opt, dict):
+            self.opt = from_dict(OptimizerDetails, opt)
+        else:
+            self.opt = opt
+        if isinstance(net, dict):
+            self.loss = from_dict(LossDetails, loss)
+        else:
+            self.loss = loss

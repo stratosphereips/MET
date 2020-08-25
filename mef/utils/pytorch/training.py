@@ -13,7 +13,7 @@ class ModelTraining:
     def _train_step(cls, model, optimizer, loss_function, loader):
         model.train()
         train_loss = 0.0
-        for batch_idx, (inputs, targets) in enumerate(loader, start=1):
+        for batch_idx, (inputs, targets) in enumerate(loader):
             if cls._test_config.gpu is not None:
                 inputs, targets = inputs.cuda(), targets.cuda()
 
@@ -25,7 +25,7 @@ class ModelTraining:
             loss.backward()
             optimizer.step()
 
-            if (batch_idx - 1) % cls._test_config.batch_log_interval == 0:
+            if batch_idx % cls._test_config.batch_log_interval == 0:
                 cls._logger.info(
                     "Training {}/{} ({:.0f}%)\tLoss: {:.6f}".format(batch_idx * len(inputs),
                                                                     len(loader.sampler),
@@ -48,7 +48,7 @@ class ModelTraining:
         targets_list = []
         predictions_list = []
         with torch.no_grad():
-            for batch_idx, (inputs, targets) in enumerate(loader, start=1):
+            for batch_idx, (inputs, targets) in enumerate(loader):
                 if cls._test_config.gpu is not None:
                     inputs, targets = inputs.cuda(), targets.cuda()
 
@@ -58,7 +58,7 @@ class ModelTraining:
                     predictions_list.append(predictions.cpu())
                     targets_list.append(targets.cpu())
 
-                if (batch_idx - 1) % cls._test_config.batch_log_interval == 0:
+                if batch_idx % cls._test_config.batch_log_interval == 0:
                     cls._logger.info("Evaluating {}/{} ({:.0f}%)".format(batch_idx * len(inputs),
                                                                          len(loader.sampler),
                                                                          100. * batch_idx / len(
