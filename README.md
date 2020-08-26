@@ -8,9 +8,6 @@ user supplied models and datasets.
 The code requires Python 3.8 and depends on Pytorch 1.5.1, Torchvision 0.6.1, Numpy 1.18.5, PyYaml 5.3.1, scikit_learn 0.23.2 and dacite 1.5.1. To get all 
 neccesary packages run `pip install -r requirements.txt`.
 
-The framework also requires that the user downloads [ILSVRC2012][1] dataset, which is requirement for some of the
-attacks as it can't no longer be freely downloaded.
-
 [1]: http://image-net.org/challenges/LSVRC/2012/downloads.php#images 
 
 ## Running
