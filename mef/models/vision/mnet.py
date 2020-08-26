@@ -11,13 +11,13 @@ class Mnet(Base):
     From whitenblackbox paper. This convnet structure cover many LeNet variants.
     """
 
-    def __init__(self, sample_dimensions, num_classes, model_details):
-        super().__init__(sample_dimensions, num_classes, model_details)
+    def __init__(self, input_dimensions, num_classes, model_details):
+        super().__init__(input_dimensions, num_classes, model_details)
 
         self._act = return_act(self.details.net.act)
         self._ks = self.details.net.ks
 
-        self._conv1 = nn.Conv2d(sample_dimensions[0], 10, kernel_size=self._ks)
+        self._conv1 = nn.Conv2d(self.input_dimensions[0], 10, kernel_size=self._ks)
         self._conv2 = nn.Conv2d(10, 20, kernel_size=self._ks)
 
         conv_iter = []
@@ -38,7 +38,7 @@ class Mnet(Base):
                                                 (
                                                         (
                                                                 (
-                                                                        sample_dimensions[1]
+                                                                        self.input_dimensions[1]
                                                                         -
                                                                         self._ks + 1) // pool_factor
                                                         ) - self._ks + 1) //

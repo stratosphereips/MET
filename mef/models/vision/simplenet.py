@@ -8,10 +8,10 @@ from mef.utils.pytorch.blocks import ConvBlock, return_drop
 class SimpleNet(Base):
     """https://paperswithcode.com/paper/lets-keep-it-simple-using-simple"""
 
-    def __init__(self, sample_dimensions, num_classes, model_details):
-        super().__init__(sample_dimensions, num_classes, model_details)
+    def __init__(self, input_dimensions, num_classes, model_details):
+        super().__init__(input_dimensions, num_classes, model_details)
 
-        self._layers = self._make_layers(sample_dimensions[0])
+        self._layers = self._make_layers(self.input_dimensions[0])
 
         self._pool = lambda a: a
         if self.details.net.pool != "none":
@@ -39,75 +39,64 @@ class SimpleNet(Base):
 
         # Conv1/64 (3x3/1/1)
         layers = [
-            ConvBlock(in_channels=channels, out_channels=64, kernel_size=3,
-                      padding=1, use_batch_norm=True)]
+            ConvBlock(in_channels=channels, out_channels=64, kernel_size=3, padding=1,
+                      use_batch_norm=True)]
 
         # 3x Conv2/128 (3x3/1/1)
         for i in range(3):
             in_channels = 128 if i != 0 else 64
-            layers.append(ConvBlock(in_channels=in_channels, out_channels=128,
-                                    kernel_size=3, padding=1,
-                                    use_batch_norm=True))
+            layers.append(ConvBlock(in_channels=in_channels, out_channels=128, kernel_size=3,
+                                    padding=1, use_batch_norm=True))
 
         # Max-pooling 2/2
-        layers.extend([nn.MaxPool2d(kernel_size=2, stride=2),
-                       nn.Dropout2d(p=0.1)])
+        layers.extend([nn.MaxPool2d(kernel_size=2, stride=2), nn.Dropout2d(p=0.1)])
 
         # 2x Conv5/128 (3x3/1/1) + Conv7/128 (3x3/1/1)
         for i in range(3):
             out_channels = 128 if i != 2 else 256
-            layers.append(ConvBlock(in_channels=128, out_channels=out_channels,
-                                    kernel_size=3, padding=1,
-                                    use_batch_norm=True))
+            layers.append(ConvBlock(in_channels=128, out_channels=out_channels, kernel_size=3,
+                                    padding=1, use_batch_norm=True))
 
         # Max-pooling 2/2
-        layers.extend([nn.MaxPool2d(kernel_size=2, stride=2),
-                       nn.Dropout2d(p=0.1)])
+        layers.extend([nn.MaxPool2d(kernel_size=2, stride=2), nn.Dropout2d(p=0.1)])
 
         # 2x Conv7/128 (3x3/1/1)
         for i in range(2):
-            layers.append(ConvBlock(in_channels=256, out_channels=256,
-                                    kernel_size=3, padding=1,
+            layers.append(ConvBlock(in_channels=256, out_channels=256, kernel_size=3, padding=1,
                                     use_batch_norm=True))
 
         # Max-pooling 2/2
-        layers.extend([nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=True),
-                       nn.Dropout2d(p=0.1)])
+        layers.extend([nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=True), nn.Dropout2d(p=0.1)])
 
         # Conv10 (3x3/1/1)
         layers.append(
-            ConvBlock(in_channels=256, out_channels=512, kernel_size=3,
-                      padding=1, use_batch_norm=True))
+            ConvBlock(in_channels=256, out_channels=512, kernel_size=3, padding=1,
+                      use_batch_norm=True))
 
         # Max-pooling 2/2
-        layers.extend([nn.MaxPool2d(kernel_size=2, stride=2),
-                       nn.Dropout2d(p=0.1)])
+        layers.extend([nn.MaxPool2d(kernel_size=2, stride=2), nn.Dropout2d(p=0.1)])
 
         # Conv11 (1x1/1/1)
         layers.append(
-            ConvBlock(in_channels=512, out_channels=2048, kernel_size=1,
-                      use_batch_norm=True))
+            ConvBlock(in_channels=512, out_channels=2048, kernel_size=1, use_batch_norm=True))
 
         # Conv12 (1x1/1/1)
         layers.append(
-            ConvBlock(in_channels=2048, out_channels=256, kernel_size=1,
-                      use_batch_norm=True))
+            ConvBlock(in_channels=2048, out_channels=256, kernel_size=1, use_batch_norm=True))
 
         # Max-pooling 2/2
-        layers.extend([nn.MaxPool2d(kernel_size=2, stride=2),
-                       nn.Dropout2d(p=0.1)])
+        layers.extend([nn.MaxPool2d(kernel_size=2, stride=2), nn.Dropout2d(p=0.1)])
 
         # Conv13 (3x3/1/1)
         layers.append(
-            ConvBlock(in_channels=256, out_channels=256, kernel_size=3,
-                      padding=1, use_batch_norm=True))
+            ConvBlock(in_channels=256, out_channels=256, kernel_size=3, padding=1,
+                      use_batch_norm=True))
 
         model = nn.Sequential(*layers)
 
         def init_weights(m):
             if isinstance(m, nn.Conv2d):
-                nn.init.xavier_uniform_(m.weight.data,
-                                        gain=nn.init.calculate_gain("relu"))
+                nn.init.xavier_uniform_(m.weight.data, gain=nn.init.calculate_gain("relu"))
 
         model.apply(init_weights)
         return model

@@ -36,10 +36,11 @@ class TestCopyCat(TestCase):
                                          lr=0.1),
                                      loss=dict(name="cross_entropy"))
 
-        self.target_model = Vgg(input_dimensions=(3, 32, 32), n_classes=9,
+        self.target_model = Vgg(input_dimensions=(3, 32, 32), num_classes=9,
                                 model_details=model_details)
-        self.opd_model = Vgg(input_dimensions=(3, 32, 32), n_classes=9, model_details=model_details)
-        self.copycat_model = Vgg(input_dimensions=(3, 32, 32), n_classes=9,
+        self.opd_model = Vgg(input_dimensions=(3, 32, 32), num_classes=9,
+                             model_details=model_details)
+        self.copycat_model = Vgg(input_dimensions=(3, 32, 32), num_classes=9,
                                  model_details=model_details)
 
         # Prepare data

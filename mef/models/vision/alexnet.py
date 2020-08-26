@@ -12,17 +12,17 @@ class AlexNet(Base):
     input size.
     """
 
-    def __init__(self, sample_dimensions, num_classes, model_details):
-        super().__init__(sample_dimensions, num_classes, model_details)
+    def __init__(self, input_dimensions, num_classes, model_details):
+        super().__init__(input_dimensions, num_classes, model_details)
 
         # Load convolutional part of resnet
         alexnet = torchvision.models.alexnet(pretrained=True)
         self._features = alexnet.features
 
         # Init fully connected part of resnet
-        test_input = Variable(torch.zeros(1, sample_dimensions[0],
-                                          sample_dimensions[1],
-                                          sample_dimensions[2]))
+        test_input = Variable(torch.zeros(1, self.input_dimensions[0],
+                                          self.input_dimensions[1],
+                                          self.input_dimensions[2]))
         test_out = alexnet.features(test_input)
         n_features = test_out.size(1) * test_out.size(2) * test_out.size(3)
 

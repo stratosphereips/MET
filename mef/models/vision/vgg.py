@@ -35,9 +35,8 @@ class Vgg(Base):
         self._features = vgg.features
 
         # Init fully connected part of vgg
-        test_input = Variable(torch.zeros(1, input_dimensions[0],
-                                          input_dimensions[1],
-                                          input_dimensions[2]))
+        test_input = Variable(torch.zeros(1, self.input_dimensions[0], self.input_dimensions[1],
+                                          self.input_dimensions[2]))
         test_out = vgg.features(test_input)
         n_features = test_out.size(1) * test_out.size(2) * test_out.size(3)
         if vgg.classifier[0].in_features != n_features:
@@ -47,12 +46,12 @@ class Vgg(Base):
                                              nn.Linear(4096, 4096),
                                              nn.ReLU(True),
                                              nn.Dropout(),
-                                             nn.Linear(4096, n_classes)
+                                             nn.Linear(4096, self.num_classes)
                                              )
             self._init_classifier_weights()
         else:
             self._classifier = vgg.classifier
-            self._classifier[6].out_features = n_classes
+            self._classifier[6].out_features = self.num_classes
 
         self._freeze_features_weights()
 
