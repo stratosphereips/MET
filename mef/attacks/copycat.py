@@ -85,22 +85,35 @@ class CopyCat(Base):
 
         return stolen_labels
 
+    def _training(self, model, training_data, evaluation_data, epochs):
+        for epoch in range(epochs):
+            self._logger.info("Epoch: {}".format(epoch))
+            ModelTraining.train_model(model, training_data)
+
+            if epoch % self._test_config.evaluation_frequency:
+                eval_accuracy, eval_f1score = ModelTraining.evaluate_model(model, evaluation_data)
+
+                self._logger.info("Evaluation accuracy: {:.3f}\t "
+                                  "Evaluation F1-score: {:.3f}".format(eval_accuracy,
+                                                                       eval_f1score))
+
+        return
+
     def run(self):
+        epochs = self._copycat_model.details.opt.epochs
 
         if "npd" in self._method:
             self._sl_npd = self.__get_stolen_labels(self._npdd,
                                                     "non_problem_domain")
             self._npdd_sl = CustomLabelDataset(self._npdd, self._sl_npd)
             self._logger.info("Training copycat model with NPD-SL")
-            ModelTraining.train_model(self._copycat_model, training_data=self._npdd_sl,
-                                      evaluation_data=self._td)
+            self._training(self._copycat_model, self._npdd_sl, self._td, epochs)
 
         if "pd" in self._method:
             self._sl_pd = self.__get_stolen_labels(self._pdd,
                                                    "problem_domain")
             self._pdd_sl = CustomLabelDataset(self._pdd, self._sl_pd)
             self._logger.info("Training copycat model with PD-SL")
-            ModelTraining.train_model(self._copycat_model, training_data=self._pdd_sl,
-                                      evaluation_data=self._td)
+            self._training(self._copycat_model, self._pdd_sl, self._td, epochs)
 
         return

@@ -14,7 +14,7 @@ from mef.utils.pytorch.training import ModelTraining
 config_file = "../config.yaml"
 data_root = "../data"
 imagenet_root = "E:/Datasets/ImageNet2012"
-npd_size = 20000
+npd_size = 5000
 
 
 class TestCopyCat(TestCase):
@@ -121,10 +121,8 @@ class TestCopyCat(TestCase):
         self.non_problem_domain_dataset = Subset(imagenet["all"], npd_idx)
 
         # Prepare target and opd model
-        ModelTraining.train_model(self.target_model, training_data=self.original_domain_dataset,
-                                  evaluation_data=self.test_dataset)
-        ModelTraining.train_model(self.opd_model, training_data=self.problem_domain_dataset,
-                                  evaluation_data=self.test_dataset)
+        ModelTraining.train_model(self.target_model, training_data=self.original_domain_dataset)
+        ModelTraining.train_model(self.opd_model, training_data=self.problem_domain_dataset)
 
     def test_copycat(self):
         copycat = CopyCat(target_model=self.target_model, opd_model=self.opd_model,

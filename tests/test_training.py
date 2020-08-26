@@ -35,11 +35,10 @@ class TestModelTraining(TestCase):
         trainining_dataset = MNIST(data_root, download=True,
                                    transform=transforms.Compose([transforms.ToTensor()]))
 
-        accuracy, f1score = ModelTraining.train_model(model=self.model,
+        loss = ModelTraining.train_model(model=self.model,
                                                       training_data=trainining_dataset)
 
-        self.assertIsNone(accuracy)
-        self.assertIsNone(f1score)
+        self.assertIsNone(None)
 
     def test2_evaluate_model(self):
         evaluation_dataset = MNIST(data_root, download=True, train=False,
