@@ -21,8 +21,8 @@ class Vgg(Base):
     input size.
     """
 
-    def __init__(self, input_dimensions, n_classes, model_details):
-        super().__init__(input_dimensions, n_classes, model_details)
+    def __init__(self, input_dimensions, num_classes, model_details):
+        super().__init__(input_dimensions, num_classes, model_details)
 
         vgg_type = self.details.net.name
         if vgg_type not in VGG_TYPES:

@@ -11,8 +11,8 @@ class Mnet(Base):
     From whitenblackbox paper. This convnet structure cover many LeNet variants.
     """
 
-    def __init__(self, sample_dimensions, n_classes, model_details):
-        super().__init__(sample_dimensions, n_classes, model_details)
+    def __init__(self, sample_dimensions, num_classes, model_details):
+        super().__init__(sample_dimensions, num_classes, model_details)
 
         self._act = return_act(self.details.net.act)
         self._ks = self.details.net.ks
@@ -58,7 +58,7 @@ class Mnet(Base):
             fc_iter.append(
                 LinearBlock(50, 50, self.details.net.drop))
         self._fc_iter = nn.Sequential(*fc_iter)
-        self._fc_final = nn.Linear(50, n_classes)
+        self._fc_final = nn.Linear(50, self.num_classes)
 
     def forward(self, x):
         x = self._act(self._pool(self._conv1(x)))

@@ -8,8 +8,8 @@ from mef.utils.pytorch.blocks import ConvBlock, return_drop
 class SimpleNet(Base):
     """https://paperswithcode.com/paper/lets-keep-it-simple-using-simple"""
 
-    def __init__(self, sample_dimensions, n_classes, model_details):
-        super().__init__(sample_dimensions, n_classes, model_details)
+    def __init__(self, sample_dimensions, num_classes, model_details):
+        super().__init__(sample_dimensions, num_classes, model_details)
 
         self._layers = self._make_layers(sample_dimensions[0])
 
@@ -22,7 +22,7 @@ class SimpleNet(Base):
             drop = return_drop(self.details.net.drop, p=0.1)
             self._drop = lambda a: drop(a)
 
-        self._fc_final = nn.Linear(256, n_classes)
+        self._fc_final = nn.Linear(256, self.num_classes)
 
     def forward(self, x):
         x = self._layers(x)

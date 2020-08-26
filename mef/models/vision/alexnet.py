@@ -12,8 +12,8 @@ class AlexNet(Base):
     input size.
     """
 
-    def __init__(self, sample_dimensions, n_classes, model_details):
-        super().__init__(sample_dimensions, n_classes, model_details)
+    def __init__(self, sample_dimensions, num_classes, model_details):
+        super().__init__(sample_dimensions, num_classes, model_details)
 
         # Load convolutional part of resnet
         alexnet = torchvision.models.alexnet(pretrained=True)
@@ -37,12 +37,12 @@ class AlexNet(Base):
                                                  in_features=4096,
                                                  out_features=4096),
                                              nn.ReLU(inplace=True),
-                                             nn.Linear(4096, n_classes)
+                                             nn.Linear(4096, self.num_classes)
                                              )
             self._init_classifier_weights()
         else:
             self._classifier = alexnet.classifier
-            self._classifier[6].out_features = n_classes
+            self._classifier[6].out_features = self.num_classes
 
         self._freeze_features_weights()
 
