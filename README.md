@@ -5,11 +5,8 @@ user supplied models and datasets.
 
 ## Prerequisites
 
-The code requires Python 3.8 and depends on Pytorch 1.5.1, Torchvision 0.6.1, Numpy 1.18.5 and PyYaml 5.3.1. To get all 
+The code requires Python 3.8 and depends on Pytorch 1.5.1, Torchvision 0.6.1, Numpy 1.18.5, PyYaml 5.3.1, scikit_learn 0.23.2 and dacite 1.5.1. To get all 
 neccesary packages run `pip install -r requirements.txt`.
-
-The framework also requires that the user downloads [ILSVRC2012][1] dataset, which is requirement for some of the
-attacks as it can't no longer be freely downloaded.
 
 [1]: http://image-net.org/challenges/LSVRC/2012/downloads.php#images 
 
@@ -35,7 +32,6 @@ This section contains all of the attacks, model architectures and datasets that 
 
 | Attack name     | Description |
 | :--------       | :----       |
-| Kennen          | Approches the model extraction problems as a standard supervised learning task applied over models.|
 | CopyCat         | Performs the attack by learning new model from dataset that is annotated by the target model.|
 
 More details on the attacks can be found on [wiki][4].
@@ -53,15 +49,6 @@ More details on the attacks can be found on [wiki][4].
 | VGGNet               | Modified version of pytorch built-in VGGNet that takes in input of arbitrary resolution |
 
 [5]: https://arxiv.org/abs/1608.06037
-
-### Datasets
-
-| Dataset name          | Description |
-| :--------             | :----       |
-| Cifar10               |             |
-| ImageNet              |             |
-| Mnist                 |             |
-| STL10                 |             |
 
 [5]: TODO
 ## References
