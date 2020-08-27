@@ -36,8 +36,7 @@ def return_optimizer(model, optimizer_config):
     return optimizer
 
 
-def return_loss_function(loss_function_config):
-    loss_function_name = loss_function_config.name
+def return_loss_function(loss_function_name):
     if loss_function_name == "cross_entropy":
         loss_function = nn.CrossEntropyLoss()
     elif loss_function_name == "mse":
