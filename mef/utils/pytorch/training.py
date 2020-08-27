@@ -11,8 +11,6 @@ class ModelTraining:
 
     @classmethod
     def evaluate_model(cls, model, evaluation_data):
-        cls._logger.info("Evaluating model")
-
         if cls._test_config.gpu is not None:
             model.cuda()
 
@@ -34,7 +32,7 @@ class ModelTraining:
                     targets_list.append(targets.cpu())
 
                 if batch_idx % cls._test_config.batch_log_interval == 0:
-                    cls._logger.info(
+                    cls._logger.debug(
                         "Evaluating {}/{} ({:.0f}%)".format(batch_idx * len(inputs),
                                                             len(loader.sampler),
                                                             100. * batch_idx / len(loader)))
@@ -46,14 +44,12 @@ class ModelTraining:
         return metrics["accuracy"], metrics["macro avg"]["f1-score"]
 
     @classmethod
-    def train_model(cls, model, training_data):
-        cls._logger.debug("Starting model training")
-
+    def train_model(cls, model, training_data, loss_function):
         if cls._test_config.gpu is not None:
             model.cuda()
 
         optimizer = return_optimizer(model, model.details.opt)
-        loss_function = return_loss_function(model.details.loss)
+        loss_function = return_loss_function(loss_function)
         loader = DataLoader(dataset=training_data, shuffle=True,
                             batch_size=model.details.opt.batch_size, num_workers=1, pin_memory=True)
 
@@ -72,7 +68,7 @@ class ModelTraining:
             optimizer.step()
 
             if batch_idx % cls._test_config.batch_log_interval == 0:
-                cls._logger.info(
+                cls._logger.debug(
                     "Training {}/{} ({:.0f}%)\tLoss: {:.6f}".format(batch_idx * len(inputs),
                                                                     len(loader.sampler),
                                                                     100. * batch_idx / len(loader),

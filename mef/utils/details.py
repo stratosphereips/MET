@@ -24,17 +24,11 @@ class OptimizerDetails:
 
 
 @dataclass
-class LossDetails:
-    name: str
-
-
-@dataclass
 class ModelDetails:
     net: NetworkDetails
     opt: OptimizerDetails
-    loss: LossDetails
 
-    def __init__(self, net, opt, loss):
+    def __init__(self, net, opt):
         if isinstance(net, dict):
             self.net = from_dict(NetworkDetails, net)
         else:
@@ -43,7 +37,3 @@ class ModelDetails:
             self.opt = from_dict(OptimizerDetails, opt)
         else:
             self.opt = opt
-        if isinstance(net, dict):
-            self.loss = from_dict(LossDetails, loss)
-        else:
-            self.loss = loss

@@ -33,8 +33,7 @@ class TestCopyCat(TestCase):
                                          batch_size=64,
                                          epochs=1,
                                          momentum=0.5,
-                                         lr=0.1),
-                                     loss=dict(name="cross_entropy"))
+                                         lr=0.1))
 
         self.target_model = Vgg(input_dimensions=(3, 32, 32), num_classes=9,
                                 model_details=model_details)
@@ -122,8 +121,13 @@ class TestCopyCat(TestCase):
         self.non_problem_domain_dataset = Subset(imagenet["all"], npd_idx)
 
         # Prepare target and opd model
-        ModelTraining.train_model(self.target_model, training_data=self.original_domain_dataset)
-        ModelTraining.train_model(self.opd_model, training_data=self.problem_domain_dataset)
+        for i in range(self.target_model.details.opt.epochs):
+            ModelTraining.train_model(self.target_model,
+                                      training_data=self.original_domain_dataset,
+                                      loss_function="cross_entropy")
+        for i in range(self.opd_model.details.opt.epochs):
+            ModelTraining.train_model(self.opd_model, training_data=self.problem_domain_dataset,
+                                      loss_function="cross_entropy")
 
     def test_copycat(self):
         copycat = CopyCat(target_model=self.target_model, opd_model=self.opd_model,

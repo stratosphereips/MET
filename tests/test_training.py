@@ -11,6 +11,7 @@ from mef.utils.pytorch.training import ModelTraining
 config_file = "../config.yaml"
 data_root = "../data"
 
+
 class TestModelTraining(TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -27,16 +28,15 @@ class TestModelTraining(TestCase):
                                               batch_size=64,
                                               epochs=1,
                                               momentum=0.5,
-                                              lr=0.1),
-                                     loss=dict(name="cross_entropy"))
+                                              lr=0.1))
         cls.model = SimpleNet((1, 28, 28), 10, model_details)
 
     def test1_train_model(self):
         trainining_dataset = MNIST(data_root, download=True,
                                    transform=transforms.Compose([transforms.ToTensor()]))
 
-        loss = ModelTraining.train_model(model=self.model,
-                                                      training_data=trainining_dataset)
+        loss = ModelTraining.train_model(model=self.model, training_data=trainining_dataset,
+                                         loss_function="cross_entropy")
 
         self.assertIsNone(None)
 
