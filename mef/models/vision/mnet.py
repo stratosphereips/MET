@@ -54,7 +54,7 @@ class Mnet(Base):
             self._drop = lambda a: drop(a)
 
         fc_iter = []
-        for _ in range(self.details.net.fc - 2):
+        for _ in range(self.details.net.n_fc - 2):
             fc_iter.append(
                 LinearBlock(50, 50, self.details.net.drop))
         self._fc_iter = nn.Sequential(*fc_iter)
