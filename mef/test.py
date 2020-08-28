@@ -6,7 +6,6 @@ import numpy as np
 import torch
 
 import mef.attacks.base
-import mef.utils.pytorch.training
 from mef.utils.config import Configuration
 from mef.utils.logger import set_up_logger
 
@@ -36,8 +35,6 @@ class Test:
         # Make the configuration file and logger available framework wide
         mef.attacks.base.Base._logger = self._logger
         mef.attacks.base.Base._test_config = self._config
-        mef.utils.pytorch.training.ModelTraining._logger = self._logger
-        mef.utils.pytorch.training.ModelTraining._test_config = self._config
 
     def _set_seed(self):
         self._logger.debug("Setting seed for random generators.")

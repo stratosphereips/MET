@@ -15,25 +15,11 @@ class NetworkDetails:
 
 
 @dataclass
-class OptimizerDetails:
-    name: str
-    batch_size: int
-    epochs: int
-    momentum: float
-    lr: float
-
-
-@dataclass
 class ModelDetails:
     net: NetworkDetails
-    opt: OptimizerDetails
 
-    def __init__(self, net, opt):
+    def __init__(self, net):
         if isinstance(net, dict):
             self.net = from_dict(NetworkDetails, net)
         else:
             self.net = net
-        if isinstance(opt, dict):
-            self.opt = from_dict(OptimizerDetails, opt)
-        else:
-            self.opt = opt

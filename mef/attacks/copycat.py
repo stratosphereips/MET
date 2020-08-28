@@ -3,32 +3,38 @@ from pathlib import Path
 from typing import List
 
 import torch
+import torch.nn.functional as F
+from ignite.contrib.handlers import ProgressBar
+from ignite.engine import create_supervised_trainer, create_supervised_evaluator, Events
+from ignite.handlers import EarlyStopping, Checkpoint, DiskSaver, global_step_from_engine
+from ignite.metrics import Fbeta, RunningAverage
 from torch.utils.data import DataLoader
 
-from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import CustomLabelDataset
 from ..attacks.base import Base
 from ..utils.config import Configuration
-from ..utils.pytorch.training import ModelTraining
+from ..utils.pytorch.ignite.metrics import MacroAccuracy
 
 
 @dataclass
 class CopyCatConfig:
     method: List[str]
+    training_epochs: int
+    early_stop_tolerance: int
 
 
 class CopyCat(Base):
 
     def __init__(self, target_model, opd_model, copycat_model, test_dataset,
-                 problem_domain_dataset=None, non_problem_domain_dataset=None):
+                 problem_domain_dataset=None, non_problem_domain_dataset=None,
+                 save_loc="./cache/copycat"):
         super().__init__()
 
         # Get CopyCat's configuration
         self._config = Configuration.get_configuration(CopyCatConfig, "attacks/copycat")
 
         # Prepare attack's cache folder
-        self.__save_loc = Path("cache").joinpath(self._test_config.name, "copycat")
-        mkdir_if_missing(self.__save_loc)
+        self._save_loc = save_loc
 
         # Attack information
         self._method = '-'.join(self._config.method)
@@ -45,74 +51,163 @@ class CopyCat(Base):
         self._opd_model = opd_model
         self._copycat_model = copycat_model
 
+        if self._test_config.gpu is not None:
+            self._target_model.cuda()
+            self._opd_model.cuda()
+            self._copycat_model.cuda()
+
         # Stolen labels
         self._sl_pd = None
         self._sl_npd = None
 
-    def _get_stolen_labels(self, dataset, dataset_type):
-        self._logger.info(
-            "Getting stolen labels for {} dataset".format(' '.join(dataset_type.split('_'))))
+    def _get_stolen_labels(self, dataset):
+        device = "cuda" if self._test_config.gpu is not None else "cpu"
 
-        stolen_labels_file = self.__save_loc.joinpath(dataset_type + ".pth.tar")
-        if self._test_config.use_cached_files:
-            try:
-                return torch.load(stolen_labels_file)
-            except FileNotFoundError:
-                self._logger.warning(
-                    "{} not found, getting new stolen labels".format(stolen_labels_file.name))
+        loader = DataLoader(dataset, pin_memory=True, batch_size=258, num_workers=4)
 
-        self._target_model.eval()
-        loader = DataLoader(dataset, pin_memory=True, batch_size=258,
-                            num_workers=1)
+        evaluator = create_supervised_evaluator(self._target_model, device=device,
+                                                output_transform=lambda x, y, y_pred: y_pred.max(1))
+        evaluator.logger = self._logger
+        evaluator.state.stolen_labels = []
 
-        stolen_labels = []
-        for batch_idx, (inputs, _) in enumerate(loader):
-            if self._test_config.gpu is not None:
-                inputs = inputs.cuda()
-            with torch.no_grad():
-                outputs = self._target_model(inputs)
-                _, predicted = outputs.max(1)
-                stolen_labels.append(predicted.cpu())
+        @evaluator.on(Events.ITERATION_COMPLETED)
+        def append_stolen_labels(evaluator):
+            evaluator.state.stolen_labels.append(evaluator.state.output.indices)
 
-                if batch_idx % self._test_config.batch_log_interval == 0:
-                    self._logger.debug(
-                        "Stolen labels: {}/{} ({:.0f}%)".format(batch_idx * len(inputs),
-                                                                len(loader.dataset),
-                                                                100. * batch_idx / len(loader)))
+        @evaluator.on(Events.COMPLETED)
+        def append_stolen_labels(evaluator):
+            evaluator.state.output = torch.cat(evaluator.state.stolen_labels).cpu()
 
-        stolen_labels = torch.cat(stolen_labels)
-        torch.save(stolen_labels, stolen_labels_file)
+        ProgressBar().attach(evaluator)
 
-        return stolen_labels
+        evaluator.run(loader)
 
-    def _training(self, model, training_data, evaluation_data, epochs):
-        for epoch in range(epochs):
-            self._logger.info("Epoch: {}".format(epoch))
-            ModelTraining.train_model(model, training_data, "cross_entropy")
+        return evaluator.state.output
 
-            if epoch % self._test_config.evaluation_frequency:
-                eval_accuracy, eval_f1score = ModelTraining.evaluate_model(model, evaluation_data)
+    def _add_events(self, trainer, evaluator, eval_loader):
+        # Evaluator events
+        def score_function(engine):
+            val_macro_acc = engine.state.metrics["macro_accuracy"]
+            return val_macro_acc
 
-                self._logger.info("Evaluation accuracy: {:.3f}\t "
-                                  "Evaluation F1-score: {:.3f}".format(eval_accuracy,
-                                                                       eval_f1score))
+        early_stop = EarlyStopping(patience=self._config.early_stop_tolerance,
+                                   score_function=score_function, trainer=trainer)
+        evaluator.add_event_handler(Events.COMPLETED, early_stop)
+
+        to_save = {'copycat_model': self._copycat_model}
+        checkpoint_handler = Checkpoint(to_save, DiskSaver(self._save_loc, require_empty=False),
+                                        filename_prefix="best", score_function=score_function,
+                                        score_name="macro_accuracy",
+                                        filename_pattern="{filename_prefix}_{name}_({score_name}="
+                                                         "{score}).{ext}",
+                                        global_step_transform=global_step_from_engine(trainer))
+        evaluator.add_event_handler(Events.COMPLETED, checkpoint_handler)
+
+        # Trainer events
+        RunningAverage(output_transform=lambda x: x).attach(trainer, "avg_loss")
+        ProgressBar().attach(trainer, ["avg_loss"])
+
+        @trainer.on(Events.EPOCH_COMPLETED(every=self._test_config.evaluation_frequency))
+        def log_validation_results(trainer):
+            evaluator.run(eval_loader)
+            metrics = evaluator.state.metrics
+            trainer.logger.info("Test dataset results - Epoch: {}  Macro-averaged accuracy: {:.1f}%"
+                                " F1-score: {:.3f}".format(trainer.state.epoch,
+                                                           100 * metrics["macro_accuracy"],
+                                                           metrics["f1beta-score"]))
+
+        return checkpoint_handler
+
+    def _training(self, model, training_data):
+        device = "cuda" if self._test_config.gpu is not None else "cpu"
+
+        train_loader = DataLoader(dataset=training_data, shuffle=True, batch_size=128,
+                                  pin_memory=True, num_workers=4)
+        eval_loader = DataLoader(dataset=self._td, batch_size=128, pin_memory=True, num_workers=4)
+
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.8)
+        loss_function = F.cross_entropy
+
+        trainer = create_supervised_trainer(model, optimizer, loss_function, device=device)
+        trainer.logger = self._logger
+
+        val_metrics = {
+            "macro_accuracy": MacroAccuracy(model.num_classes),
+            "f1beta-score": Fbeta(beta=1)
+        }
+
+        evaluator = create_supervised_evaluator(model, metrics=val_metrics, device=device)
+        evaluator.logger = self._logger
+
+        checkpoint_handler = self._add_events(trainer, evaluator, eval_loader)
+
+        trainer.run(train_loader, max_epochs=self._config.training_epochs)
+
+        # Load best model and remove the file
+        self._logger.info("Loading best model")
+        to_load = {'copycat_model': self._copycat_model}
+        checkpoint_fp = self._save_loc + '/' + checkpoint_handler.last_checkpoint
+        checkpoint = torch.load(checkpoint_fp)
+        Checkpoint.load_objects(to_load, checkpoint)
+        Path.unlink(Path(checkpoint_fp))
+
+        return checkpoint_fp
+
+    def _get_final_metrics(self):
+        self._logger.info("Final metrics")
+        device = "cuda" if self._test_config.gpu is not None else "cpu"
+        test_loader = DataLoader(self._td, pin_memory=True, batch_size=258, num_workers=4)
+        val_metrics = {
+            "macro_accuracy": MacroAccuracy(self._target_model.num_classes),
+            "f1beta-score": Fbeta(beta=1)
+        }
+
+        models = dict(target_model=self._target_model, opd_model=self._opd_model,
+                      copycat_model=self._copycat_model)
+        results = dict()
+        for name, model in models.items():
+            evaluator = create_supervised_evaluator(model, metrics=val_metrics, device=device)
+            evaluator.run(test_loader)
+
+            macro_accuracy = evaluator.state.metrics["macro_accuracy"]
+            f1_score = evaluator.state.metrics["f1beta-score"]
+
+            self._logger.info("{} test data results: Macro-averaged accuracy: {:.1f}% F1-score: "
+                              "{:.3f}".format(name.capitalize().replace('_', ' '),
+                                              100 * macro_accuracy, f1_score))
+
+            results[name] = (macro_accuracy, f1_score)
+
+        perf_over_tn = 100 * (results["copycat_model"][0] / results["target_model"][0])
+        self._logger.info("Performance over target network: {:.1f}%".format(perf_over_tn))
+        perf_over_opd = 100 * (results["copycat_model"][0] / results["opd_model"][0])
+        self._logger.info("Performance over PD-OL network: {:.1f}%".format(perf_over_opd))
 
         return
 
     def run(self):
-        self._logger.info("Starting CopyCat attack")
-        epochs = self._copycat_model.details.opt.epochs
+        self._logger.info("########### Starting CopyCat attack ###########")
 
+        final_model = None
         if "npd" in self._method:
-            self._sl_npd = self._get_stolen_labels(self._npdd, "non_problem_domain")
+            self._logger.info("Getting stolen labels for NPD dataset")
+            self._logger.info("NPD dataset size: {}".format(len(self._npdd)))
+            self._sl_npd = self._get_stolen_labels(self._npdd)
             self._npdd_sl = CustomLabelDataset(self._npdd, self._sl_npd)
             self._logger.info("Training copycat model with NPD-SL")
-            self._training(self._copycat_model, self._npdd_sl, self._td, epochs)
+            final_model = self._training(self._copycat_model, self._npdd_sl)
 
         if "pd" in self._method:
-            self._sl_pd = self._get_stolen_labels(self._pdd, "problem_domain")
+            self._logger.info("Getting stolen labels for PD dataset")
+            self._logger.info("PD dataset size: {}".format(len(self._pdd)))
+            self._sl_pd = self._get_stolen_labels(self._pdd)
             self._pdd_sl = CustomLabelDataset(self._pdd, self._sl_pd)
             self._logger.info("Training copycat model with PD-SL")
-            self._training(self._copycat_model, self._pdd_sl, self._td, epochs)
+            final_model = self._training(self._copycat_model, self._pdd_sl)
+
+        self._get_final_metrics()
+
+        self._logger.info("Saving final model to: {}".format(final_model))
+        torch.save(dict(state_dict=self._copycat_model.state_dict), final_model)
 
         return
