@@ -162,25 +162,6 @@ class TestCopyCat(TestCase):
             trainer.run(train_loader, max_epochs=train_epochs)
             torch.save(dict(state_dict=self.opd_model.state_dict()), opd_save_loc)
 
-        test_loader = DataLoader(self.test_dataset, pin_memory=True, batch_size=258, num_workers=4)
-        val_metrics = {
-            "macro_accuracy": MacroAccuracy(self.target_model.num_classes),
-            "f1beta-score": Fbeta(beta=1)
-        }
-        models = dict(target_model=self.target_model, opd_model=self.opd_model)
-
-        for name, model in models.items():
-            evaluator = create_supervised_evaluator(model, metrics=val_metrics, device="cuda")
-            evaluator.run(test_loader)
-
-            macro_accuracy = evaluator.state.metrics["macro_accuracy"]
-            f1_score = evaluator.state.metrics["f1beta-score"]
-
-            print(
-                "{} test data results: Macro-averaged accuracy: {:.1f}% F1-score: "
-                "{:.3f}".format(name.capitalize().replace('_', ' '),
-                                100 * macro_accuracy, f1_score))
-
     def test_copycat(self):
         copycat = CopyCat(target_model=self.target_model, opd_model=self.opd_model,
                           copycat_model=self.copycat_model, test_dataset=self.test_dataset,
