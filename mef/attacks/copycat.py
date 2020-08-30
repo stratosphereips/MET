@@ -20,7 +20,6 @@ from ..utils.pytorch.ignite.metrics import MacroAccuracy
 class CopyCatConfig:
     method: List[str]
     training_epochs: int
-    early_stop_tolerance: int
 
 
 class CopyCat(Base):
@@ -32,8 +31,7 @@ class CopyCat(Base):
 
         # Get CopyCat's configuration
         self._config = Configuration.get_configuration(CopyCatConfig, "attacks/copycat")
-
-        # Prepare attack's cache folder
+        self._device = "cuda" if self._test_config.gpu is not None else "cpu"
         self._save_loc = save_loc
 
         # Attack information
@@ -51,6 +49,9 @@ class CopyCat(Base):
         self._opd_model = opd_model
         self._copycat_model = copycat_model
 
+        # Dataset information
+        self._num_classes = self._target_model.num_classes
+
         if self._test_config.gpu is not None:
             self._target_model.cuda()
             self._opd_model.cuda()
@@ -61,36 +62,35 @@ class CopyCat(Base):
         self._sl_npd = None
 
     def _get_stolen_labels(self, dataset):
-        device = "cuda" if self._test_config.gpu is not None else "cpu"
+        loader = DataLoader(dataset, pin_memory=True, batch_size=256, num_workers=4)
 
-        loader = DataLoader(dataset, pin_memory=True, batch_size=258, num_workers=4)
-
-        evaluator = create_supervised_evaluator(self._target_model, device=device,
-                                                output_transform=lambda x, y, y_pred: y_pred.max(1))
+        evaluator = create_supervised_evaluator(self._target_model, device=self._device,
+                                                output_transform=lambda x, y, y_pred:
+                                                torch.argmax(y_pred, dim=1))
         evaluator.logger = self._logger
+        ProgressBar().attach(evaluator)
+
         evaluator.state.stolen_labels = []
 
         @evaluator.on(Events.ITERATION_COMPLETED)
         def append_stolen_labels(evaluator):
-            evaluator.state.stolen_labels.append(evaluator.state.output.indices)
+            evaluator.state.stolen_labels.append(evaluator.state.output)
 
         @evaluator.on(Events.COMPLETED)
         def append_stolen_labels(evaluator):
             evaluator.state.output = torch.cat(evaluator.state.stolen_labels).cpu()
 
-        ProgressBar().attach(evaluator)
-
         evaluator.run(loader)
 
         return evaluator.state.output
 
-    def _add_events(self, trainer, evaluator, eval_loader):
+    def _add_ignite_events(self, trainer, evaluator, eval_loader):
         # Evaluator events
         def score_function(engine):
             val_macro_acc = engine.state.metrics["macro_accuracy"]
             return val_macro_acc
 
-        early_stop = EarlyStopping(patience=self._config.early_stop_tolerance,
+        early_stop = EarlyStopping(patience=self._test_config.early_stop_tolerance,
                                    score_function=score_function, trainer=trainer)
         evaluator.add_event_handler(Events.COMPLETED, early_stop)
 
@@ -119,28 +119,26 @@ class CopyCat(Base):
         return checkpoint_handler
 
     def _training(self, model, training_data):
-        device = "cuda" if self._test_config.gpu is not None else "cpu"
-
-        train_loader = DataLoader(dataset=training_data, shuffle=True, batch_size=128,
-                                  pin_memory=True, num_workers=4)
-        eval_loader = DataLoader(dataset=self._td, batch_size=128, pin_memory=True, num_workers=4)
-
+        # Prepare trainer
         optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.8)
         loss_function = F.cross_entropy
-
-        trainer = create_supervised_trainer(model, optimizer, loss_function, device=device)
+        trainer = create_supervised_trainer(model, optimizer, loss_function, device=self._device)
         trainer.logger = self._logger
 
-        val_metrics = {
-            "macro_accuracy": MacroAccuracy(model.num_classes),
+        # Prepare evaluator
+        metrics = {
+            "macro_accuracy": MacroAccuracy(self._num_classes),
             "f1beta-score": Fbeta(beta=1)
         }
-
-        evaluator = create_supervised_evaluator(model, metrics=val_metrics, device=device)
+        evaluator = create_supervised_evaluator(model, metrics=metrics, device=self._device)
         evaluator.logger = self._logger
 
-        checkpoint_handler = self._add_events(trainer, evaluator, eval_loader)
+        eval_loader = DataLoader(dataset=self._td, batch_size=256, pin_memory=True, num_workers=4)
+        checkpoint_handler = self._add_ignite_events(trainer, evaluator, eval_loader)
 
+        # Start trainer
+        train_loader = DataLoader(dataset=training_data, shuffle=True, batch_size=128,
+                                  pin_memory=True, num_workers=4)
         trainer.run(train_loader, max_epochs=self._config.training_epochs)
 
         # Load best model and remove the file
@@ -154,19 +152,16 @@ class CopyCat(Base):
         return checkpoint_fp
 
     def _get_final_metrics(self):
-        self._logger.info("Final metrics")
-        device = "cuda" if self._test_config.gpu is not None else "cpu"
-        test_loader = DataLoader(self._td, pin_memory=True, batch_size=258, num_workers=4)
         val_metrics = {
             "macro_accuracy": MacroAccuracy(self._target_model.num_classes),
             "f1beta-score": Fbeta(beta=1)
         }
-
+        test_loader = DataLoader(self._td, pin_memory=True, batch_size=256, num_workers=4)
         models = dict(target_model=self._target_model, opd_model=self._opd_model,
                       copycat_model=self._copycat_model)
         results = dict()
         for name, model in models.items():
-            evaluator = create_supervised_evaluator(model, metrics=val_metrics, device=device)
+            evaluator = create_supervised_evaluator(model, metrics=val_metrics, device=self._device)
             evaluator.run(test_loader)
 
             macro_accuracy = evaluator.state.metrics["macro_accuracy"]
@@ -205,6 +200,7 @@ class CopyCat(Base):
             self._logger.info("Training copycat model with PD-SL")
             final_model = self._training(self._copycat_model, self._pdd_sl)
 
+        self._logger.info("Getting final metrics")
         self._get_final_metrics()
 
         self._logger.info("Saving final model to: {}".format(final_model))

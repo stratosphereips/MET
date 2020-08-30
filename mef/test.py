@@ -17,6 +17,7 @@ class TestConfig:
     log_level: str = "info"
     batch_log_interval: int = 100
     evaluation_frequency: int = 2
+    early_stop_tolerance: int = 10
     overwrite_models: bool = False
     use_cached_files: bool = False
     seed: int = 0

@@ -13,6 +13,7 @@ import mef
 from mef.attacks.copycat import CopyCat
 from mef.models.vision.vgg import Vgg
 from mef.utils.details import ModelDetails
+from mef.utils.ios import mkdir_if_missing
 
 config_file = "../config.yaml"
 data_root = "../data"
@@ -22,11 +23,48 @@ target_save_loc = save_loc + "/final_target_model.pt"
 opd_save_loc = save_loc + "/final_opd_model.pt"
 npd_size = 2000
 train_epochs = 1
-device = "cuda" # cuda or cpu
+device = "cuda"  # cuda or cpu
+
+
+def remove_class(class_to_remove, labels, data, class_to_idx, classes):
+    class_idx = class_to_idx[class_to_remove]
+
+    class_idxes = np.where(labels == np.atleast_1d(class_idx))
+    labels = np.delete(labels, class_idxes)
+    labels[labels > class_idx] -= 1
+
+    data = np.delete(data, class_idxes, 0)
+
+    classes.remove(class_to_remove)
+
+    # class_to_idx update
+    class_to_idx.pop(class_to_remove)
+    for name, idx in class_to_idx.items():
+        if idx > class_idx:
+            class_to_idx[name] -= 1
+
+    return labels.tolist(), data, class_to_idx, classes
+
+
+def train_model(model, train_data, save_loc):
+    train_loader = DataLoader(dataset=train_data, batch_size=128,
+                              shuffle=True, num_workers=1, pin_memory=True)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.8)
+    loss_function = F.cross_entropy
+    trainer = create_supervised_trainer(model, optimizer, loss_function,
+                                        device=device)
+
+    ProgressBar().attach(trainer)
+    trainer.run(train_loader, max_epochs=train_epochs)
+
+    torch.save(dict(state_dict=model.state_dict()), save_loc)
+
+    return
 
 
 class TestCopyCat(TestCase):
     def setUp(self) -> None:
+        mkdir_if_missing(save_loc)
         mef.Test(config_file)
 
         model_details = ModelDetails(net=dict(name="vgg_16",
@@ -36,7 +74,6 @@ class TestCopyCat(TestCase):
                                               ks=3,
                                               n_conv=13,
                                               n_fc=3))
-
         self.target_model = Vgg(input_dimensions=(3, 64, 64), num_classes=9,
                                 model_details=model_details)
         self.opd_model = Vgg(input_dimensions=(3, 64, 64), num_classes=9,
@@ -48,26 +85,6 @@ class TestCopyCat(TestCase):
             self.target_model.cuda()
             self.opd_model.cuda()
             self.copycat_model.cuda()
-
-        # Prepare data
-        def remove_class(class_to_remove, labels, data, class_to_idx, classes):
-            class_idx = class_to_idx[class_to_remove]
-
-            class_idxes = np.where(labels == np.atleast_1d(class_idx))
-            labels = np.delete(labels, class_idxes)
-            labels[labels > class_idx] -= 1
-
-            data = np.delete(data, class_idxes, 0)
-
-            classes.remove(class_to_remove)
-
-            # class_to_idx update
-            class_to_idx.pop(class_to_remove)
-            for name, idx in class_to_idx.items():
-                if idx > class_idx:
-                    class_to_idx[name] -= 1
-
-            return labels.tolist(), data, class_to_idx, classes
 
         print("Preparing data")
         mean = (0.5, 0.5, 0.5)
@@ -136,16 +153,7 @@ class TestCopyCat(TestCase):
             print("Loaded target model")
         except FileNotFoundError:
             print("Training target model")
-            train_loader = DataLoader(dataset=self.original_domain_dataset, batch_size=128,
-                                      shuffle=True, num_workers=1, pin_memory=True)
-            optimizer = torch.optim.SGD(self.target_model.parameters(), lr=0.01, momentum=0.8)
-            loss_function = F.cross_entropy
-            trainer = create_supervised_trainer(self.target_model, optimizer, loss_function,
-                                                device=device)
-
-            ProgressBar().attach(trainer)
-            trainer.run(train_loader, max_epochs=train_epochs)
-            torch.save(dict(state_dict=self.target_model.state_dict()), target_save_loc)
+            train_model(self.target_model, self.original_domain_dataset, target_save_loc)
 
         # Prepare PD-OL model
         try:
@@ -154,16 +162,7 @@ class TestCopyCat(TestCase):
             print("Loaded PD-OL model")
         except FileNotFoundError:
             print("Training PD-OL model")
-            train_loader = DataLoader(dataset=self.problem_domain_dataset, batch_size=128,
-                                      shuffle=True, num_workers=1, pin_memory=True)
-            optimizer = torch.optim.SGD(self.opd_model.parameters(), lr=0.01, momentum=0.8)
-            loss_function = F.cross_entropy
-            trainer = create_supervised_trainer(self.opd_model, optimizer, loss_function,
-                                                device=device)
-
-            ProgressBar().attach(trainer)
-            trainer.run(train_loader, max_epochs=train_epochs)
-            torch.save(dict(state_dict=self.opd_model.state_dict()), opd_save_loc)
+            train_model(self.opd_model, self.problem_domain_dataset, target_save_loc)
 
     def test_copycat(self):
         copycat = CopyCat(target_model=self.target_model, opd_model=self.opd_model,
