@@ -4,9 +4,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from ignite.contrib.handlers import ProgressBar
-from ignite.engine import create_supervised_trainer, Events, create_supervised_evaluator
-from ignite.handlers import Checkpoint, DiskSaver
-from ignite.metrics import Fbeta
+from ignite.engine import create_supervised_trainer
 from torch.utils.data import ConcatDataset, Subset, DataLoader
 from torchvision.datasets import CIFAR10, STL10, ImageNet
 from torchvision.transforms import transforms
@@ -15,7 +13,6 @@ import mef
 from mef.attacks.copycat import CopyCat
 from mef.models.vision.vgg import Vgg
 from mef.utils.details import ModelDetails
-from mef.utils.pytorch.ignite.metrics import MacroAccuracy
 
 config_file = "../config.yaml"
 data_root = "../data"
@@ -25,6 +22,7 @@ target_save_loc = save_loc + "/final_target_model.pt"
 opd_save_loc = save_loc + "/final_opd_model.pt"
 npd_size = 2000
 train_epochs = 1
+device = "cuda" # cuda or cpu
 
 
 class TestCopyCat(TestCase):
@@ -40,11 +38,16 @@ class TestCopyCat(TestCase):
                                               n_fc=3))
 
         self.target_model = Vgg(input_dimensions=(3, 64, 64), num_classes=9,
-                                model_details=model_details).cuda()
+                                model_details=model_details)
         self.opd_model = Vgg(input_dimensions=(3, 64, 64), num_classes=9,
-                             model_details=model_details).cuda()
+                             model_details=model_details)
         self.copycat_model = Vgg(input_dimensions=(3, 64, 64), num_classes=9,
-                                 model_details=model_details).cuda()
+                                 model_details=model_details)
+
+        if device == "cuda":
+            self.target_model.cuda()
+            self.opd_model.cuda()
+            self.copycat_model.cuda()
 
         # Prepare data
         def remove_class(class_to_remove, labels, data, class_to_idx, classes):
@@ -138,7 +141,7 @@ class TestCopyCat(TestCase):
             optimizer = torch.optim.SGD(self.target_model.parameters(), lr=0.01, momentum=0.8)
             loss_function = F.cross_entropy
             trainer = create_supervised_trainer(self.target_model, optimizer, loss_function,
-                                                device="cuda")
+                                                device=device)
 
             ProgressBar().attach(trainer)
             trainer.run(train_loader, max_epochs=train_epochs)
@@ -156,7 +159,7 @@ class TestCopyCat(TestCase):
             optimizer = torch.optim.SGD(self.opd_model.parameters(), lr=0.01, momentum=0.8)
             loss_function = F.cross_entropy
             trainer = create_supervised_trainer(self.opd_model, optimizer, loss_function,
-                                                device="cuda")
+                                                device=device)
 
             ProgressBar().attach(trainer)
             trainer.run(train_loader, max_epochs=train_epochs)
