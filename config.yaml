@@ -2,8 +2,7 @@ test:
   name: "test_run"
   gpu: 0
   log_level: "info"
-  batch_log_interval: 10
-  evaluation_frequency: 1
+  evaluation_frequency: 2
   early_stop_tolerance: 10
   overwrite_models: False
   use_cached_files: True
@@ -15,7 +14,6 @@ attacks:
     k: 1500
     iterations: 10
     training_epochs: 1000
-    early_stop_tolerance: 5
     initial_seed_size: 2000
     one_hot_output: True
 
