@@ -1,5 +1,6 @@
 from torch.utils.data import Dataset
 
+
 class ListDataset(Dataset):
     def __init__(self, list_object):
         self.list_object = list_object

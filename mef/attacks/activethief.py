@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from ignite.contrib.handlers import ProgressBar
-from ignite.engine import create_supervised_evaluator, Events, create_supervised_trainer
+from ignite.engine import create_supervised_evaluator, Events, create_supervised_trainer, Engine
 from ignite.handlers import Checkpoint, EarlyStopping, global_step_from_engine, DiskSaver
 from ignite.metrics import Fbeta, RunningAverage
 from ignite.utils import to_onehot
@@ -19,33 +19,19 @@ from mef.utils.pytorch.datasets import CustomLabelDataset
 from mef.utils.pytorch.ignite.metrics import MacroAccuracy
 
 
-def random_strategy(k, idx):
-    idx_copy = np.copy(idx)
-    np.random.shuffle(idx_copy)
+class KCenter(nn.Module):
 
-    return list(idx_copy[:k])
+    def forward(self, x, y, device):
+        if device == "cuda":
+            x = x.cuda()
+            y = y.cuda()
 
+        distances = torch.cdist(x, y, p=2)
 
-def entropy_strategy(k, idx, predictions):
-    scores = {}
-    for sample, prob_dist in zip(idx, predictions):
-        log_probs = prob_dist * torch.log2(prob_dist)
-        raw_entropy = 0 - torch.sum(log_probs)
+        distances_min_values, _ = torch.min(distances, dim=1)
+        distance_min_max_value, distance_min_max_id = torch.max(distances_min_values, dim=0)
 
-        normalized_entropy = raw_entropy / math.log2(prob_dist.numel())
-
-        scores[sample] = normalized_entropy.item()
-
-    scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-    j = 0
-    selected_samples = []
-    for sample, score in scores:
-        selected_samples.append(sample)
-        j += 1
-        if j == k:
-            break
-
-    return selected_samples
+        return distance_min_max_value.cpu(), distance_min_max_id.cpu()
 
 
 @dataclass
@@ -148,7 +134,7 @@ class ActiveThief(Base):
 
         ProgressBar().attach(evaluator)
 
-        loader = DataLoader(dataset=data, batch_size=256, num_workers=1, pin_memory=True)
+        loader = DataLoader(dataset=data, batch_size=256, num_workers=4, pin_memory=True)
         evaluator.run(loader)
 
         return evaluator.state.metrics["macro_accuracy"], evaluator.state.metrics["f1beta-score"]
@@ -228,14 +214,93 @@ class ActiveThief(Base):
 
         return
 
-    def _select_samples(self, idx, remaining_set_predictions):
+    def _entropy_strategy(self, k, idx, predictions):
+        scores = {}
+        for sample, prob_dist in zip(idx, predictions):
+            log_probs = prob_dist * torch.log2(prob_dist)
+            raw_entropy = 0 - torch.sum(log_probs)
+
+            normalized_entropy = raw_entropy / math.log2(prob_dist.numel())
+
+            scores[sample] = normalized_entropy.item()
+
+        scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        j = 0
+        selected_samples = []
+        for sample, score in scores:
+            selected_samples.append(sample)
+            j += 1
+            if j == k:
+                break
+
+        return selected_samples
+
+    def _random_strategy(self, k, idx):
+        idx_copy = np.copy(idx)
+        np.random.shuffle(idx_copy)
+
+        return list(idx_copy[:k])
+
+    def _kcenter_strategy(self, k, indices, remaining_set_predictions, query_sets_predictions):
+        loader = DataLoader(remaining_set_predictions, batch_size=256, num_workers=4,
+                            pin_memory=True)
+        kc = KCenter()
+
+        if self._device == "cuda":
+            kc.cuda()
+
+        device = self._device
+
+        def batch_step(engine, batch):
+            kc.eval()
+            with torch.no_grad():
+                x = batch
+
+                distance_min_max_value, distance_min_max_id = kc(x, query_sets_predictions, device)
+
+            return distance_min_max_value, distance_min_max_id
+
+        evaluator = Engine(batch_step)
+        ProgressBar().attach(evaluator)
+
+        @evaluator.on(Events.ITERATION_COMPLETED)
+        def append_stolen_labels(evaluator):
+            evaluator.state.min_max_values.append(evaluator.state.output[0])
+            evaluator.state.min_max_idx.append(evaluator.state.output[1])
+
+        selected_points = []
+        for i in range(k):
+            evaluator.state.min_max_values = []
+            evaluator.state.min_max_idx = []
+
+            evaluator.run(loader)
+
+            batch_id = np.argmax(evaluator.state.min_max_values)
+            sample_id = batch_id * 256 + evaluator.state.min_max_idx[batch_id.item()]
+            query_sets_predictions = torch.from_numpy(np.vstack(
+                [query_sets_predictions.cpu(), remaining_set_predictions[sample_id]]))
+
+            selected_points.append(sample_id)
+
+        print(selected_points)
+        selected_samples = [indices[point] for point in selected_points]
+        return selected_samples
+
+    def _select_samples(self, idx, remaining_set_predictions, query_sets):
 
         if self._config.selection_strategy == "entropy":
-            selected_samples = entropy_strategy(self._config.k, idx, remaining_set_predictions)
+            selected_samples = self._entropy_strategy(self._config.k, idx,
+                                                      remaining_set_predictions)
         elif self._config.selection_strategy == "random":
-            selected_samples = random_strategy(self._config.k, idx)
+            selected_samples = self._random_strategy(self._config.k, idx)
+        elif self._config.selection_strategy == "k-center":
+            # Get initial centers
+            query_sets_predictions = self._get_predictions(self._substitute_model, query_sets)
+            selected_samples = self._kcenter_strategy(self._config.k, idx,
+                                                      remaining_set_predictions,
+                                                      query_sets_predictions)
         else:
-            self._logger.warning("Selection strategy must be one of {entropy, random}")
+            self._logger.warning("Selection strategy must be one of {entropy, random, k-center}")
             raise ValueError
 
         return selected_samples
@@ -328,7 +393,8 @@ class ActiveThief(Base):
             # samples
             self._logger.info("Selecting {} samples using the {} strategy from the remaining thief "
                               "dataset".format(self._config.k, self._config.selection_strategy))
-            selected_samples = self._select_samples(idx, remaining_samples_predictions)
+            selected_samples = self._select_samples(idx, remaining_samples_predictions,
+                                                    ConcatDataset(query_sets))
             available_samples -= set(selected_samples)
             query_sets.append(torch.utils.data.Subset(self._thief_dataset, selected_samples))
 
