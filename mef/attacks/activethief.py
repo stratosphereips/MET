@@ -19,12 +19,116 @@ from mef.utils.pytorch.datasets import CustomLabelDataset
 from mef.utils.pytorch.ignite.metrics import MacroAccuracy
 
 
+class DeepFool(object):
+    """Batch deepfool https://github.com/tobylyf/adv-attack/blob/master/mydeepfool.py"""
+
+    def __init__(self, nb_candidate, overshoot=0.02, max_iter=50, clip_min=0.0, clip_max=1.0,
+                 device="cpu"):
+        self._nb_candidate = nb_candidate
+        self._overshoot = overshoot
+        self._max_iter = max_iter
+        self._clip_min = clip_min
+        self._clip_max = clip_max
+        self._device = device
+
+    @staticmethod
+    def _jacobian(predictions, x, nb_classes):
+        list_derivatives = []
+
+        for class_ind in range(nb_classes):
+            outputs = predictions[:, class_ind]
+            derivatives, = torch.autograd.grad(outputs, x, grad_outputs=torch.ones_like(outputs),
+                                               retain_graph=True)
+            list_derivatives.append(derivatives)
+
+        return list_derivatives
+
+    def attack(self, model, x):
+        with torch.no_grad():
+            logits = model(x)
+        nb_classes = logits.size(-1)
+        assert self._nb_candidate <= nb_classes, 'nb_candidate should not be greater than ' \
+                                                 'nb_classes'
+
+        # preds = logits.topk(self.nb_candidate)[0]
+        # grads = torch.stack(jacobian(preds, x, self.nb_candidate), dim=1)
+        # grads will be the shape [batch_size, nb_candidate, image_size]
+
+        adv_x = x.clone().requires_grad_()
+
+        iteration = 0
+        logits = model(adv_x)
+        current = logits.argmax(dim=1)
+        if current.size() == ():
+            current = torch.tensor([current])
+        w = torch.squeeze(torch.zeros(x.size()[1:])).to(self._device)
+        r_tot = torch.zeros(x.size()).to(self._device)
+        original = current
+
+        while ((current == original).any and iteration < self._max_iter):
+            predictions_val = logits.topk(self._nb_candidate)[0]
+            gradients = torch.stack(self._jacobian(predictions_val, adv_x, self._nb_candidate),
+                                    dim=1)
+            with torch.no_grad():
+                for idx in range(x.size(0)):
+                    pert = float('inf')
+                    if current[idx] != original[idx]:
+                        continue
+                    for k in range(1, self._nb_candidate):
+                        w_k = gradients[idx, k, ...] - gradients[idx, 0, ...]
+                        f_k = predictions_val[idx, k] - predictions_val[idx, 0]
+                        # Calculate distance to the hyperplane
+                        # Added 1e-4 for numerical stability
+                        pert_k = (f_k.abs() + 0.00001) / w_k.view(-1).norm()
+                        if pert_k < pert:
+                            pert = pert_k
+                            w = w_k
+
+                    # Calculate minimal vector (perturbation) that projects sample onto the
+                    # closest hyperplane
+                    r_i = pert * w / w.view(-1).norm()
+                    r_tot[idx, ...] = r_tot[idx, ...] + r_i
+
+            adv_x = torch.clamp(r_tot + x, self._clip_min, self._clip_max).requires_grad_()
+            logits = model(adv_x)
+            current = logits.argmax(dim=1)
+            if current.size() == ():
+                current = torch.tensor([current])
+            iteration = iteration + 1
+
+        adv_x = (1 + self._overshoot) * r_tot + x
+
+        return adv_x
+
+
+class Dfal(nn.Module):
+    def __init__(self, model, num_candidates, iterations=20):
+        super().__init__()
+        self._model = model
+        self._device = next(model.parameters()).device
+        self._deepfool = DeepFool(num_candidates, max_iter=iterations, device=self._device)
+
+    def forward(self, x):
+        x = x.to(self._device)
+
+        adversary_x = self._deepfool.attack(self._model, x)
+
+        scores = []
+        for adversary, original in zip(adversary_x, x):
+            scores.append(torch.dist(adversary, original).item())
+
+        return scores
+
+
 class KCenter(nn.Module):
 
-    def forward(self, x, y, device):
-        if device == "cuda":
-            x = x.cuda()
-            y = y.cuda()
+    def __init__(self, device="cpu"):
+        super().__init__()
+        self._device = device
+
+    def forward(self, x, y):
+        x = x.to(self._device)
+        y = y.to(self._device)
 
         distances = torch.cdist(x, y, p=2)
 
@@ -36,12 +140,12 @@ class KCenter(nn.Module):
 
 @dataclass
 class ActiveThiefConfig:
-    selection_strategy: str
-    k: int
-    iterations: int
-    training_epochs: int
-    initial_seed_size: int
-    one_hot_output: bool
+    selection_strategy: str = "entropy"
+    k: int = 1500
+    iterations: int = 10
+    training_epochs: int = 1000
+    initial_seed_size: int = 2000
+    one_hot_output: bool = False
 
 
 class ActiveThief(Base):
@@ -214,9 +318,9 @@ class ActiveThief(Base):
 
         return
 
-    def _entropy_strategy(self, k, idx, predictions):
+    def _entropy_strategy(self, k, idx, remaining_set_predictions):
         scores = {}
-        for sample, prob_dist in zip(idx, predictions):
+        for sample, prob_dist in zip(idx, remaining_set_predictions):
             log_probs = prob_dist * torch.log2(prob_dist)
             raw_entropy = 0 - torch.sum(log_probs)
 
@@ -224,16 +328,9 @@ class ActiveThief(Base):
 
             scores[sample] = normalized_entropy.item()
 
-        scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        j = 0
-        selected_samples = []
-        for sample, score in scores:
-            selected_samples.append(sample)
-            j += 1
-            if j == k:
-                break
+        scores = dict(sorted(scores.items(), key=lambda x: x[1], reverse=True))
 
-        return selected_samples
+        return list(scores.keys())[:k]
 
     def _random_strategy(self, k, idx):
         idx_copy = np.copy(idx)
@@ -241,30 +338,22 @@ class ActiveThief(Base):
 
         return list(idx_copy[:k])
 
-    def _kcenter_strategy(self, k, indices, remaining_set_predictions, query_sets_predictions):
-        loader = DataLoader(remaining_set_predictions, batch_size=256, num_workers=4,
+    def _kcenter_strategy(self, k, idx, remaining_samples_predictions, query_sets_predictions):
+        loader = DataLoader(remaining_samples_predictions, batch_size=256, num_workers=4,
                             pin_memory=True)
-        kc = KCenter()
-
-        if self._device == "cuda":
-            kc.cuda()
-
-        device = self._device
+        kc = KCenter(self._device)
 
         def batch_step(engine, batch):
-            kc.eval()
-            with torch.no_grad():
-                x = batch
-
-                distance_min_max_value, distance_min_max_id = kc(x, query_sets_predictions, device)
-
-            return distance_min_max_value, distance_min_max_id
+            return kc(batch, query_sets_predictions)
 
         evaluator = Engine(batch_step)
         ProgressBar().attach(evaluator)
 
+        evaluator.state.min_max_values = []
+        evaluator.state.min_max_idx = []
+
         @evaluator.on(Events.ITERATION_COMPLETED)
-        def append_stolen_labels(evaluator):
+        def append_most_distant(evaluator):
             evaluator.state.min_max_values.append(evaluator.state.output[0])
             evaluator.state.min_max_idx.append(evaluator.state.output[1])
 
@@ -278,27 +367,52 @@ class ActiveThief(Base):
             batch_id = np.argmax(evaluator.state.min_max_values)
             sample_id = batch_id * 256 + evaluator.state.min_max_idx[batch_id.item()]
             query_sets_predictions = torch.from_numpy(np.vstack(
-                [query_sets_predictions.cpu(), remaining_set_predictions[sample_id]]))
+                [query_sets_predictions.cpu(), remaining_samples_predictions[sample_id]]))
 
             selected_points.append(sample_id)
 
-        print(selected_points)
-        selected_samples = [indices[point] for point in selected_points]
-        return selected_samples
+        return [idx[point] for point in selected_points]
 
-    def _select_samples(self, idx, remaining_set_predictions, query_sets):
+    def _deepfool_strategy(self, k, idx, remaining_samples):
+        self._substitute_model.eval()
+        loader = DataLoader(remaining_samples, batch_size=256, num_workers=4, pin_memory=True)
 
+        df = Dfal(self._substitute_model, self._num_classes)
+
+        def batch_step(engine, batch):
+            return df(batch[0])
+
+        evaluator = Engine(batch_step)
+        ProgressBar().attach(evaluator)
+
+        evaluator.state.scores_values = []
+
+        @evaluator.on(Events.ITERATION_COMPLETED)
+        def append_scores(evaluator):
+            evaluator.state.scores_values.extend(evaluator.state.output)
+
+        evaluator.run(loader)
+        scores_values = evaluator.state.scores_values
+
+        scores = dict(zip(idx, scores_values))
+        scores = dict(sorted(scores.items(), key=lambda x: x[1], reverse=True))
+
+        return list(scores.keys())[:k]
+
+    def _select_samples(self, idx, remaining_samples, remaining_samples_predictions, query_sets):
         if self._config.selection_strategy == "entropy":
             selected_samples = self._entropy_strategy(self._config.k, idx,
-                                                      remaining_set_predictions)
+                                                      remaining_samples_predictions)
         elif self._config.selection_strategy == "random":
             selected_samples = self._random_strategy(self._config.k, idx)
         elif self._config.selection_strategy == "k-center":
             # Get initial centers
             query_sets_predictions = self._get_predictions(self._substitute_model, query_sets)
             selected_samples = self._kcenter_strategy(self._config.k, idx,
-                                                      remaining_set_predictions,
+                                                      remaining_samples_predictions,
                                                       query_sets_predictions)
+        elif self._config.selection_strategy == "dfal":
+            selected_samples = self._deepfool_strategy(self._config.k, idx, remaining_samples)
         else:
             self._logger.warning("Selection strategy must be one of {entropy, random, k-center}")
             raise ValueError
@@ -393,7 +507,8 @@ class ActiveThief(Base):
             # samples
             self._logger.info("Selecting {} samples using the {} strategy from the remaining thief "
                               "dataset".format(self._config.k, self._config.selection_strategy))
-            selected_samples = self._select_samples(idx, remaining_samples_predictions,
+            selected_samples = self._select_samples(idx, remaining_samples,
+                                                    remaining_samples_predictions,
                                                     ConcatDataset(query_sets))
             available_samples -= set(selected_samples)
             query_sets.append(torch.utils.data.Subset(self._thief_dataset, selected_samples))
