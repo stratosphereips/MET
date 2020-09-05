@@ -5,8 +5,8 @@ import torch
 import torch.nn.functional as F
 from ignite.contrib.handlers import ProgressBar
 from ignite.engine import create_supervised_trainer
-from torch.utils.data import DataLoader, ConcatDataset, Subset
-from torchvision.datasets import MNIST, ImageNet
+from torch.utils.data import DataLoader, Subset
+from torchvision.datasets import MNIST, CIFAR10
 from torchvision.transforms import transforms
 
 import mef
@@ -20,9 +20,10 @@ data_root = "../data"
 imagenet_root = "E:/Datasets/ImageNet2012"
 save_loc = "./cache/activethief/MNIST"
 secret_savel_loc = save_loc + "/secret_model.pt"
-thief_dataset_size = 30000
+thief_dataset_size = 20000
 validation_dataset_size = 4000
 train_epochs = 10
+input_dimension = (1, 28, 28)
 device = "cuda"
 
 
@@ -45,9 +46,9 @@ class TestActiveThief(TestCase):
                                                    ks=3,
                                                    n_conv=3,
                                                    n_fc=3))
-        self.secret_model = Mnet(input_dimensions=(1, 28, 28), num_classes=10,
+        self.secret_model = Mnet(input_dimensions=input_dimension, num_classes=10,
                                  model_details=secret_details)
-        self.substitute_model = Mnet(input_dimensions=(1, 28, 28), num_classes=10,
+        self.substitute_model = Mnet(input_dimensions=input_dimension, num_classes=10,
                                      model_details=substitute_details)
 
         if device == "cuda":
@@ -65,23 +66,15 @@ class TestActiveThief(TestCase):
                               transform=transforms.Compose(transform))
         self.test_dataset = mnist["test"]
 
-        transform = [transforms.Resize((28, 28)), transforms.Grayscale(), transforms.ToTensor()]
-        imagenet = dict()
-        imagenet["train"] = ImageNet(root=imagenet_root, transform=transforms.Compose(transform))
-        imagenet["test"] = ImageNet(root=imagenet_root, split="val",
-                                    transform=transforms.Compose(transform))
-        imagenet["all"] = ConcatDataset(imagenet.values())
+        transform = [transforms.Resize(input_dimension[1:]), transforms.Grayscale(),
+                     transforms.ToTensor()]
+        cifar10 = dict()
+        cifar10["train"] = CIFAR10(root=data_root, transform=transforms.Compose(transform))
+        cifar10["test"] = CIFAR10(root=data_root, train=False,
+                                  transform=transforms.Compose(transform))
 
-        available_samples = set(range(len(imagenet["all"])))
-        idx = np.random.choice(np.arange(len(imagenet["all"])), size=thief_dataset_size,
-                               replace=False)
-        available_samples -= set(idx)
-
-        self.thief_dataset = Subset(imagenet["all"], idx)
-
-        idx = np.random.choice(sorted(list(available_samples)), size=validation_dataset_size,
-                               replace=False)
-        self.validation_dataset = Subset(imagenet["all"], idx)
+        self.thief_dataset = cifar10["train"]
+        self.validation_dataset = cifar10["test"]
 
         # Train secret model
         try:
