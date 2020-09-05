@@ -11,7 +11,7 @@ from ignite.engine import create_supervised_evaluator, Events, create_supervised
 from ignite.handlers import Checkpoint, EarlyStopping, global_step_from_engine, DiskSaver
 from ignite.metrics import Fbeta, RunningAverage
 from ignite.utils import to_onehot
-from torch.utils.data import Sampler, DataLoader, ConcatDataset
+from torch.utils.data import DataLoader, ConcatDataset, Subset
 
 from mef.attacks.base import Base
 from mef.utils.config import Configuration
@@ -23,13 +23,14 @@ class DeepFool(object):
     """Batch deepfool https://github.com/tobylyf/adv-attack/blob/master/mydeepfool.py"""
 
     def __init__(self, nb_candidate, overshoot=0.02, max_iter=50, clip_min=0.0, clip_max=1.0,
-                 device="cpu"):
+                 force_max_iter=False, device="cpu"):
         self._nb_candidate = nb_candidate
         self._overshoot = overshoot
         self._max_iter = max_iter
         self._clip_min = clip_min
         self._clip_max = clip_max
         self._device = device
+        self._force_max_iter = force_max_iter
 
     @staticmethod
     def _jacobian(predictions, x, nb_classes):
@@ -65,7 +66,7 @@ class DeepFool(object):
         r_tot = torch.zeros(x.size()).to(self._device)
         original = current
 
-        while ((current == original).any and iteration < self._max_iter):
+        while (current == original).any and (self._force_max_iter or iteration < self._max_iter):
             predictions_val = logits.topk(self._nb_candidate)[0]
             gradients = torch.stack(self._jacobian(predictions_val, adv_x, self._nb_candidate),
                                     dim=1)
@@ -171,6 +172,8 @@ class ActiveThief(Base):
 
         # Dataset information
         self._num_classes = self._secret_model.num_classes
+        self._budget = self._config.initial_seed_size + len(self._validation_dataset_original) + \
+                       (self._config.iterations * self._config.k)
 
     def _get_predictions(self, model, data, one_hot=False):
         loader = DataLoader(data, pin_memory=True, num_workers=4, batch_size=256)
@@ -318,9 +321,9 @@ class ActiveThief(Base):
 
         return
 
-    def _entropy_strategy(self, k, idx, remaining_set_predictions):
+    def _entropy_strategy(self, k, idx, remaining_samples_predictions):
         scores = {}
-        for sample, prob_dist in zip(idx, remaining_set_predictions):
+        for sample, prob_dist in zip(idx, remaining_samples_predictions):
             log_probs = prob_dist * torch.log2(prob_dist)
             raw_entropy = 0 - torch.sum(log_probs)
 
@@ -413,8 +416,20 @@ class ActiveThief(Base):
                                                       query_sets_predictions)
         elif self._config.selection_strategy == "dfal":
             selected_samples = self._deepfool_strategy(self._config.k, idx, remaining_samples)
+        elif self._config.selection_strategy == "dfal+k-center":
+            dfal_selected_samples_idx = self._deepfool_strategy(self._budget, idx,
+                                                                remaining_samples)
+            sorter = np.argsort(idx)
+            ssdl_predictions_idx = sorter[np.searchsorted(idx, dfal_selected_samples_idx,
+                                                          sorter=sorter)]
+            ssdl_predictions = remaining_samples_predictions[ssdl_predictions_idx]
+            # Get initial centers
+            query_sets_predictions = self._get_predictions(self._substitute_model, query_sets)
+            selected_samples = self._kcenter_strategy(self._config.k, dfal_selected_samples_idx,
+                                                      ssdl_predictions, query_sets_predictions)
         else:
-            self._logger.warning("Selection strategy must be one of {entropy, random, k-center}")
+            self._logger.warning("Selection strategy must be one of {entropy, random, k-center, "
+                                 "dfal, dfal+k-center}")
             raise ValueError
 
         return selected_samples
@@ -422,9 +437,7 @@ class ActiveThief(Base):
     def run(self):
         self._logger.info("########### Starting ActiveThief attack ###########")
         # Get budget of the attack
-        budget = self._config.initial_seed_size + len(self._validation_dataset_original) + \
-                 (self._config.iterations * self._config.k)
-        self._logger.info("ActiveThief's attack budget: {}".format(budget))
+        self._logger.info("ActiveThief's attack budget: {}".format(self._budget))
 
         available_samples = set(range(len(self._thief_dataset)))
         query_sets = []
@@ -451,7 +464,7 @@ class ActiveThief(Base):
                                size=self._config.initial_seed_size, replace=False)
         available_samples -= set(idx)
 
-        query_sets.append(torch.utils.data.Subset(self._thief_dataset, idx))
+        query_sets.append(Subset(self._thief_dataset, idx))
         query_set_predictions = self._get_predictions(self._secret_model, query_sets[0],
                                                       self._config.one_hot_output)
         query_sets_predictions.append(query_set_predictions)
@@ -499,7 +512,7 @@ class ActiveThief(Base):
             # Step 4: Approximate labels are obtained for remaining samples using the substitute
             self._logger.info("Getting substitute's predictions for the rest of the thief dataset")
             idx = sorted(list(available_samples))
-            remaining_samples = torch.utils.data.Subset(self._thief_dataset, idx)
+            remaining_samples = Subset(self._thief_dataset, idx)
             remaining_samples_predictions = self._get_predictions(self._substitute_model,
                                                                   remaining_samples)
 
@@ -511,7 +524,7 @@ class ActiveThief(Base):
                                                     remaining_samples_predictions,
                                                     ConcatDataset(query_sets))
             available_samples -= set(selected_samples)
-            query_sets.append(torch.utils.data.Subset(self._thief_dataset, selected_samples))
+            query_sets.append(Subset(self._thief_dataset, selected_samples))
 
             # Step 2: Attacker queries current picked samples to secret model for labeling
             self._logger.info("Getting predictions for the current query set from the secret model")
