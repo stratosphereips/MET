@@ -9,10 +9,6 @@ from ignite.engine import create_supervised_trainer, create_supervised_evaluator
 from ignite.metrics import Accuracy, Loss
 from torch.utils.data import Dataset, Subset, DataLoader
 
-import mef
-from mef.utils.ios import mkdir_if_missing
-
-config_file = "../config.yaml"
 data_root = "../data"
 adult_root = "E:/Datasets/Adult"
 train_epochs = 20
@@ -115,9 +111,6 @@ class AdultDataset(Dataset):
 
 class TestCustomDataset(TestCase):
     def setUp(self) -> None:
-        mkdir_if_missing(save_loc)
-        mef.Test(config_file)
-
         self.adult_data = AdultDataset(adult_root + "/adult.csv")
         self.num_features = len(self.adult_data._x.columns)
         self.log_reg = LogisticRegression(num_features=self.num_features)
@@ -161,8 +154,7 @@ class TestCustomDataset(TestCase):
         evaluator.run(test_loader)
 
         metrics = evaluator.state.metrics
-        print(
-            "Training Result Avg accuracy: {:.2f} Avg loss: {:.2f}".format(metrics["accuracy"],
-                                                                           metrics["bce"]))
+        print("Training Result Avg accuracy: {:.2f} Avg loss: {:.2f}".format(metrics["accuracy"],
+                                                                             metrics["bce"]))
 
         self.assertTrue(True)
