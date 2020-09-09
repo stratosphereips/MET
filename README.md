@@ -5,14 +5,14 @@ user supplied models and datasets.
 
 ## Prerequisites
 
-The code requires Python 3.8 and depends on Pytorch 1.5.1, Torchvision 0.6.1, Numpy 1.18.5, PyYaml 5.3.1, scikit_learn 0.23.2 and dacite 1.5.1. To get all 
+The code requires Python 3.8 and depends on Pytorch 1.5.1, Torchvision 0.6.1, Numpy 1.18.5, PyYaml 5.3.1 and dacite 1.5.1. To get all 
 neccesary packages run `pip install -r requirements.txt`.
 
 [1]: http://image-net.org/challenges/LSVRC/2012/downloads.php#images 
 
 ## Running
 
-To run the framework simply run `python main.py`.
+To test the framework simply run of the test files in the tests folder.
 
 ### Configuration
 
@@ -26,19 +26,19 @@ values.
 
 ## Framework information
 
-This section contains all of the attacks, model architectures and datasets that come built-in in the framework.
+This section contains all of the attacks, model architectures that come built-in in the framework.
 
 ### Attacks
 
 | Attack name     | Description |
 | :--------       | :----       |
-| CopyCat         | Performs the attack by learning new model from dataset that is annotated by the target model.|
+| CopyCat         | Performs the attack by learning new model from a dataset that is annotated by the target model.|
+| ActiveThief     | Performs the attack by learning new model from a dataset that is labeled by the target model. To minimize the number of queries required to learn the new model, active learning techniques are used.|
 
 More details on the attacks can be found on [wiki][4].
 
 [2]: https://arxiv.org/pdf/1711.01768.pdf
 [3]: https://arxiv.org/pdf/1806.05476.pdf
-[4]: TODO
 
 ### Model architectures
 
