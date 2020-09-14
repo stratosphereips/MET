@@ -127,11 +127,11 @@ class KCenter(nn.Module):
         super().__init__()
         self._device = device
 
-    def forward(self, x, y):
-        x = x.to(self._device)
-        y = y.to(self._device)
+    def forward(self, samples_pred, centers_pred):
+        samples_pred = samples_pred.to(self._device)
+        centers_pred = centers_pred.to(self._device)
 
-        distances = torch.cdist(x, y, p=2)
+        distances = torch.cdist(samples_pred, centers_pred, p=2)
 
         distances_min_values, _ = torch.min(distances, dim=1)
         distance_min_max_value, distance_min_max_id = torch.max(distances_min_values, dim=0)

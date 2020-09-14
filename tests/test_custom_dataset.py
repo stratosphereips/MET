@@ -10,7 +10,7 @@ from ignite.metrics import Accuracy, Loss
 from torch.utils.data import Dataset, Subset, DataLoader
 
 data_root = "../data"
-adult_root = "E:/Datasets/Adult"
+adult_root = ""  # Folder containing adult.csv
 train_epochs = 20
 device = "cuda"
 

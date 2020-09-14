@@ -17,7 +17,6 @@ from mef.utils.ios import mkdir_if_missing
 
 config_file = "../config.yaml"
 data_root = "../data"
-imagenet_root = "E:/Datasets/ImageNet2012"
 save_loc = "./cache/activethief/MNIST"
 secret_savel_loc = save_loc + "/secret_model.pt"
 thief_dataset_size = 20000
@@ -69,9 +68,10 @@ class TestActiveThief(TestCase):
         transform = [transforms.Resize(input_dimension[1:]), transforms.Grayscale(),
                      transforms.ToTensor()]
         cifar10 = dict()
-        cifar10["train"] = CIFAR10(root=data_root, transform=transforms.Compose(transform))
-        cifar10["test"] = CIFAR10(root=data_root, train=False,
-                                  transform=transforms.Compose(transform))
+        cifar10["train"] = CIFAR10(root=data_root, download=True,
+                                   transform=transforms.Compose(transform))
+        cifar10["test"] = CIFAR10(root=data_root, download=True,
+                                  train=False, transform=transforms.Compose(transform))
 
         self.thief_dataset = cifar10["train"]
         self.validation_dataset = cifar10["test"]
