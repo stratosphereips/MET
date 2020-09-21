@@ -25,8 +25,7 @@ class CopyCatConfig:
 class CopyCat(Base):
 
     def __init__(self, target_model, opd_model, copycat_model, test_dataset,
-                 problem_domain_dataset=None, non_problem_domain_dataset=None,
-                 save_loc="./cache/copycat"):
+                 pd_dataset=None, npd_dataset=None, save_loc="./cache/copycat"):
         super().__init__()
 
         # Get CopyCat's configuration
@@ -39,10 +38,10 @@ class CopyCat(Base):
 
         # Datasets
         self._td = test_dataset
-        self._pdd = problem_domain_dataset
-        self._pdd_sl = None
-        self._npdd = non_problem_domain_dataset
-        self._npdd_sl = None
+        self._pdd = pd_dataset
+        self._pdd_sl = None  # pdd stolen labels
+        self._npdd = npd_dataset
+        self._npdd_sl = None  # npdd stolen labels
 
         # Models
         self._target_model = target_model

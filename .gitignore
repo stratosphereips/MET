@@ -3,3 +3,7 @@
 /data/
 /.idea/
 /tests/cache/
+/venv/
+/cache/
+__pycache__/
+/log/

@@ -121,24 +121,6 @@ class Dfal(nn.Module):
         return scores
 
 
-class KCenter(nn.Module):
-
-    def __init__(self, device="cpu"):
-        super().__init__()
-        self._device = device
-
-    def forward(self, samples_pred, centers_pred):
-        samples_pred = samples_pred.to(self._device)
-        centers_pred = centers_pred.to(self._device)
-
-        distances = torch.cdist(samples_pred, centers_pred, p=2)
-
-        distances_min_values, _ = torch.min(distances, dim=1)
-        distance_min_max_value, distance_min_max_id = torch.max(distances_min_values, dim=0)
-
-        return distance_min_max_value.cpu(), distance_min_max_id.cpu()
-
-
 @dataclass
 class ActiveThiefConfig:
     selection_strategy: str = "entropy"
@@ -344,16 +326,24 @@ class ActiveThief(Base):
     def _kcenter_strategy(self, k, idx, remaining_samples_predictions, query_sets_predictions):
         loader = DataLoader(remaining_samples_predictions, batch_size=256, num_workers=4,
                             pin_memory=True)
-        kc = KCenter(self._device)
 
         def batch_step(engine, batch):
-            return kc(batch, query_sets_predictions)
+            samples_pred = batch.to(self._device)
+            centers_pred = engine.centers_pred.to(self._device)
+
+            distances = torch.cdist(samples_pred, centers_pred, p=2)
+
+            distances_min_values, _ = torch.min(distances, dim=1)
+            distance_min_max_value, distance_min_max_id = torch.max(distances_min_values, dim=0)
+
+            return distance_min_max_value.cpu(), distance_min_max_id.cpu()
 
         evaluator = Engine(batch_step)
         ProgressBar().attach(evaluator)
 
         evaluator.state.min_max_values = []
         evaluator.state.min_max_idx = []
+        evaluator.centers_pred = query_sets_predictions
 
         @evaluator.on(Events.ITERATION_COMPLETED)
         def append_most_distant(evaluator):
@@ -369,8 +359,8 @@ class ActiveThief(Base):
 
             batch_id = np.argmax(evaluator.state.min_max_values)
             sample_id = batch_id * 256 + evaluator.state.min_max_idx[batch_id.item()]
-            query_sets_predictions = torch.from_numpy(np.vstack(
-                [query_sets_predictions.cpu(), remaining_samples_predictions[sample_id]]))
+            evaluator.centers_pred = torch.from_numpy(np.vstack(
+                [evaluator.centers_pred.cpu(), remaining_samples_predictions[sample_id]]))
 
             selected_points.append(sample_id)
 
