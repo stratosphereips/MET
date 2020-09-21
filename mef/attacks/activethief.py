@@ -141,6 +141,7 @@ class ActiveThief(Base):
         self._config = Configuration.get_configuration(ActiveThiefConfig, "attacks/activethief")
         self._device = "cuda" if self._test_config.gpu is not None else "cpu"
         self._save_loc = save_loc
+        self._selection_strategy = self._config.selection_strategy.lower()
 
         # Datasets
         self._test_dataset = test_dataset
@@ -156,6 +157,12 @@ class ActiveThief(Base):
         self._num_classes = self._secret_model.num_classes
         self._budget = self._config.initial_seed_size + len(self._validation_dataset_original) + \
                        (self._config.iterations * self._config.k)
+        
+        # Check configuration
+        if self._selection_strategy not in ["random", "entropy", "k-center", "dfal", "dfal+k-center"]:
+            self._logger.error("ActiveThief's selection strategy must be one of " +
+                            "{random, entropy, k-center, dfal, dfal+kcenter}")
+            raise ValueError()
 
     def _get_predictions(self, model, data, one_hot=False):
         loader = DataLoader(data, pin_memory=True, num_workers=4, batch_size=256)
@@ -393,20 +400,20 @@ class ActiveThief(Base):
         return list(scores.keys())[:k]
 
     def _select_samples(self, idx, remaining_samples, remaining_samples_predictions, query_sets):
-        if self._config.selection_strategy == "entropy":
+        if self._selection_strategy == "entropy":
             selected_samples = self._entropy_strategy(self._config.k, idx,
                                                       remaining_samples_predictions)
-        elif self._config.selection_strategy == "random":
+        elif self._selection_strategy == "random":
             selected_samples = self._random_strategy(self._config.k, idx)
-        elif self._config.selection_strategy == "k-center":
+        elif self._selection_strategy == "k-center":
             # Get initial centers
             query_sets_predictions = self._get_predictions(self._substitute_model, query_sets)
             selected_samples = self._kcenter_strategy(self._config.k, idx,
                                                       remaining_samples_predictions,
                                                       query_sets_predictions)
-        elif self._config.selection_strategy == "dfal":
+        elif self._selection_strategy == "dfal":
             selected_samples = self._deepfool_strategy(self._config.k, idx, remaining_samples)
-        elif self._config.selection_strategy == "dfal+k-center":
+        elif self._selection_strategy == "dfal+k-center":
             dfal_selected_samples_idx = self._deepfool_strategy(self._budget, idx,
                                                                 remaining_samples)
             sorter = np.argsort(idx)
@@ -509,7 +516,7 @@ class ActiveThief(Base):
             # Step 5: An active learning subset selection strategy is used to select set of k
             # samples
             self._logger.info("Selecting {} samples using the {} strategy from the remaining thief "
-                              "dataset".format(self._config.k, self._config.selection_strategy))
+                              "dataset".format(self._config.k, self._selection_strategy))
             selected_samples = self._select_samples(idx, remaining_samples,
                                                     remaining_samples_predictions,
                                                     ConcatDataset(query_sets))

@@ -33,15 +33,12 @@ class CopyCat(Base):
         self._device = "cuda" if self._test_config.gpu is not None else "cpu"
         self._save_loc = save_loc
 
-        # Attack information
-        self._method = '-'.join(self._config.method)
-
         # Datasets
         self._td = test_dataset
         self._pdd = pd_dataset
-        self._pdd_sl = None  # pdd stolen labels
+        self._pdd_sl = None  # pdd with stolen labels
         self._npdd = npd_dataset
-        self._npdd_sl = None  # npdd stolen labels
+        self._npdd_sl = None  # npdd with stolen labels
 
         # Models
         self._target_model = target_model
@@ -59,6 +56,11 @@ class CopyCat(Base):
         # Stolen labels
         self._sl_pd = None
         self._sl_npd = None
+
+        #Check method
+        if self._config.method.lower() not in ["npd", "pd", "npd+pd"]:
+            self._logger.error("Copycats's method must be one of {npd, pd, npd+pd}")
+            raise ValueError()
 
     def _get_stolen_labels(self, dataset):
         loader = DataLoader(dataset, pin_memory=True, batch_size=256, num_workers=4)
@@ -183,7 +185,7 @@ class CopyCat(Base):
         self._logger.info("########### Starting CopyCat attack ###########")
 
         final_model = None
-        if "npd" in self._method:
+        if "npd" in self._config.method.lower():
             self._logger.info("Getting stolen labels for NPD dataset")
             self._logger.info("NPD dataset size: {}".format(len(self._npdd)))
             self._sl_npd = self._get_stolen_labels(self._npdd)
@@ -191,7 +193,7 @@ class CopyCat(Base):
             self._logger.info("Training copycat model with NPD-SL")
             final_model = self._training(self._copycat_model, self._npdd_sl)
 
-        if "pd" in self._method:
+        if "pd" in self._config.method.lower():
             self._logger.info("Getting stolen labels for PD dataset")
             self._logger.info("PD dataset size: {}".format(len(self._pdd)))
             self._sl_pd = self._get_stolen_labels(self._pdd)
