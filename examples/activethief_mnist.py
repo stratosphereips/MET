@@ -91,8 +91,8 @@ def set_up(args):
         torch.save(dict(state_dict=secret_model.state_dict()), secret_savel_loc)
 
     return dict(secret_model=secret_model, substitute_model=substitute_model,
-                test_dataset=test_dataset,
-                validation_dataset=validation_dataset, thief_dataset=thief_dataset)
+                test_dataset=test_dataset, validation_dataset=validation_dataset,
+                thief_dataset=thief_dataset)
 
 
 if __name__ == "__main__":

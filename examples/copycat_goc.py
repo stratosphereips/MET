@@ -177,12 +177,12 @@ def set_up(args):
 
     target_model = Vgg(vgg_type="vgg_16", input_dimensions=dims, num_classes=9)
     opd_model = Vgg(vgg_type="vgg_16", input_dimensions=dims, num_classes=9)
-    copycat_model = Vgg(vgg_type="vgg_16", input_dimensions=dims, num_classes=9)
+    substitute_model = Vgg(vgg_type="vgg_16", input_dimensions=dims, num_classes=9)
 
     if device == "cuda":
         target_model.cuda()
         opd_model.cuda()
-        copycat_model.cuda()
+        substitute_model.cuda()
 
     print("Preparing data")
     goc = GOCData(npd_size, imagenet_dir, data_dir=data_dir, dims=dims)
@@ -207,7 +207,7 @@ def set_up(args):
         print("Training PD-OL model")
         train_model(opd_model, goc.pd_dataset, target_save_loc, train_epochs, device)
 
-    return dict(target_model=target_model, opd_model=opd_model, copycat_model=copycat_model,
+    return dict(target_model=target_model, opd_model=opd_model, substitute_model=substitute_model,
                 test_dataset=goc.test_dataset, pd_dataset=goc.pd_dataset,
                 npd_dataset=goc.npd_dataset)
 
