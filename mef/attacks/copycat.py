@@ -85,8 +85,8 @@ class CopyCat(Base):
     def _add_ignite_events(self, trainer, evaluator, eval_loader):
         # Evaluator events
         def score_function(engine):
-            val_macro_acc = engine.state.metrics["macro_accuracy"]
-            return val_macro_acc
+            score = engine.state.metrics["f1-score"]
+            return score
 
         early_stop = EarlyStopping(patience=self._test_config.early_stop_tolerance,
                                    score_function=score_function, trainer=trainer)
@@ -95,7 +95,7 @@ class CopyCat(Base):
         to_save = {'copycat_model': self._copycat_model}
         checkpoint_handler = Checkpoint(to_save, DiskSaver(self._save_loc, require_empty=False),
                                         filename_prefix="best", score_function=score_function,
-                                        score_name="macro_accuracy",
+                                        score_name="f1-score",
                                         filename_pattern="{filename_prefix}_{name}_({score_name}="
                                                          "{score}).{ext}",
                                         global_step_transform=global_step_from_engine(trainer))

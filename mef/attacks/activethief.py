@@ -234,11 +234,12 @@ class ActiveThief(Base):
 
         return 100 * evaluator.state.metrics["macro_accuracy"], evaluator.state.metrics["f1-score"]
 
+    # TODO: move to utils.pytorch.ignite
     def _add_ignite_events(self, trainer, evaluator, eval_loader, iteration):
         # Evaluator events
         def score_function(engine):
-            val_macro_acc = engine.state.metrics["macro_accuracy"]
-            return val_macro_acc
+            score = engine.state.metrics["f1-score"]
+            return score
 
         early_stop = EarlyStopping(patience=self._test_config.early_stop_tolerance,
                                    score_function=score_function, trainer=trainer)
@@ -303,7 +304,7 @@ class ActiveThief(Base):
 
         # Load best model and remove the file
         self._logger.info("Loading best model")
-        to_load = {'copycat_model': self._substitute_model}
+        to_load = {'substitute_model': self._substitute_model}
         checkpoint_fp = self._save_loc + '/' + checkpoint_handler.last_checkpoint
         checkpoint = torch.load(checkpoint_fp)
         Checkpoint.load_objects(to_load, checkpoint)
