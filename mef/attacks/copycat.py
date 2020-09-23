@@ -9,6 +9,7 @@ from ignite.engine import create_supervised_trainer, create_supervised_evaluator
 from ignite.handlers import EarlyStopping, Checkpoint, DiskSaver, global_step_from_engine
 from ignite.metrics import Fbeta, RunningAverage
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from mef.utils.pytorch.datasets import CustomLabelDataset
 from ..attacks.base import Base
@@ -57,33 +58,29 @@ class CopyCat(Base):
         self._sl_pd = None
         self._sl_npd = None
 
-        #Check method
+        # Check method
         if self._config.method.lower() not in ["npd", "pd", "npd+pd"]:
             self._logger.error("Copycats's method must be one of {npd, pd, npd+pd}")
             raise ValueError()
 
     def _get_stolen_labels(self, dataset):
-        loader = DataLoader(dataset, pin_memory=True, batch_size=256, num_workers=4)
+        if self._device == "cuda":
+            self._target_model.cuda()
 
-        evaluator = create_supervised_evaluator(self._target_model, device=self._device,
-                                                output_transform=lambda x, y, y_pred:
-                                                torch.argmax(y_pred, dim=1))
-        evaluator.logger = self._logger
-        ProgressBar().attach(evaluator)
+        self._target_model.eval()
+        loader = DataLoader(dataset, pin_memory=True, batch_size=self._test_config.batch_size,
+                            num_workers=4)
+        stolen_labes = []
+        with torch.no_grad():
+            for _, batch in enumerate(tqdm(loader, desc="Getting labels")):
+                x, _ = batch
+                if self._device == "cuda":
+                    x = x.cuda()
 
-        evaluator.state.stolen_labels = []
+                y_pred = self._target_model(x)
+                stolen_labes.append(torch.argmax(y_pred.cpu(), dim=1))
 
-        @evaluator.on(Events.ITERATION_COMPLETED)
-        def append_stolen_labels(evaluator):
-            evaluator.state.stolen_labels.append(evaluator.state.output)
-
-        @evaluator.on(Events.COMPLETED)
-        def append_stolen_labels(evaluator):
-            evaluator.state.output = torch.cat(evaluator.state.stolen_labels).cpu()
-
-        evaluator.run(loader)
-
-        return evaluator.state.output
+        return torch.cat(stolen_labes)
 
     def _add_ignite_events(self, trainer, evaluator, eval_loader):
         # Evaluator events
@@ -129,17 +126,19 @@ class CopyCat(Base):
         # Prepare evaluator
         metrics = {
             "macro_accuracy": MacroAccuracy(self._num_classes),
-            "f1beta-score": Fbeta(beta=1)
+            "f1-score": Fbeta(beta=1)
         }
         evaluator = create_supervised_evaluator(model, metrics=metrics, device=self._device)
         evaluator.logger = self._logger
 
-        eval_loader = DataLoader(dataset=self._td, batch_size=256, pin_memory=True, num_workers=4)
+        eval_loader = DataLoader(dataset=self._td, batch_size=self._test_config.batch_size,
+                                 pin_memory=True, num_workers=4)
         checkpoint_handler = self._add_ignite_events(trainer, evaluator, eval_loader)
 
         # Start trainer
-        train_loader = DataLoader(dataset=training_data, shuffle=True, batch_size=128,
-                                  pin_memory=True, num_workers=4)
+        train_loader = DataLoader(dataset=training_data, shuffle=True,
+                                  batch_size=self._test_config.batch_size, pin_memory=True,
+                                  num_workers=4)
         trainer.run(train_loader, max_epochs=self._config.training_epochs)
 
         # Load best model and remove the file
@@ -157,7 +156,8 @@ class CopyCat(Base):
             "macro_accuracy": MacroAccuracy(self._target_model.num_classes),
             "f1beta-score": Fbeta(beta=1)
         }
-        test_loader = DataLoader(self._td, pin_memory=True, batch_size=256, num_workers=4)
+        test_loader = DataLoader(self._td, pin_memory=True, batch_size=self._test_config.batch_size,
+                                 num_workers=4)
         models = dict(target_model=self._target_model, opd_model=self._opd_model,
                       copycat_model=self._copycat_model)
         results = dict()
@@ -190,6 +190,7 @@ class CopyCat(Base):
             self._logger.info("NPD dataset size: {}".format(len(self._npdd)))
             self._sl_npd = self._get_stolen_labels(self._npdd)
             self._npdd_sl = CustomLabelDataset(self._npdd, self._sl_npd)
+
             self._logger.info("Training copycat model with NPD-SL")
             final_model = self._training(self._copycat_model, self._npdd_sl)
 
@@ -198,6 +199,7 @@ class CopyCat(Base):
             self._logger.info("PD dataset size: {}".format(len(self._pdd)))
             self._sl_pd = self._get_stolen_labels(self._pdd)
             self._pdd_sl = CustomLabelDataset(self._pdd, self._sl_pd)
+
             self._logger.info("Training copycat model with PD-SL")
             final_model = self._training(self._copycat_model, self._pdd_sl)
 
