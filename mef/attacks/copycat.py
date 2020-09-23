@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
 
 import torch
 import torch.nn.functional as F
@@ -12,20 +11,20 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from mef.utils.pytorch.datasets import CustomLabelDataset
-from ..attacks.base import Base
+from .base import Base
 from ..utils.config import Configuration
 from ..utils.pytorch.ignite.metrics import MacroAccuracy
 
 
 @dataclass
 class CopyCatConfig:
-    method: List[str]
+    method: str
     training_epochs: int
 
 
 class CopyCat(Base):
 
-    def __init__(self, target_model, opd_model, copycat_model, test_dataset,
+    def __init__(self, target_model, opd_model, substitute_model, test_dataset, num_classes,
                  pd_dataset=None, npd_dataset=None, save_loc="./cache/copycat"):
         super().__init__()
 
@@ -33,6 +32,7 @@ class CopyCat(Base):
         self._config = Configuration.get_configuration(CopyCatConfig, "attacks/copycat")
         self._device = "cuda" if self._test_config.gpu is not None else "cpu"
         self._save_loc = save_loc
+        self._method = self._config.method.lower()
 
         # Datasets
         self._td = test_dataset
@@ -44,22 +44,22 @@ class CopyCat(Base):
         # Models
         self._target_model = target_model
         self._opd_model = opd_model
-        self._copycat_model = copycat_model
+        self._substitute_model = substitute_model
 
         # Dataset information
-        self._num_classes = self._target_model.num_classes
+        self._num_classes = num_classes
 
         if self._test_config.gpu is not None:
             self._target_model.cuda()
             self._opd_model.cuda()
-            self._copycat_model.cuda()
+            self._substitute_model.cuda()
 
         # Stolen labels
         self._sl_pd = None
         self._sl_npd = None
 
         # Check method
-        if self._config.method.lower() not in ["npd", "pd", "npd+pd"]:
+        if self._method not in ["npd", "pd", "npd+pd"]:
             self._logger.error("Copycats's method must be one of {npd, pd, npd+pd}")
             raise ValueError()
 
@@ -92,7 +92,7 @@ class CopyCat(Base):
                                    score_function=score_function, trainer=trainer)
         evaluator.add_event_handler(Events.COMPLETED, early_stop)
 
-        to_save = {'copycat_model': self._copycat_model}
+        to_save = {'copycat_model': self._substitute_model}
         checkpoint_handler = Checkpoint(to_save, DiskSaver(self._save_loc, require_empty=False),
                                         filename_prefix="best", score_function=score_function,
                                         score_name="f1-score",
@@ -112,7 +112,7 @@ class CopyCat(Base):
             trainer.logger.info("Test dataset results - Epoch: {}  Macro-averaged accuracy: {:.1f}%"
                                 " F1-score: {:.3f}".format(trainer.state.epoch,
                                                            100 * metrics["macro_accuracy"],
-                                                           metrics["f1beta-score"]))
+                                                           metrics["f1-score"]))
 
         return checkpoint_handler
 
@@ -143,7 +143,7 @@ class CopyCat(Base):
 
         # Load best model and remove the file
         self._logger.info("Loading best model")
-        to_load = {'copycat_model': self._copycat_model}
+        to_load = {'copycat_model': self._substitute_model}
         checkpoint_fp = self._save_loc + '/' + checkpoint_handler.last_checkpoint
         checkpoint = torch.load(checkpoint_fp)
         Checkpoint.load_objects(to_load, checkpoint)
@@ -153,20 +153,20 @@ class CopyCat(Base):
 
     def _get_final_metrics(self):
         val_metrics = {
-            "macro_accuracy": MacroAccuracy(self._target_model.num_classes),
-            "f1beta-score": Fbeta(beta=1)
+            "macro_accuracy": MacroAccuracy(self._num_classes),
+            "f1-score": Fbeta(beta=1)
         }
         test_loader = DataLoader(self._td, pin_memory=True, batch_size=self._test_config.batch_size,
                                  num_workers=4)
         models = dict(target_model=self._target_model, opd_model=self._opd_model,
-                      copycat_model=self._copycat_model)
+                      copycat_model=self._substitute_model)
         results = dict()
         for name, model in models.items():
             evaluator = create_supervised_evaluator(model, metrics=val_metrics, device=self._device)
             evaluator.run(test_loader)
 
             macro_accuracy = evaluator.state.metrics["macro_accuracy"]
-            f1_score = evaluator.state.metrics["f1beta-score"]
+            f1_score = evaluator.state.metrics["f1-score"]
 
             self._logger.info("{} test data results: Macro-averaged accuracy: {:.1f}% F1-score: "
                               "{:.3f}".format(name.capitalize().replace('_', ' '),
@@ -185,28 +185,28 @@ class CopyCat(Base):
         self._logger.info("########### Starting CopyCat attack ###########")
 
         final_model = None
-        if "npd" in self._config.method.lower():
+        if "npd" in self._method:
             self._logger.info("Getting stolen labels for NPD dataset")
             self._logger.info("NPD dataset size: {}".format(len(self._npdd)))
             self._sl_npd = self._get_stolen_labels(self._npdd)
             self._npdd_sl = CustomLabelDataset(self._npdd, self._sl_npd)
 
-            self._logger.info("Training copycat model with NPD-SL")
-            final_model = self._training(self._copycat_model, self._npdd_sl)
+            self._logger.info("Training substitute model with NPD-SL")
+            final_model = self._training(self._substitute_model, self._npdd_sl)
 
-        if "pd" in self._config.method.lower():
+        if "pd" in self._method:
             self._logger.info("Getting stolen labels for PD dataset")
             self._logger.info("PD dataset size: {}".format(len(self._pdd)))
             self._sl_pd = self._get_stolen_labels(self._pdd)
             self._pdd_sl = CustomLabelDataset(self._pdd, self._sl_pd)
 
-            self._logger.info("Training copycat model with PD-SL")
-            final_model = self._training(self._copycat_model, self._pdd_sl)
+            self._logger.info("Training substitute model with PD-SL")
+            final_model = self._training(self._substitute_model, self._pdd_sl)
 
         self._logger.info("Getting final metrics")
         self._get_final_metrics()
 
         self._logger.info("Saving final model to: {}".format(final_model))
-        torch.save(dict(state_dict=self._copycat_model.state_dict), final_model)
+        torch.save(dict(state_dict=self._substitute_model.state_dict), final_model)
 
         return

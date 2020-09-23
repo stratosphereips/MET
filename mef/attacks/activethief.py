@@ -14,13 +14,13 @@ from ignite.utils import to_onehot
 from torch.utils.data import DataLoader, ConcatDataset, Subset
 from tqdm import tqdm
 
-from mef.attacks.base import Base
-from mef.utils.config import Configuration
-from mef.utils.pytorch.datasets import CustomLabelDataset
-from mef.utils.pytorch.ignite.metrics import MacroAccuracy
+from .base import Base
+from ..utils.config import Configuration
+from ..utils.pytorch.datasets import CustomLabelDataset
+from ..utils.pytorch.ignite.metrics import MacroAccuracy
 
 
-class DeepFool(object):
+class DeepFool:
     """Batch deepfool https://github.com/tobylyf/adv-attack/blob/master/mydeepfool.py"""
 
     def __init__(self, nb_candidate, overshoot=0.02, max_iter=50, clip_min=0.0, clip_max=1.0,
@@ -151,7 +151,7 @@ class ActiveThief(Base):
         self._validation_dataset_predicted = None
 
         # Models
-        self._secret_model = secret_model
+        self._victim_model = secret_model
         self._substitute_model = substitute_model
 
         # Dataset information
@@ -427,7 +427,7 @@ class ActiveThief(Base):
 
         # Prepare validation set
         self._logger.info("Preparing validation dataset")
-        validation_predictions = self._get_predictions(self._secret_model,
+        validation_predictions = self._get_predictions(self._victim_model,
                                                        self._validation_dataset_original,
                                                        self._config.one_hot_output)
         self._validation_dataset_predicted = CustomLabelDataset(self._validation_dataset_original,
@@ -447,13 +447,13 @@ class ActiveThief(Base):
         available_samples -= set(idx)
 
         query_sets.append(Subset(self._thief_dataset, idx))
-        query_set_predictions = self._get_predictions(self._secret_model, query_sets[0],
+        query_set_predictions = self._get_predictions(self._victim_model, query_sets[0],
                                                       self._config.one_hot_output)
         query_sets_predictions.append(query_set_predictions)
 
         # Get secret model predicted labels for test dataset
         self._logger.info("Getting secret model's labels for test dataset")
-        true_test_labels = self._get_labels(self._secret_model, self._test_dataset).numpy()
+        true_test_labels = self._get_labels(self._victim_model, self._test_dataset).numpy()
 
         self._logger.info("Number of test samples: {}".format(len(true_test_labels)))
 
@@ -466,7 +466,7 @@ class ActiveThief(Base):
             # Get metrics from secret model and substitute model
             self._logger.info("Test dataset metrics")
             self._logger.info("Secret model macro-accuracy: {:.1f}% F1-score: {:.3f}".format(
-                *self._test_model(self._secret_model, self._test_dataset)))
+                *self._test_model(self._victim_model, self._test_dataset)))
             self._logger.info("Substitute model macro-accuracy: {:.1f}% F1-score: {:.3f}".format(
                 *self._test_model(self._substitute_model, self._test_dataset)))
 
@@ -510,6 +510,6 @@ class ActiveThief(Base):
 
             # Step 2: Attacker queries current picked samples to secret model for labeling
             self._logger.info("Getting predictions for the current query set from the secret model")
-            query_set_predictions = self._get_predictions(self._secret_model, query_sets[iteration],
+            query_set_predictions = self._get_predictions(self._victim_model, query_sets[iteration],
                                                           self._config.one_hot_output)
             query_sets_predictions.append(query_set_predictions)

@@ -165,8 +165,8 @@ def train_model(model, train_data, save_loc, train_epochs, device):
 
 
 def set_up(args):
-    data_dir = args.data_root
-    imagenet_dir = args.imagenet_root
+    data_dir = args.data_dir
+    imagenet_dir = args.imagenet_dir
     save_loc = args.save_loc
     target_save_loc = save_loc + "/final_target_model.pt"
     opd_save_loc = save_loc + "/final_opd_model.pt"
@@ -218,4 +218,4 @@ if __name__ == "__main__":
     attack_variables = set_up(args)
 
     mef.Test(args.config_file)
-    copycat = CopyCat(**attack_variables, save_loc=args.save_loc).run()
+    copycat = CopyCat(**attack_variables, num_classes=9, save_loc=args.save_loc).run()
