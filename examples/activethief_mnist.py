@@ -28,8 +28,6 @@ def parse_args():
                         help="path to folder where attack's files will be saved")
     parser.add_argument("-t", "--train_epochs", type=int, default=10,
                         help="number of training epochs for the secret model")
-    parser.add_argument("-g", "--gpu", type=bool, default=False,
-                        help="whether gpu should be used")
 
     args = parser.parse_args()
     return args
@@ -38,16 +36,16 @@ def parse_args():
 def set_up(args):
     data_dir = args.data_dir
     save_loc = args.save_loc
-    secret_savel_loc = save_loc + "/secret_model.pt"
+    victim_savel_loc = save_loc + "/final_victim_model.pt"
     train_epochs = args.train_epochs
-    device = "cuda" if args.gpu else "cpu"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     dims = (1, 96, 96)
 
-    secret_model = SimpleNet(input_dimensions=dims, num_classes=10)
+    victim_model = SimpleNet(input_dimensions=dims, num_classes=10)
     substitute_model = SimpleNet(input_dimensions=dims, num_classes=10)
 
     if device == "cuda":
-        secret_model.cuda()
+        victim_model.cuda()
         substitute_model.cuda()
 
     # Prepare data
@@ -73,32 +71,32 @@ def set_up(args):
 
     # Train secret model
     try:
-        saved_model = torch.load(secret_savel_loc)
-        secret_model.load_state_dict(saved_model["state_dict"])
+        saved_model = torch.load(victim_savel_loc)
+        victim_model.load_state_dict(saved_model["state_dict"])
         print("Loaded target model")
     except FileNotFoundError:
         # Prepare secret model
         print("Training secret model")
         train_loader = DataLoader(dataset=mnist["train"], batch_size=64, shuffle=True,
                                   num_workers=4, pin_memory=True)
-        optimizer = torch.optim.Adam(secret_model.parameters())
+        optimizer = torch.optim.Adam(victim_model.parameters())
         loss_function = F.cross_entropy
-        trainer = create_supervised_trainer(secret_model, optimizer, loss_function,
+        trainer = create_supervised_trainer(victim_model, optimizer, loss_function,
                                             device=device)
         ProgressBar().attach(trainer)
         trainer.run(train_loader, max_epochs=train_epochs)
 
-        torch.save(dict(state_dict=secret_model.state_dict()), secret_savel_loc)
+        torch.save(dict(state_dict=victim_model.state_dict()), victim_savel_loc)
 
-    return dict(secret_model=secret_model, substitute_model=substitute_model,
+    return dict(victim_model=victim_model, substitute_model=substitute_model,
                 test_dataset=test_dataset, validation_dataset=validation_dataset,
-                thief_dataset=thief_dataset)
+                thief_dataset=thief_dataset, num_classes=10)
 
 
 if __name__ == "__main__":
     args = parse_args()
-    mkdir_if_missing(args.save_loc)
-    variables = set_up(args)
-
     mef.Test(args.config_file)
-    ActiveThief(**variables, num_classes=10, save_loc=args.save_loc).run()
+    mkdir_if_missing(args.save_loc)
+
+    variables = set_up(args)
+    ActiveThief(**variables, save_loc=args.save_loc).run()

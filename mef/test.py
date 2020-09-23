@@ -1,8 +1,6 @@
-import random
 from dataclasses import dataclass
 from logging import getLogger
 
-import numpy as np
 import torch
 from ignite.utils import manual_seed
 
@@ -14,7 +12,7 @@ from mef.utils.logger import set_up_logger
 @dataclass
 class TestConfig:
     name: str = "Mef"
-    gpu: int = None
+    cuda: bool = False
     log_level: str = "info"
     batch_size: int = 64
     evaluation_frequency: int = 2
@@ -31,8 +29,11 @@ class Test:
     def __init__(self, config_file):
         Configuration(config_file)
         self._config = Configuration.get_configuration(TestConfig, "test")
+        self._config.cuda = torch.cuda.is_available()
+
         set_up_logger(self._config.name, self._config.log_level)
         self._logger = getLogger(self._config.name)
+
         manual_seed(self._config.seed)
 
         # Make the configuration file and logger available framework wide

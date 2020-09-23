@@ -7,7 +7,7 @@ import torch
 import torch.nn.functional as F
 from ignite.contrib.handlers import ProgressBar
 from ignite.engine import create_supervised_trainer
-from torch.utils.data import ConcatDataset, Subset, DataLoader, random_split
+from torch.utils.data import ConcatDataset, DataLoader, random_split
 from torchvision.datasets import CIFAR10, STL10, ImageNet
 from torchvision.transforms import transforms
 
@@ -17,6 +17,7 @@ import mef
 from mef.attacks.copycat import CopyCat
 from mef.models.vision.vgg import Vgg
 from mef.utils.ios import mkdir_if_missing
+
 
 class GOCData:
 
@@ -106,6 +107,7 @@ class GOCData:
         self.npd_dataset, _ = random_split(imagenet["all"], [self.npd_size, len(imagenet["all"]) -
                                                              self.npd_size])
 
+
 def parse_args():
     parser = argparse.ArgumentParser("ActiveThief - MNIST example")
     parser.add_argument("-c", "--config_file", type=str, default="./config.yaml",
@@ -121,8 +123,6 @@ def parse_args():
                              "ImageNet2012")
     parser.add_argument("-t", "--train_epochs", type=int, default=10,
                         help="number of trainining epochs for the target model and pd_ol model")
-    parser.add_argument("-g", "--gpu", type=bool, default=False,
-                        help="whether gpu should be used")
 
     args = parser.parse_args()
     return args
@@ -168,19 +168,19 @@ def set_up(args):
     data_dir = args.data_dir
     imagenet_dir = args.imagenet_dir
     save_loc = args.save_loc
-    target_save_loc = save_loc + "/final_target_model.pt"
+    victim_save_loc = save_loc + "/final_victim_model.pt"
     opd_save_loc = save_loc + "/final_opd_model.pt"
     npd_size = args.npd_size
     train_epochs = args.train_epochs
-    device = "cuda" if args.gpu else "cpu"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     dims = (3, 64, 64)
 
-    target_model = Vgg(vgg_type="vgg_16", input_dimensions=dims, num_classes=9)
+    victim_model = Vgg(vgg_type="vgg_16", input_dimensions=dims, num_classes=9)
     opd_model = Vgg(vgg_type="vgg_16", input_dimensions=dims, num_classes=9)
     substitute_model = Vgg(vgg_type="vgg_16", input_dimensions=dims, num_classes=9)
 
     if device == "cuda":
-        target_model.cuda()
+        victim_model.cuda()
         opd_model.cuda()
         substitute_model.cuda()
 
@@ -191,12 +191,12 @@ def set_up(args):
 
     # Prepare target model
     try:
-        saved_model = torch.load(target_save_loc)
-        target_model.load_state_dict(saved_model["state_dict"])
+        saved_model = torch.load(victim_save_loc)
+        victim_model.load_state_dict(saved_model["state_dict"])
         print("Loaded target model")
     except FileNotFoundError:
         print("Training target model")
-        train_model(target_model, goc.od_dataset, target_save_loc, train_epochs, device)
+        train_model(victim_model, goc.od_dataset, victim_save_loc, train_epochs, device)
 
     # Prepare PD-OL model
     try:
@@ -205,17 +205,17 @@ def set_up(args):
         print("Loaded PD-OL model")
     except FileNotFoundError:
         print("Training PD-OL model")
-        train_model(opd_model, goc.pd_dataset, target_save_loc, train_epochs, device)
+        train_model(opd_model, goc.pd_dataset, opd_save_loc, train_epochs, device)
 
-    return dict(target_model=target_model, opd_model=opd_model, substitute_model=substitute_model,
+    return dict(victim_model=victim_model, opd_model=opd_model, substitute_model=substitute_model,
                 test_dataset=goc.test_dataset, pd_dataset=goc.pd_dataset,
-                npd_dataset=goc.npd_dataset)
+                npd_dataset=goc.npd_dataset, num_classes=9)
 
 
 if __name__ == "__main__":
     args = parse_args()
-    mkdir_if_missing(args.save_loc)
-    attack_variables = set_up(args)
-
     mef.Test(args.config_file)
-    copycat = CopyCat(**attack_variables, num_classes=9, save_loc=args.save_loc).run()
+    mkdir_if_missing(args.save_loc)
+
+    attack_variables = set_up(args)
+    copycat = CopyCat(**attack_variables, save_loc=args.save_loc).run()

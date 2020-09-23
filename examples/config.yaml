@@ -1,6 +1,5 @@
 test:
   name: "test_run"
-  gpu: 0
   log_level: "info"
   batch_size: 64
   evaluation_frequency: 2

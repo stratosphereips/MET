@@ -24,13 +24,13 @@ class CopyCatConfig:
 
 class CopyCat(Base):
 
-    def __init__(self, target_model, opd_model, substitute_model, test_dataset, num_classes,
+    def __init__(self, victim_model, opd_model, substitute_model, test_dataset, num_classes,
                  pd_dataset=None, npd_dataset=None, save_loc="./cache/copycat"):
         super().__init__()
 
         # Get CopyCat's configuration
         self._config = Configuration.get_configuration(CopyCatConfig, "attacks/copycat")
-        self._device = "cuda" if self._test_config.gpu is not None else "cpu"
+        self._device = "cuda" if self._test_config.cuda else "cpu"
         self._save_loc = save_loc
         self._method = self._config.method.lower()
 
@@ -42,15 +42,15 @@ class CopyCat(Base):
         self._npdd_sl = None  # npdd with stolen labels
 
         # Models
-        self._target_model = target_model
+        self._victim_model = victim_model
         self._opd_model = opd_model
         self._substitute_model = substitute_model
 
         # Dataset information
         self._num_classes = num_classes
 
-        if self._test_config.gpu is not None:
-            self._target_model.cuda()
+        if self._test_config.cuda is not None:
+            self._victim_model.cuda()
             self._opd_model.cuda()
             self._substitute_model.cuda()
 
@@ -65,9 +65,9 @@ class CopyCat(Base):
 
     def _get_stolen_labels(self, dataset):
         if self._device == "cuda":
-            self._target_model.cuda()
+            self._victim_model.cuda()
 
-        self._target_model.eval()
+        self._victim_model.eval()
         loader = DataLoader(dataset, pin_memory=True, batch_size=self._test_config.batch_size,
                             num_workers=4)
         stolen_labes = []
@@ -77,7 +77,7 @@ class CopyCat(Base):
                 if self._device == "cuda":
                     x = x.cuda()
 
-                y_pred = self._target_model(x)
+                y_pred = self._victim_model(x)
                 stolen_labes.append(torch.argmax(y_pred.cpu(), dim=1))
 
         return torch.cat(stolen_labes)
@@ -158,7 +158,7 @@ class CopyCat(Base):
         }
         test_loader = DataLoader(self._td, pin_memory=True, batch_size=self._test_config.batch_size,
                                  num_workers=4)
-        models = dict(target_model=self._target_model, opd_model=self._opd_model,
+        models = dict(target_model=self._victim_model, opd_model=self._opd_model,
                       copycat_model=self._substitute_model)
         results = dict()
         for name, model in models.items():
@@ -175,9 +175,9 @@ class CopyCat(Base):
             results[name] = (macro_accuracy, f1_score)
 
         perf_over_tn = 100 * (results["copycat_model"][0] / results["target_model"][0])
-        self._logger.info("Performance over target network: {:.1f}%".format(perf_over_tn))
+        self._logger.info("Performance over victim model: {:.1f}%".format(perf_over_tn))
         perf_over_opd = 100 * (results["copycat_model"][0] / results["opd_model"][0])
-        self._logger.info("Performance over PD-OL network: {:.1f}%".format(perf_over_opd))
+        self._logger.info("Performance over PD-OL model: {:.1f}%".format(perf_over_opd))
 
         return
 
@@ -206,7 +206,7 @@ class CopyCat(Base):
         self._logger.info("Getting final metrics")
         self._get_final_metrics()
 
-        self._logger.info("Saving final model to: {}".format(final_model))
+        self._logger.info("Saving final substitute model to: {}".format(final_model))
         torch.save(dict(state_dict=self._substitute_model.state_dict), final_model)
 
         return

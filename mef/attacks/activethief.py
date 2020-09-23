@@ -134,13 +134,13 @@ class ActiveThiefConfig:
 
 class ActiveThief(Base):
 
-    def __init__(self, secret_model, substitute_model, test_dataset, thief_dataset,
+    def __init__(self, victim_model, substitute_model, test_dataset, thief_dataset,
                  validation_dataset, num_classes, save_loc="./cache/activethief"):
         super().__init__()
 
         # Get ActiveThief's configuration
         self._config = Configuration.get_configuration(ActiveThiefConfig, "attacks/activethief")
-        self._device = "cuda" if self._test_config.gpu is not None else "cpu"
+        self._device = "cuda" if self._test_config.cuda else "cpu"
         self._save_loc = save_loc
         self._selection_strategy = self._config.selection_strategy.lower()
 
@@ -151,8 +151,12 @@ class ActiveThief(Base):
         self._validation_dataset_predicted = None
 
         # Models
-        self._victim_model = secret_model
+        self._victim_model = victim_model
         self._substitute_model = substitute_model
+
+        if self._test_config.cuda:
+            self._victim_model.cuda()
+            self._substitute_model.cuda()
 
         # Dataset information
         self._num_classes = num_classes
@@ -452,7 +456,7 @@ class ActiveThief(Base):
         query_sets_predictions.append(query_set_predictions)
 
         # Get secret model predicted labels for test dataset
-        self._logger.info("Getting secret model's labels for test dataset")
+        self._logger.info("Getting victim model's labels for test dataset")
         true_test_labels = self._get_labels(self._victim_model, self._test_dataset).numpy()
 
         self._logger.info("Number of test samples: {}".format(len(true_test_labels)))
@@ -465,7 +469,7 @@ class ActiveThief(Base):
 
             # Get metrics from secret model and substitute model
             self._logger.info("Test dataset metrics")
-            self._logger.info("Secret model macro-accuracy: {:.1f}% F1-score: {:.3f}".format(
+            self._logger.info("Victim model macro-accuracy: {:.1f}% F1-score: {:.3f}".format(
                 *self._test_model(self._victim_model, self._test_dataset)))
             self._logger.info("Substitute model macro-accuracy: {:.1f}% F1-score: {:.3f}".format(
                 *self._test_model(self._substitute_model, self._test_dataset)))
@@ -509,7 +513,7 @@ class ActiveThief(Base):
             query_sets.append(Subset(self._thief_dataset, selected_samples))
 
             # Step 2: Attacker queries current picked samples to secret model for labeling
-            self._logger.info("Getting predictions for the current query set from the secret model")
+            self._logger.info("Getting predictions for the current query set from the victim model")
             query_set_predictions = self._get_predictions(self._victim_model, query_sets[iteration],
                                                           self._config.one_hot_output)
             query_sets_predictions.append(query_set_predictions)
