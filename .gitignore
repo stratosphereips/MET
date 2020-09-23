@@ -1,9 +1,9 @@
-/tests/data/
-/tests/log/
+/examples/data/
+/examples/log/
+/examples/cache/
 /data/
-/.idea/
-/tests/cache/
-/venv/
-/cache/
-__pycache__/
 /log/
+/cache/
+/.idea/
+/venv/
+__pycache__/

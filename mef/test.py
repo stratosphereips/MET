@@ -15,7 +15,7 @@ class TestConfig:
     name: str = "Mef"
     gpu: int = None
     log_level: str = "info"
-    batch_log_interval: int = 100
+    batch_size: int = 64
     evaluation_frequency: int = 2
     early_stop_tolerance: int = 10
     overwrite_models: bool = False
@@ -32,6 +32,7 @@ class Test:
         self._config = Configuration.get_configuration(TestConfig, "test")
         set_up_logger(self._config.name, self._config.log_level)
         self._logger = getLogger(self._config.name)
+        self._set_seed()
 
         # Make the configuration file and logger available framework wide
         mef.attacks.base.Base._logger = self._logger
@@ -40,7 +41,7 @@ class Test:
     def _set_seed(self):
         self._logger.debug("Setting seed for random generators.")
 
-        seed = self._config.test.seed
+        seed = self._config.seed
         torch.manual_seed(seed)
         torch.cuda.manual_seed(seed)
         random.seed(seed)

@@ -1,28 +1,31 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from mef.models.base import Base
-from mef.utils.pytorch.blocks import ConvBlock, return_drop
+from mef.utils.pytorch.blocks import ConvBlock
 
 
-class SimpleNet(Base):
+class SimpleNet(nn.Module):
     """https://paperswithcode.com/paper/lets-keep-it-simple-using-simple"""
 
-    def __init__(self, input_dimensions, num_classes, model_details):
-        super().__init__(input_dimensions, num_classes, model_details)
+    def __init__(self, input_dimensions, num_classes, pool=False, drop=False):
+        super().__init__()
 
-        self._layers = self._make_layers(self.input_dimensions[0])
+        self._layers = self._make_layers(input_dimensions[0])
 
         self._pool = lambda a: a
-        if self.details.net.pool != "none":
+        if pool:
             self._pool = lambda a: F.max_pool2d(a, kernel_size=a.size()[2:])
 
         self._drop = lambda a: a
-        if self.details.net.drop != "none":
-            drop = return_drop(self.details.net.drop, p=0.1)
+        if drop:
+            drop = nn.Dropout(p=0.1)
             self._drop = lambda a: drop(a)
 
-        self._fc_final = nn.Linear(256, self.num_classes)
+        test_input = torch.zeros(1, input_dimensions[0], input_dimensions[1], input_dimensions[2])
+        test_out = self._layers(test_input)
+        n_features = test_out.size(1) * test_out.size(2) * test_out.size(3)
+        self._fc_final = nn.Linear(n_features, num_classes)
 
     def forward(self, x):
         x = self._layers(x)

@@ -1,28 +1,23 @@
 import torch
 import torch.nn as nn
 import torchvision
-from torch.autograd import Variable
-
-from mef.models.base import Base
 
 
-class AlexNet(Base):
+class AlexNet(nn.Module):
     """
     AlexNet model architecture using pytorch pretrained models with modifiable
     input size.
     """
 
-    def __init__(self, input_dimensions, num_classes, model_details):
-        super().__init__(input_dimensions, num_classes, model_details)
+    def __init__(self, input_dimensions, num_classes):
+        super().__init__()
 
         # Load convolutional part of resnet
         alexnet = torchvision.models.alexnet(pretrained=True)
         self._features = alexnet.features
 
         # Init fully connected part of resnet
-        test_input = Variable(torch.zeros(1, self.input_dimensions[0],
-                                          self.input_dimensions[1],
-                                          self.input_dimensions[2]))
+        test_input = torch.zeros(1, input_dimensions[0], input_dimensions[1], input_dimensions[2])
         test_out = alexnet.features(test_input)
         n_features = test_out.size(1) * test_out.size(2) * test_out.size(3)
 
@@ -37,12 +32,12 @@ class AlexNet(Base):
                                                  in_features=4096,
                                                  out_features=4096),
                                              nn.ReLU(inplace=True),
-                                             nn.Linear(4096, self.num_classes)
+                                             nn.Linear(4096, num_classes)
                                              )
             self._init_classifier_weights()
         else:
             self._classifier = alexnet.classifier
-            self._classifier[6].out_features = self.num_classes
+            self._classifier[6].out_features = num_classes
 
         self._freeze_features_weights()
 

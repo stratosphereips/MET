@@ -14,23 +14,20 @@ sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 import mef
 from mef.attacks.activethief import ActiveThief
-from mef.models.vision.mnet import Mnet
-from mef.utils.details import ModelDetails
+from mef.models.vision.simplenet import SimpleNet
 from mef.utils.ios import mkdir_if_missing
-
-input_dimension = (1, 28, 28)
 
 
 def parse_args():
     parser = argparse.ArgumentParser("ActiveThief - MNIST example")
     parser.add_argument("-c", "--config_file", type=str, default="./config.yaml",
                         help="path to configuration file")
-    parser.add_argument("-d", "--data_root", type=str, default="./data",
+    parser.add_argument("-d", "--data_dir", type=str, default="./data",
                         help="path to folder where datasets will be downloaded")
     parser.add_argument("-s", "--save_loc", type=str, default="./cache/activethief/MNIST",
                         help="path to folder where attack's files will be saved")
     parser.add_argument("-t", "--train_epochs", type=int, default=10,
-                        help="number of trainining epochs for the secre_model")
+                        help="number of training epochs for the secret model")
     parser.add_argument("-g", "--gpu", type=bool, default=False,
                         help="whether gpu should be used")
 
@@ -39,30 +36,15 @@ def parse_args():
 
 
 def set_up(args):
-    data_root = args.data_root
+    data_dir = args.data_dir
     save_loc = args.save_loc
     secret_savel_loc = save_loc + "/secret_model.pt"
     train_epochs = args.train_epochs
     device = "cuda" if args.gpu else "cpu"
+    dims = (1, 96, 96)
 
-    secret_details = ModelDetails(net=dict(name="mnet",
-                                           act="relu",
-                                           drop="none",
-                                           pool="max_2",
-                                           ks=3,
-                                           n_conv=3,
-                                           n_fc=3), )
-    substitute_details = ModelDetails(net=dict(name="mnet",
-                                               act="relu",
-                                               drop="none",
-                                               pool="max_2",
-                                               ks=3,
-                                               n_conv=3,
-                                               n_fc=3))
-    secret_model = Mnet(input_dimensions=input_dimension, num_classes=10,
-                        model_details=secret_details)
-    substitute_model = Mnet(input_dimensions=input_dimension, num_classes=10,
-                            model_details=substitute_details)
+    secret_model = SimpleNet(input_dimensions=dims, num_classes=10)
+    substitute_model = SimpleNet(input_dimensions=dims, num_classes=10)
 
     if device == "cuda":
         secret_model.cuda()
@@ -70,21 +52,20 @@ def set_up(args):
 
     # Prepare data
     print("Preparing data")
-    transform = [transforms.Resize(input_dimension[1:]), transforms.ToTensor()]
+    transform = [transforms.Resize(dims[1:]), transforms.ToTensor()]
     mnist = dict()
-    mnist["train"] = MNIST(root=data_root, download=True,
+    mnist["train"] = MNIST(root=data_dir, download=True,
                            transform=transforms.Compose(transform))
 
-    mnist["test"] = MNIST(root=data_root, train=False, download=True,
+    mnist["test"] = MNIST(root=data_dir, train=False, download=True,
                           transform=transforms.Compose(transform))
     test_dataset = mnist["test"]
 
-    transform = [transforms.Resize(input_dimension[1:]), transforms.Grayscale(),
-                 transforms.ToTensor()]
+    transform = [transforms.Resize(dims[1:]), transforms.Grayscale(), transforms.ToTensor()]
     cifar10 = dict()
-    cifar10["train"] = CIFAR10(root=data_root, download=True,
+    cifar10["train"] = CIFAR10(root=data_dir, download=True,
                                transform=transforms.Compose(transform))
-    cifar10["test"] = CIFAR10(root=data_root, download=True,
+    cifar10["test"] = CIFAR10(root=data_dir, download=True,
                               train=False, transform=transforms.Compose(transform))
 
     thief_dataset = cifar10["train"]
@@ -98,7 +79,7 @@ def set_up(args):
     except FileNotFoundError:
         # Prepare secret model
         print("Training secret model")
-        train_loader = DataLoader(dataset=mnist["train"], batch_size=128, shuffle=True,
+        train_loader = DataLoader(dataset=mnist["train"], batch_size=64, shuffle=True,
                                   num_workers=4, pin_memory=True)
         optimizer = torch.optim.Adam(secret_model.parameters())
         loss_function = F.cross_entropy
@@ -120,4 +101,4 @@ if __name__ == "__main__":
     variables = set_up(args)
 
     mef.Test(args.config_file)
-    ActiveThief(**variables, save_loc=args.save_loc).run()
+    ActiveThief(**variables, num_classes=10, save_loc=args.save_loc).run()
