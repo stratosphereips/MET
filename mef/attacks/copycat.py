@@ -64,9 +64,6 @@ class CopyCat(Base):
             raise ValueError()
 
     def _get_stolen_labels(self, dataset):
-        if self._device == "cuda":
-            self._victim_model.cuda()
-
         self._victim_model.eval()
         loader = DataLoader(dataset, pin_memory=True, batch_size=self._test_config.batch_size,
                             num_workers=4)

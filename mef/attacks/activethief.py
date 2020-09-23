@@ -171,9 +171,6 @@ class ActiveThief(Base):
             raise ValueError()
 
     def _get_predictions(self, model, data, one_hot=False):
-        if self._device == "cuda":
-            model.cuda()
-
         model.eval()
         loader = DataLoader(data, pin_memory=True, batch_size=self._test_config.batch_size,
                             num_workers=4)
@@ -198,9 +195,6 @@ class ActiveThief(Base):
         return dataset_predictions
 
     def _get_labels(self, model, data):
-        if self._device == "cuda":
-            model.cuda()
-
         model.eval()
         loader = DataLoader(data, pin_memory=True, batch_size=self._test_config.batch_size,
                             num_workers=4)
