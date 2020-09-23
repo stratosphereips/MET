@@ -2,6 +2,7 @@ test:
   name: "test_run"
   gpu: 0
   log_level: "info"
+  batch_size: 64
   evaluation_frequency: 2
   early_stop_tolerance: 10
   overwrite_models: False
@@ -18,8 +19,5 @@ attacks:
     one_hot_output: True
 
   copycat:
-    method:
-      - "npd"
-      - "pd"
-    training_epochs: 2
-
+    method: "npd+pd"
+    training_epochs: 1000
