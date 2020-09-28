@@ -7,7 +7,6 @@ test:
   overwrite_models: False
   use_cached_files: True
   seed: 0
-  debug: True
 
 attacks:
   activethief:
@@ -16,7 +15,16 @@ attacks:
     iterations: 10
     training_epochs: 1000
     initial_seed_size: 2000
-    one_hot_output: True
+    output_type: "one_hot"
+    val_set_size: 0.2
+
+  cloudleak:
+    adversial_strategy: "pgd"
+    set_size: 200
+    augmentation_multiplier: 5
+    iterations: 10
+    training_epochs: 1000
+    output_type: "one_hot"
 
   copycat:
     training_epochs: 1000
