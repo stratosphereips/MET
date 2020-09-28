@@ -19,7 +19,7 @@ class TestConfig:
     training_epochs: int = 1000
     overwrite_models: bool = False
     use_cached_files: bool = False
-    seed: int = 0
+    seed: int = None
     debug: bool = False
 
 
