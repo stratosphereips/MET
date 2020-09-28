@@ -4,14 +4,12 @@ from pytorch_lightning.metrics import functional as FM
 
 
 class MefModule(pl.LightningModule):
-    def __init__(self, model, optimizer=None, loss=None, lr_scheduler=None,
-                 labels=True):
+    def __init__(self, model, optimizer=None, loss=None, lr_scheduler=None):
         super().__init__()
         self._model = model
         self._optimizer = optimizer
         self._loss = loss
         self._lr_scheduler = lr_scheduler
-        self._labels = labels
 
     def training_step(self, batch, batch_idx):
         x, y = batch
@@ -22,11 +20,8 @@ class MefModule(pl.LightningModule):
         result.log("train_loss", loss)
         return result
 
-    def validation_step(self, batch, batch_idx, labels=True):
+    def validation_step(self, batch, batch_idx):
         x, y = batch
-
-        if not labels:
-            y = torch.argmax(y, dim=1)
 
         y_hat = self._model(x)
 
@@ -38,7 +33,7 @@ class MefModule(pl.LightningModule):
         return result
 
     def test_step(self, batch, batch_idx):
-        result = self.validation_step(batch, batch_idx, self._labels)
+        result = self.validation_step(batch, batch_idx)
         result.rename_keys({"val_acc": "test_acc", "val_loss": "test_loss"})
         return result
 

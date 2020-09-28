@@ -3,10 +3,16 @@ from torch.utils.data import Dataset, random_split
 
 
 def split_data(dataset, split_size):
-    split_set_size = int(len(dataset) * split_size)
+    if isinstance(split_size, float):
+        split_set_size = int(len(dataset) * split_size)
+    elif isinstance(split_size, int):
+        split_set_size = split_size
+    else:
+        raise ValueError("split_size must be either float or integer!")
+
     rest_set_size = len(dataset) - split_set_size
-    rest_set, split_set = random_split(dataset,
-                                       [rest_set_size, split_set_size])
+    rest_set, split_set = random_split(dataset, [rest_set_size,
+                                                 split_set_size])
 
     return rest_set, split_set
 

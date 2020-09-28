@@ -2,23 +2,21 @@ import argparse
 import os
 import sys
 
-sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
-
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import ConcatDataset, random_split, DataLoader
-from torchvision.datasets import CIFAR10, STL10, ImageNet
+from torch.utils.data import ConcatDataset, random_split
+from torchvision.datasets import CIFAR10, ImageNet, STL10
 from torchvision.transforms import transforms
 
-from mef.utils.pytorch.datasets import split_data
-from mef.utils.pytorch.lighting.module import MefModule
-from mef.utils.pytorch.lighting.training import get_trainer
+sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 import mef
 from mef.attacks.copycat import CopyCat
 from mef.models.vision.vgg import Vgg
 from mef.utils.ios import mkdir_if_missing
+from mef.utils.pytorch.datasets import split_data
+from mef.utils.pytorch.lighting.training import train_victim_model
 
 
 class GOCData:
@@ -138,8 +136,7 @@ def parse_args():
                              "saved")
     parser.add_argument("-n", "--npd_size", type=int, default=2000,
                         help="size of the non problem domain dataset that "
-                             "should be taken from "
-                             "ImageNet2012")
+                             "should be taken from ImageNet2012")
     parser.add_argument("-t", "--train_epochs", type=int, default=1000,
                         help="number of trainining epochs for the target "
                              "model and pd_ol model")
@@ -149,27 +146,6 @@ def parse_args():
 
     args = parser.parse_args()
     return args
-
-
-def train_model(model, dataset, training_epochs, save_loc, gpus):
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.8)
-    loss = F.cross_entropy
-    mef_model = MefModule(model, optimizer, loss)
-
-    trainer = get_trainer(gpus, training_epochs, save_loc=save_loc)
-
-    train_set, val_set = split_data(dataset, split_size=0.2)
-
-    train_dataloader = DataLoader(dataset=train_set, shuffle=True,
-                                  pin_memory=True,
-                                  num_workers=4, batch_size=64)
-    val_dataloader = DataLoader(dataset=train_set, shuffle=True,
-                                pin_memory=True,
-                                num_workers=4, batch_size=64)
-
-    trainer.fit(mef_model, train_dataloader, val_dataloader)
-
-    return
 
 
 def set_up(args):
@@ -199,14 +175,17 @@ def set_up(args):
     try:
         saved_model = torch.load(victim_save_loc + "final_victim_model.pt")
         victim_model.load_state_dict(saved_model["state_dict"])
-        print("Loaded target model")
+        print("Loaded victim model")
     except FileNotFoundError:
         print("Training victim model")
-        train_model(victim_model, goc.od_dataset, training_epochs,
-                    victim_save_loc, gpus)
+        optimizer = torch.optim.SGD(victim_model.parameters(), lr=0.01,
+                                    momentum=0.8)
+        loss = F.cross_entropy
+        train_set, val_set = split_data(goc.od_dataset, 0.2)
+        train_victim_model(victim_model, optimizer, loss, train_set, val_set,
+                           training_epochs, victim_save_loc, gpus)
         torch.save(dict(state_dict=victim_model.state_dict()),
-                   victim_save_loc +
-                   "final_victim_model.pt")
+                   victim_save_loc + "final_victim_model.pt")
 
     return dict(victim_model=victim_model, substitute_model=substitute_model,
                 test_set=goc.test_set, thief_dataset=goc.thief_dataset)
