@@ -38,11 +38,11 @@ class Base:
 
         return
 
-    def _test_model(self, model, loss, test_set, labels=True):
+    def _test_model(self, model, loss, test_set):
         test_dataloader = DataLoader(dataset=test_set, pin_memory=True,
                                      num_workers=4,
                                      batch_size=self._test_config.batch_size)
-        mef_model = MefModule(model, loss=loss, labels=labels)
+        mef_model = MefModule(model, loss=loss)
         metrics = self._trainer.test(mef_model, test_dataloader)
 
         return metrics[0]["test_acc"], metrics[0]["test_loss"]
