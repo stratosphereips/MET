@@ -1,28 +1,15 @@
-from dataclasses import dataclass
-
 import torch
 import torch.nn.functional as F
 
 from mef.utils.pytorch.datasets import CustomLabelDataset, split_data
 from .base import Base
-from ..utils.config import Configuration
-
-
-@dataclass
-class CopyCatConfig:
-    training_epochs: int = 1000
-    val_set_size: float = 0.2
 
 
 class CopyCat(Base):
 
     def __init__(self, victim_model, substitute_model, test_set, thief_dataset,
                  save_loc="./cache/copycat"):
-        # Get CopyCat's configuration
-        self._config = Configuration.get_configuration(CopyCatConfig,
-                                                       "attacks/copycat")
-
-        super().__init__(self._config.training_epochs, save_loc)
+        super().__init__(save_loc)
 
         # Datasets
         self._test_set = test_set
@@ -55,7 +42,7 @@ class CopyCat(Base):
 
         self._logger.info("Training substitute model with synthetic dataset")
         train_set, val_set = split_data(synthetic_dataset,
-                                        split_size=self._config.val_set_size)
+                                        self._test_config.val_set_size)
         self._train_model(self._substitute_model, optimizer, loss, train_set,
                           val_set)
 

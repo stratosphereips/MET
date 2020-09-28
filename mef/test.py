@@ -15,6 +15,8 @@ class TestConfig:
     batch_size: int = 64
     evaluation_frequency: int = 2
     early_stop_tolerance: int = 10
+    val_set_size: float = 0.2
+    training_epochs: int = 1000
     overwrite_models: bool = False
     use_cached_files: bool = False
     seed: int = 0

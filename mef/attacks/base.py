@@ -13,10 +13,10 @@ class Base:
     _test_config = None
     _logger = None
 
-    def __init__(self, training_epochs, save_loc):
+    def __init__(self, save_loc):
         self._save_loc = save_loc
         trainer_kargs = dict(gpus=self._test_config.gpus,
-                             training_epochs=training_epochs,
+                             training_epochs=self._test_config.training_epochs,
                              early_stop_tolerance=self._test_config.early_stop_tolerance,
                              evaluation_frequency=self._test_config.evaluation_frequency,
                              save_loc=self._save_loc,
