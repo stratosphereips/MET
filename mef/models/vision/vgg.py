@@ -1,6 +1,8 @@
+import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torchvision
+from pytorch_lightning.core.decorators import auto_move_data
 
 VGG_TYPES = {"vgg_11": torchvision.models.vgg11,
              "vgg_11_bn": torchvision.models.vgg11_bn,
@@ -12,7 +14,7 @@ VGG_TYPES = {"vgg_11": torchvision.models.vgg11,
              "vgg_19": torchvision.models.vgg19}
 
 
-class Vgg(nn.Module):
+class Vgg(pl.LightningModule):
     """
     Vgg model architecture using pytorch pretrained models with modifiable
     input size.
@@ -30,7 +32,8 @@ class Vgg(nn.Module):
         self._features = vgg.features
 
         # Init fully connected part of vgg
-        test_input = torch.zeros(1, input_dimensions[0], input_dimensions[1], input_dimensions[2])
+        test_input = torch.zeros(1, input_dimensions[0], input_dimensions[1],
+                                 input_dimensions[2])
         test_out = vgg.features(test_input)
         n_features = test_out.size(1) * test_out.size(2) * test_out.size(3)
         if vgg.classifier[0].in_features != n_features:
@@ -45,10 +48,14 @@ class Vgg(nn.Module):
             self._init_classifier_weights()
         else:
             self._classifier = vgg.classifier
-            self._classifier[6].out_features = num_classes
+            self._classifier[6] = nn.Linear(in_features=4096,
+                                            out_features=num_classes)
+            self._classifier[6].weight.data.normal_(std=0.01)
+            self._classifier[6].bias.data.zero_()
 
         self._freeze_features_weights()
 
+    @auto_move_data
     def forward(self, x):
         x = self._features(x)
         x = x.view(x.size(0), -1)

@@ -1,5 +1,5 @@
 test:
-  name: "test_run"
+  gpus: 1
   log_level: "info"
   batch_size: 64
   evaluation_frequency: 2
@@ -7,6 +7,7 @@ test:
   overwrite_models: False
   use_cached_files: True
   seed: 0
+  debug: True
 
 attacks:
   activethief:
@@ -18,5 +19,5 @@ attacks:
     one_hot_output: True
 
   copycat:
-    method: "npd+pd"
     training_epochs: 1000
+    val_set_size: 0.2
