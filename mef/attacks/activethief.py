@@ -1,37 +1,31 @@
 import math
 from dataclasses import dataclass
-from pathlib import Path
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-from ignite.contrib.handlers import ProgressBar
-from ignite.engine import create_supervised_evaluator, Events, create_supervised_trainer
-from ignite.handlers import Checkpoint, EarlyStopping, global_step_from_engine, DiskSaver
-from ignite.metrics import Fbeta, RunningAverage
-from ignite.utils import to_onehot
-from torch.utils.data import DataLoader, ConcatDataset, Subset
+from torch.utils.data import ConcatDataset, DataLoader, Subset
 from tqdm import tqdm
 
 from .base import Base
 from ..utils.config import Configuration
-from ..utils.pytorch.datasets import CustomLabelDataset
-from ..utils.pytorch.ignite.metrics import MacroAccuracy
+from ..utils.pytorch.datasets import CustomLabelDataset, split_data
 
 
 class DeepFool:
-    """Batch deepfool https://github.com/tobylyf/adv-attack/blob/master/mydeepfool.py"""
+    """Batch deepfool
+    https://github.com/tobylyf/adv-attack/blob/master/mydeepfool.py"""
 
-    def __init__(self, nb_candidate, overshoot=0.02, max_iter=50, clip_min=0.0, clip_max=1.0,
-                 force_max_iter=False, device="cpu"):
+    def __init__(self, model, nb_candidate, overshoot=0.02, max_iter=50,
+                 clip_min=0.0, clip_max=1.0, force_max_iter=False):
+        self._model = model
         self._nb_candidate = nb_candidate
         self._overshoot = overshoot
         self._max_iter = max_iter
         self._clip_min = clip_min
         self._clip_max = clip_max
-        self._device = device
         self._force_max_iter = force_max_iter
+        self._device = next(model.parameters()).device
 
     @staticmethod
     def _jacobian(predictions, x, nb_classes):
@@ -39,7 +33,9 @@ class DeepFool:
 
         for class_ind in range(nb_classes):
             outputs = predictions[:, class_ind]
-            derivatives, = torch.autograd.grad(outputs, x, grad_outputs=torch.ones_like(outputs),
+            derivatives, = torch.autograd.grad(outputs, x,
+                                               grad_outputs=torch.ones_like(
+                                                       outputs),
                                                retain_graph=True)
             list_derivatives.append(derivatives)
 
@@ -49,8 +45,8 @@ class DeepFool:
         with torch.no_grad():
             logits = model(x)
         nb_classes = logits.size(-1)
-        assert self._nb_candidate <= nb_classes, 'nb_candidate should not be greater than ' \
-                                                 'nb_classes'
+        assert self._nb_candidate <= nb_classes, "nb_candidate should not " \
+                                                 "be greater than nb_classes"
 
         # preds = logits.topk(self.nb_candidate)[0]
         # grads = torch.stack(jacobian(preds, x, self.nb_candidate), dim=1)
@@ -67,10 +63,11 @@ class DeepFool:
         r_tot = torch.zeros(x.size()).to(self._device)
         original = current
 
-        while (current == original).any and (self._force_max_iter or iteration < self._max_iter):
+        while (current == original).any and (
+                self._force_max_iter or iteration < self._max_iter):
             predictions_val = logits.topk(self._nb_candidate)[0]
-            gradients = torch.stack(self._jacobian(predictions_val, adv_x, self._nb_candidate),
-                                    dim=1)
+            gradients = torch.stack(self._jacobian(predictions_val, adv_x,
+                                                   self._nb_candidate), dim=1)
             with torch.no_grad():
                 for idx in range(x.size(0)):
                     pert = float('inf')
@@ -86,12 +83,14 @@ class DeepFool:
                             pert = pert_k
                             w = w_k
 
-                    # Calculate minimal vector (perturbation) that projects sample onto the
+                    # Calculate minimal vector (perturbation) that projects
+                    # sample onto the
                     # closest hyperplane
                     r_i = pert * w / w.view(-1).norm()
                     r_tot[idx, ...] = r_tot[idx, ...] + r_i
 
-            adv_x = torch.clamp(r_tot + x, self._clip_min, self._clip_max).requires_grad_()
+            adv_x = torch.clamp(r_tot + x, self._clip_min,
+                                self._clip_max).requires_grad_()
             logits = model(adv_x)
             current = logits.argmax(dim=1)
             if current.size() == ():
@@ -103,217 +102,70 @@ class DeepFool:
         return adv_x
 
 
-class Dfal(nn.Module):
-    def __init__(self, model, num_candidates, iterations=20):
-        super().__init__()
-        self._model = model
-        self._device = next(model.parameters()).device
-        self._deepfool = DeepFool(num_candidates, max_iter=iterations, device=self._device)
-
-    def forward(self, x):
-        x = x.to(self._device)
-
-        adversary_x = self._deepfool.attack(self._model, x)
-
-        scores = []
-        for adversary, original in zip(adversary_x, x):
-            scores.append(torch.dist(adversary, original).item())
-
-        return scores
-
-
 @dataclass
 class ActiveThiefConfig:
     selection_strategy: str = "entropy"
-    k: int = 1500
+    budget: int = 20000
     iterations: int = 10
-    training_epochs: int = 1000
     initial_seed_size: int = 2000
-    one_hot_output: bool = False
+    output_type: str = "one_hot"
 
 
 class ActiveThief(Base):
 
-    def __init__(self, victim_model, substitute_model, test_dataset, thief_dataset,
-                 validation_dataset, num_classes, save_loc="./cache/activethief"):
-        super().__init__()
+    def __init__(self, victim_model, substitute_model, test_set, thief_dataset,
+                 num_classes, save_loc="./cache/activethief"):
 
         # Get ActiveThief's configuration
-        self._config = Configuration.get_configuration(ActiveThiefConfig, "attacks/activethief")
-        self._device = "cuda" if self._test_config.cuda else "cpu"
-        self._save_loc = save_loc
+        self._config = Configuration.get_configuration(ActiveThiefConfig,
+                                                       "attacks/activethief")
         self._selection_strategy = self._config.selection_strategy.lower()
 
+        super().__init__(save_loc)
+
         # Datasets
-        self._test_dataset = test_dataset
+        self._test_set = test_set
         self._thief_dataset = thief_dataset
-        self._validation_dataset_original = validation_dataset
-        self._validation_dataset_predicted = None
+
+        # Dataset information
+        self._num_classes = num_classes
+        self._budget = self._config.budget
+        self._val_size = int(self._budget * self._test_config.val_set_size)
+        self._k = (self._budget - self._val_size -
+                   self._config.initial_seed_size) // self._config.iterations
 
         # Models
         self._victim_model = victim_model
         self._substitute_model = substitute_model
 
-        if self._test_config.cuda:
+        if self._test_config.gpus:
             self._victim_model.cuda()
             self._substitute_model.cuda()
 
-        # Dataset information
-        self._num_classes = num_classes
-        self._budget = self._config.initial_seed_size + len(self._validation_dataset_original) + \
-                       (self._config.iterations * self._config.k)
+        # Optimizer, loss_functions
+        self._optimizer = torch.optim.Adam(self._substitute_model.parameters())
+        self._train_loss = F.mse_loss
+        self._test_loss = F.cross_entropy
 
         # Check configuration
-        if self._selection_strategy not in ["random", "entropy", "k-center", "dfal",
-                                            "dfal+k-center"]:
-            self._logger.error("ActiveThief's selection strategy must be one of " +
-                               "{random, entropy, k-center, dfal, dfal+kcenter}")
+        if self._selection_strategy not in ["random", "entropy", "k-center",
+                                            "dfal", "dfal+k-center"]:
+            self._logger.error(
+                    "ActiveThief's selection strategy must be one of " +
+                    "{random, entropy, k-center, dfal, dfal+kcenter}")
             raise ValueError()
 
-    def _get_predictions(self, model, data, one_hot=False):
-        model.eval()
-        loader = DataLoader(data, pin_memory=True, batch_size=self._test_config.batch_size,
-                            num_workers=4)
-        y_preds = []
-        with torch.no_grad():
-            for _, batch in enumerate(tqdm(loader, desc="Getting predictions")):
-                x, _ = batch
-                if self._device == "cuda":
-                    x = x.cuda()
+    def _random_strategy(self, k, idx):
+        idx_copy = np.copy(idx)
+        np.random.shuffle(idx_copy)
 
-                y_pred = model(x)
-                y_preds.append(y_pred.cpu())
-
-        y_preds = torch.cat(y_preds)
-
-        if one_hot:
-            dataset_predictions = to_onehot(torch.argmax(y_preds, dim=1),
-                                            num_classes=self._num_classes).float()
-        else:
-            dataset_predictions = F.softmax(y_preds, dim=1)
-
-        return dataset_predictions
-
-    def _get_labels(self, model, data):
-        model.eval()
-        loader = DataLoader(data, pin_memory=True, batch_size=self._test_config.batch_size,
-                            num_workers=4)
-        labels = []
-        with torch.no_grad():
-            for _, batch in enumerate(tqdm(loader, desc="Getting labels")):
-                x, _ = batch
-                if self._device == "cuda":
-                    x = x.cuda()
-
-                y_pred = model(x)
-                labels.append(torch.argmax(y_pred.cpu(), dim=1))
-
-        return torch.cat(labels)
-
-    def _test_model(self, model, data, labels=True):
-        if labels:
-            def output_tranform(x, y, y_pred):
-                return y_pred, y
-        else:
-            def output_tranform(x, y, y_pred):
-                return y_pred, torch.argmax(y, dim=1)
-
-        metrics = {
-            "macro_accuracy": MacroAccuracy(self._num_classes),
-            "f1-score": Fbeta(beta=1)
-        }
-        evaluator = create_supervised_evaluator(model, metrics=metrics, device=self._device,
-                                                output_transform=output_tranform)
-        ProgressBar().attach(evaluator)
-
-        loader = DataLoader(dataset=data, batch_size=self._test_config.batch_size, num_workers=4,
-                            pin_memory=True)
-        evaluator.run(loader)
-
-        return 100 * evaluator.state.metrics["macro_accuracy"], evaluator.state.metrics["f1-score"]
-
-    # TODO: move to utils.pytorch.ignite
-    def _add_ignite_events(self, trainer, evaluator, eval_loader, iteration):
-        # Evaluator events
-        def score_function(engine):
-            score = engine.state.metrics["f1-score"]
-            return score
-
-        early_stop = EarlyStopping(patience=self._test_config.early_stop_tolerance,
-                                   score_function=score_function, trainer=trainer)
-        evaluator.add_event_handler(Events.COMPLETED, early_stop)
-
-        to_save = {'copycat_model': self._substitute_model}
-        checkpoint_handler = Checkpoint(to_save, DiskSaver(self._save_loc, require_empty=False),
-                                        filename_prefix="best", score_function=score_function,
-                                        score_name="f1-score",
-                                        filename_pattern="{filename_prefix}_{name}_({score_name}="
-                                                         "{score}).{ext}",
-                                        global_step_transform=global_step_from_engine(trainer))
-        evaluator.add_event_handler(Events.COMPLETED, checkpoint_handler)
-
-        # Trainer events
-        RunningAverage(output_transform=lambda x: x).attach(trainer, "avg_loss")
-        ProgressBar().attach(trainer, ["avg_loss"])
-
-        @trainer.on(Events.EPOCH_COMPLETED(every=self._test_config.evaluation_frequency))
-        def log_validation_results(trainer):
-            evaluator.run(eval_loader)
-            metrics = evaluator.state.metrics
-            trainer.logger.info("Validation results - Iteration: {} Epoch: {}  Macro-averaged "
-                                "accuracy: {:.1f}% F1-score: {:.3f}"
-                                .format(iteration, trainer.state.epoch,
-                                        100 * metrics["macro_accuracy"],
-                                        metrics["f1-score"]))
-
-        return checkpoint_handler
-
-    def _train_substitute_model(self, query_dataset, iteration):
-        # Prepare trainer
-        optimizer = torch.optim.Adam(self._substitute_model.parameters())
-        loss_function = nn.MSELoss()
-        trainer = create_supervised_trainer(self._substitute_model, optimizer, loss_function,
-                                            device=self._device)
-        trainer.logger = self._logger
-
-        # Prepare evaluator
-        def output_tranform(x, y, y_pred):
-            return y_pred, torch.argmax(y, dim=1)
-
-        metrics = {
-            "macro_accuracy": MacroAccuracy(self._num_classes),
-            "f1-score": Fbeta(beta=1)
-        }
-        evaluator = create_supervised_evaluator(self._substitute_model, metrics=metrics,
-                                                device=self._device,
-                                                output_transform=output_tranform)
-        evaluator.logger = self._logger
-
-        eval_loader = DataLoader(dataset=self._validation_dataset_predicted,
-                                 batch_size=self._test_config.batch_size, pin_memory=True,
-                                 num_workers=4)
-        checkpoint_handler = self._add_ignite_events(trainer, evaluator, eval_loader, iteration)
-
-        # Start trainer
-        train_loader = DataLoader(dataset=query_dataset, shuffle=True,
-                                  batch_size=self._test_config.batch_size, pin_memory=True,
-                                  num_workers=4)
-        trainer.run(train_loader, max_epochs=self._config.training_epochs)
-
-        # Load best model and remove the file
-        self._logger.info("Loading best model")
-        to_load = {'substitute_model': self._substitute_model}
-        checkpoint_fp = self._save_loc + '/' + checkpoint_handler.last_checkpoint
-        checkpoint = torch.load(checkpoint_fp)
-        Checkpoint.load_objects(to_load, checkpoint)
-        Path.unlink(Path(checkpoint_fp))
-
-        return
+        return list(idx_copy[:k])
 
     def _entropy_strategy(self, k, idx, remaining_samples_predictions):
         scores = {}
-        for _, sample in enumerate(tqdm(zip(idx, remaining_samples_predictions),
-                                        desc="Calculating entropy scores")):
+        for _, sample in enumerate(
+                tqdm(zip(idx, remaining_samples_predictions),
+                     desc="Calculating entropy scores")):
             sample_id, prob_dist = sample
             log_probs = prob_dist * torch.log2(prob_dist)
             raw_entropy = 0 - torch.sum(log_probs)
@@ -326,14 +178,10 @@ class ActiveThief(Base):
 
         return list(scores.keys())[:k]
 
-    def _random_strategy(self, k, idx):
-        idx_copy = np.copy(idx)
-        np.random.shuffle(idx_copy)
-
-        return list(idx_copy[:k])
-
-    def _kcenter_strategy(self, k, idx, remaining_samples_predictions, query_sets_predictions):
-        loader = DataLoader(remaining_samples_predictions, batch_size=self._test_config.batch_size,
+    def _kcenter_strategy(self, k, idx, remaining_samples_predictions,
+                          query_sets_predictions):
+        loader = DataLoader(remaining_samples_predictions,
+                            batch_size=self._test_config.batch_size,
                             num_workers=4, pin_memory=True)
 
         centers_pred = query_sets_predictions
@@ -345,22 +193,25 @@ class ActiveThief(Base):
                 for batch in loader:
                     samples_pred = batch
                     centers_pred = centers_pred
-                    if self._device == "cuda":
+
+                    if self._test_config.gpus:
                         samples_pred = samples_pred.cuda()
                         centers_pred = centers_pred.cuda()
 
                     distances = torch.cdist(samples_pred, centers_pred, p=2)
                     distances_min_values, _ = torch.min(distances, dim=1)
-                    distance_min_max_value, distance_min_max_id = torch.max(distances_min_values,
-                                                                            dim=0)
+                    distance_min_max_value, distance_min_max_id = torch.max(
+                            distances_min_values, dim=0)
 
                     min_max_values.append(distance_min_max_value.cpu())
                     min_max_idx.append(distance_min_max_id.cpu())
 
             batch_id = np.argmax(min_max_values)
-            sample_id = batch_id * self._test_config.batch_size + min_max_idx[batch_id.item()]
-            centers_pred = torch.from_numpy(np.vstack([centers_pred.cpu(),
-                                                       remaining_samples_predictions[sample_id]]))
+            sample_id = batch_id * self._test_config.batch_size + min_max_idx[
+                batch_id.item()]
+            centers_pred = torch.from_numpy(
+                    np.vstack([centers_pred.cpu(),
+                               remaining_samples_predictions[sample_id]]))
 
             selected_points.append(sample_id)
 
@@ -368,146 +219,193 @@ class ActiveThief(Base):
 
     def _deepfool_strategy(self, k, idx, remaining_samples):
         self._substitute_model.eval()
-        loader = DataLoader(remaining_samples, batch_size=self._test_config.batch_size,
-                            num_workers=4, pin_memory=True)
+        loader = DataLoader(remaining_samples, num_workers=4, pin_memory=True,
+                            batch_size=self._test_config.batch_size)
 
-        df = Dfal(self._substitute_model, self._num_classes)
+        df = DeepFool(self._substitute_model, self._num_classes)
 
-        scores_values = []
-        for _, batch in enumerate(tqdm(loader, desc="Getting samples dfal scores")):
-            scores_values.extend(df(batch[0]))
+        scores = []
+        for _, batch in enumerate(
+                tqdm(loader, desc="Getting samples dfal scores")):
+            x = batch[0]
 
-        scores = dict(zip(idx, scores_values))
+            adversary_x = df.attack(self._substitute_model, x)
+
+            batch_scores = []
+            for adversary, original in zip(adversary_x, x):
+                scores.append(torch.dist(adversary, original).item())
+
+            scores.extend(batch_scores)
+
+        scores = dict(zip(idx, scores))
         scores = dict(sorted(scores.items(), key=lambda x: x[1], reverse=True))
 
         return list(scores.keys())[:k]
 
-    def _select_samples(self, idx, remaining_samples, remaining_samples_predictions, query_sets):
+    def _select_samples(self, idx, remaining_samples, remaining_samples_preds,
+                        query_sets):
         if self._selection_strategy == "entropy":
-            selected_samples = self._entropy_strategy(self._config.k, idx,
-                                                      remaining_samples_predictions)
+            selected_samples = self._entropy_strategy(self._k, idx,
+                                                      remaining_samples_preds)
         elif self._selection_strategy == "random":
-            selected_samples = self._random_strategy(self._config.k, idx)
+            selected_samples = self._random_strategy(self._k, idx)
         elif self._selection_strategy == "k-center":
             # Get initial centers
-            query_sets_predictions = self._get_predictions(self._substitute_model, query_sets)
-            selected_samples = self._kcenter_strategy(self._config.k, idx,
-                                                      remaining_samples_predictions,
+            query_sets_predictions = self._get_predictions(
+                    self._substitute_model, query_sets)
+            selected_samples = self._kcenter_strategy(self._k, idx,
+                                                      remaining_samples_preds,
                                                       query_sets_predictions)
         elif self._selection_strategy == "dfal":
-            selected_samples = self._deepfool_strategy(self._config.k, idx, remaining_samples)
+            selected_samples = self._deepfool_strategy(self._k, idx,
+                                                       remaining_samples)
         elif self._selection_strategy == "dfal+k-center":
-            dfal_selected_samples_idx = self._deepfool_strategy(self._budget, idx,
+            dfal_selected_samples_idx = self._deepfool_strategy(self._budget,
+                                                                idx,
                                                                 remaining_samples)
             sorter = np.argsort(idx)
-            ssdl_predictions_idx = sorter[np.searchsorted(idx, dfal_selected_samples_idx,
-                                                          sorter=sorter)]
-            ssdl_predictions = remaining_samples_predictions[ssdl_predictions_idx]
+            ssdl_predictions_idx = sorter[
+                np.searchsorted(idx, dfal_selected_samples_idx, sorter=sorter)]
+            ssdl_predictions = remaining_samples_preds[ssdl_predictions_idx]
             # Get initial centers
-            query_sets_predictions = self._get_predictions(self._substitute_model, query_sets)
-            selected_samples = self._kcenter_strategy(self._config.k, dfal_selected_samples_idx,
-                                                      ssdl_predictions, query_sets_predictions)
+            query_sets_predictions = self._get_predictions(
+                    self._substitute_model, query_sets)
+            selected_samples = self._kcenter_strategy(self._k,
+                                                      dfal_selected_samples_idx,
+                                                      ssdl_predictions,
+                                                      query_sets_predictions)
         else:
-            self._logger.warning("Selection strategy must be one of {entropy, random, k-center, "
-                                 "dfal, dfal+k-center}")
+            self._logger.warning(
+                    "Selection strategy must be one of {entropy, random, "
+                    "k-center, "
+                    "dfal, dfal+k-center}")
             raise ValueError
 
         return selected_samples
 
     def run(self):
-        self._logger.info("########### Starting ActiveThief attack ###########")
+        self._logger.info(
+                "########### Starting ActiveThief attack ###########")
         # Get budget of the attack
-        self._logger.info("ActiveThief's attack budget: {}".format(self._budget))
-
-        available_samples = set(range(len(self._thief_dataset)))
-        query_sets = []
-        query_sets_predictions = []
+        self._logger.info(
+                "ActiveThief's attack budget: {}".format(self._budget))
 
         # Prepare validation set
         self._logger.info("Preparing validation dataset")
-        validation_predictions = self._get_predictions(self._victim_model,
-                                                       self._validation_dataset_original,
-                                                       self._config.one_hot_output)
-        self._validation_dataset_predicted = CustomLabelDataset(self._validation_dataset_original,
-                                                                validation_predictions)
+        thief_dataset_rest, val_set = split_data(self._thief_dataset,
+                                                 self._val_size)
 
-        validation_label_counts = dict(list(enumerate([0] * self._num_classes)))
+        validation_predictions = self._get_predictions(self._victim_model,
+                                                       val_set,
+                                                       self._config.output_type)
+        val_set_with_vict_pred = CustomLabelDataset(val_set,
+                                                    validation_predictions)
+
+        val_label_counts = dict(list(enumerate([0] * self._num_classes)))
         for class_id in torch.argmax(validation_predictions, dim=1):
-            validation_label_counts[class_id.item()] += 1
+            val_label_counts[class_id.item()] += 1
 
         self._logger.info("Validation dataset labels distribution: {}".format(
-            validation_label_counts))
+                val_label_counts))
 
         # Step 1: attacker picks random subset of initial seed samples
         self._logger.info("Preparing initial random query set")
+        available_samples = set(range(len(thief_dataset_rest)))
+        query_sets = []
+        query_sets_preds = []
+
         idx = np.random.choice(np.arange(len(available_samples)),
-                               size=self._config.initial_seed_size, replace=False)
+                               size=self._config.initial_seed_size,
+                               replace=False)
         available_samples -= set(idx)
 
-        query_sets.append(Subset(self._thief_dataset, idx))
-        query_set_predictions = self._get_predictions(self._victim_model, query_sets[0],
-                                                      self._config.one_hot_output)
-        query_sets_predictions.append(query_set_predictions)
+        query_sets.append(Subset(thief_dataset_rest, idx))
+        query_set_preds = self._get_predictions(self._victim_model,
+                                                query_sets[0],
+                                                self._config.output_type)
+        query_sets_preds.append(query_set_preds)
 
-        # Get secret model predicted labels for test dataset
-        self._logger.info("Getting victim model's labels for test dataset")
-        true_test_labels = self._get_labels(self._victim_model, self._test_dataset).numpy()
+        # Get victim model predicted labels for test set
+        self._logger.info("Getting victim model's labels for test set")
+        vict_test_labels = self._get_predictions(self._victim_model,
+                                                 self._test_set)
+        vict_test_labels = torch.argmax(vict_test_labels, dim=1).numpy()
+        self._logger.info(
+                "Number of test samples: {}".format(len(vict_test_labels)))
 
-        self._logger.info("Number of test samples: {}".format(len(true_test_labels)))
+        # Get victim model metrics on test set
+        self._logger.info("Getting victim model's metrics for test set")
+        vict_test_acc, vict_test_loss = self._test_model(self._victim_model,
+                                                         self._test_loss,
+                                                         self._test_set)
 
         # Save substitute model state_dict for retraining from scratch
-        copy_state_dict = self._substitute_model.state_dict()
+        sub_orig_state_dict = self._substitute_model.state_dict()
+        optim_orig_state_dict = self._optimizer.state_dict()
 
         for iteration in range(1, self._config.iterations + 1):
-            self._logger.info("---------- Iteration: {} ----------".format(iteration))
+            self._logger.info(
+                    "---------- Iteration: {} ----------".format(iteration))
 
-            # Get metrics from secret model and substitute model
-            self._logger.info("Test dataset metrics")
-            self._logger.info("Victim model macro-accuracy: {:.1f}% F1-score: {:.3f}".format(
-                *self._test_model(self._victim_model, self._test_dataset)))
-            self._logger.info("Substitute model macro-accuracy: {:.1f}% F1-score: {:.3f}".format(
-                *self._test_model(self._substitute_model, self._test_dataset)))
+            # Get metrics from victim model and substitute model
+            self._logger.info("Getting substitute model's metrics for test "
+                              "set")
+            sub_test_acc, sub_test_loss = self._test_model(
+                    self._substitute_model, self._test_loss, self._test_set)
+            self._logger.info("Test set metrics")
+            self._logger.info(
+                    "Victim model Accuracy: {:.1f}% Loss: {:.3f}".format(
+                            vict_test_acc, vict_test_loss))
+            self._logger.info(
+                    "Substitute model Accuracy: {:.1f}% Loss: {:.3f}".format(
+                            sub_test_acc, sub_test_loss))
 
-            # Reset substitute model
-            self._substitute_model.load_state_dict(copy_state_dict)
+            # Reset substitute model and optimizer
+            self._substitute_model.load_state_dict(sub_orig_state_dict)
+            self._optimizer.load_state_dict(optim_orig_state_dict)
 
-            # Step 3: The substitute model is trained with union of all the labeled queried sets
-            self._logger.info("Training substitute model with the query dataset")
-            query_dataset = CustomLabelDataset(ConcatDataset(query_sets),
-                                               torch.cat(query_sets_predictions))
-            self._train_substitute_model(query_dataset, iteration)
-            # Save the state dictionary of the best model this iteration
-            torch.save(dict(state_dict=self._substitute_model.state_dict()), self._save_loc +
-                       "/best_substitute_model_iteration={}".format(iteration))
+            # Step 3: The substitute model is trained with union of all the
+            # labeled queried sets
+            self._logger.info(
+                    "Training substitute model with the query dataset")
+            query_set = CustomLabelDataset(ConcatDataset(query_sets),
+                                           torch.cat(query_sets_preds))
+            self._train_model(self._substitute_model, self._optimizer,
+                              self._train_loss, query_set,
+                              val_set_with_vict_pred, iteration)
 
             # Agreement score
-            substitute_test_labels = self._get_labels(self._substitute_model,
-                                                      self._test_dataset).numpy()
-            agreement_count = np.sum(true_test_labels == substitute_test_labels)
-            self._logger.info("Agreement count: {}".format(agreement_count))
-            self._logger.info("Test agreement between secret and substitute model on true test "
-                              "dataset {:.1f}"
-                              .format(100 * (agreement_count / len(true_test_labels))))
+            self._logger.info("Getting attack metric")
+            self._get_attack_metric(self._substitute_model, self._test_set,
+                                    vict_test_labels)
 
-            # Step 4: Approximate labels are obtained for remaining samples using the substitute
-            self._logger.info("Getting substitute's predictions for the rest of the thief dataset")
+            # Step 4: Approximate labels are obtained for remaining samples
+            # using the substitute
+            self._logger.info("Getting substitute's predictions for the rest "
+                              "of the thief dataset")
             idx = sorted(list(available_samples))
-            remaining_samples = Subset(self._thief_dataset, idx)
-            remaining_samples_predictions = self._get_predictions(self._substitute_model,
-                                                                  remaining_samples)
+            remaining_samples = Subset(thief_dataset_rest, idx)
+            remaining_samples_preds = self._get_predictions(
+                    self._substitute_model, remaining_samples)
 
-            # Step 5: An active learning subset selection strategy is used to select set of k
+            # Step 5: An active learning subset selection strategy is used
+            # to select set of k
             # samples
-            self._logger.info("Selecting {} samples using the {} strategy from the remaining thief "
-                              "dataset".format(self._config.k, self._selection_strategy))
+            self._logger.info(
+                    "Selecting {} samples using the {} strategy from the "
+                    "remaining thief dataset"
+                        .format(self._k, self._selection_strategy))
             selected_samples = self._select_samples(idx, remaining_samples,
-                                                    remaining_samples_predictions,
+                                                    remaining_samples_preds,
                                                     ConcatDataset(query_sets))
             available_samples -= set(selected_samples)
-            query_sets.append(Subset(self._thief_dataset, selected_samples))
+            query_sets.append(Subset(thief_dataset_rest, selected_samples))
 
-            # Step 2: Attacker queries current picked samples to secret model for labeling
-            self._logger.info("Getting predictions for the current query set from the victim model")
-            query_set_predictions = self._get_predictions(self._victim_model, query_sets[iteration],
-                                                          self._config.one_hot_output)
-            query_sets_predictions.append(query_set_predictions)
+            # Step 2: Attacker queries current picked samples to secret
+            # model for labeling
+            self._logger.info("Getting predictions for the current query set "
+                              "from the victim model")
+            query_set_preds = self._get_predictions(self._victim_model,
+                                                    query_sets[iteration],
+                                                    self._config.output_type)
+            query_sets_preds.append(query_set_preds)

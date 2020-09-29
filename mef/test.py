@@ -20,6 +20,7 @@ class TestConfig:
     overwrite_models: bool = False
     use_cached_files: bool = False
     seed: int = None
+    deterministic: bool = False
     debug: bool = False
 
 

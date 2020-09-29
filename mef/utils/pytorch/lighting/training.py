@@ -23,18 +23,24 @@ def train_victim_model(model, optimizer, loss, train_set, val_set,
 
 
 def get_trainer(gpus=0, training_epochs=10, early_stop_tolerance=3,
-                evaluation_frequency=2, save_loc="./cache", debug=False):
+                evaluation_frequency=2, save_loc="./cache", debug=False,
+                iteration=None, deterministic=True):
     # Prepare callbacks
     early_stop_cb = EarlyStopping(patience=early_stop_tolerance, verbose=True)
+
+    checkpoint_name = "{epoch}-{val_loss:.2f}-{val_acc:.2f}"
+    if iteration is not None:
+        checkpoint_name = "iteration={}-".format(iteration) + checkpoint_name
     checkpoint_cb = ModelCheckpoint(
-            filepath=save_loc + "/{epoch}-{val_loss:.2f}-{val_acc:.2f}",
+            filepath=save_loc + "/" + checkpoint_name,
             verbose=True, save_weights_only=True)
+
     # Prepare trainer
     trainer = Trainer(default_root_dir=save_loc, gpus=gpus,
                       auto_select_gpus=True if gpus else False,
                       max_epochs=training_epochs,
                       check_val_every_n_epoch=evaluation_frequency,
-                      deterministic=True,
+                      deterministic=deterministic,
                       early_stop_callback=early_stop_cb,
                       checkpoint_callback=checkpoint_cb,
                       fast_dev_run=debug)

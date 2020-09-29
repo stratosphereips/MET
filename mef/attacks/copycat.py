@@ -54,7 +54,7 @@ class CopyCat(Base):
                 "Substitute model Accuracy: {:.1f}% Loss: {:.3f}".format(
                         sub_test_acc, sub_test_loss))
 
-        self._logger.info("Getting final metrics")
+        self._logger.info("Getting attack metric")
         vict_test_labels = self._get_predictions(self._victim_model,
                                                  self._test_set)
         vict_test_labels = torch.argmax(vict_test_labels, dim=1).numpy()

@@ -15,15 +15,18 @@ class Base:
 
     def __init__(self, save_loc):
         self._save_loc = save_loc
-        trainer_kargs = dict(gpus=self._test_config.gpus,
-                             training_epochs=self._test_config.training_epochs,
-                             early_stop_tolerance=self._test_config.early_stop_tolerance,
-                             evaluation_frequency=self._test_config.evaluation_frequency,
-                             save_loc=self._save_loc,
-                             debug=self._test_config.debug)
-        self._trainer = get_trainer(**trainer_kargs)
+        self._trainer_kargs = dict(
+                gpus=self._test_config.gpus,
+                training_epochs=self._test_config.training_epochs,
+                early_stop_tolerance=self._test_config.early_stop_tolerance,
+                evaluation_frequency=self._test_config.evaluation_frequency,
+                save_loc=self._save_loc,
+                debug=self._test_config.debug,
+                deterministic=self._test_config.deterministic
+        )
 
-    def _train_model(self, model, optimizer, loss, train_set, val_set=None):
+    def _train_model(self, model, optimizer, loss, train_set, val_set=None,
+                     iteration=None):
         train_dataloader = DataLoader(dataset=train_set, pin_memory=True,
                                       num_workers=4,
                                       batch_size=self._test_config.batch_size)
@@ -34,7 +37,8 @@ class Base:
                                         batch_size=self._test_config.batch_size)
 
         mef_model = MefModule(model, optimizer, loss)
-        self._trainer.fit(mef_model, train_dataloader, val_dataloader)
+        trainer = get_trainer(**self._trainer_kargs, iteration=iteration)
+        trainer.fit(mef_model, train_dataloader, val_dataloader)
 
         return
 
@@ -43,9 +47,10 @@ class Base:
                                      num_workers=4,
                                      batch_size=self._test_config.batch_size)
         mef_model = MefModule(model, loss=loss)
-        metrics = self._trainer.test(mef_model, test_dataloader)
+        trainer = get_trainer(**self._trainer_kargs)
+        metrics = trainer.test(mef_model, test_dataloader)
 
-        return metrics[0]["test_acc"], metrics[0]["test_loss"]
+        return 100 * metrics[0]["test_acc"], metrics[0]["test_loss"]
 
     def _get_attack_metric(self, substitute_model, test_dataset,
                            vict_test_labels):
