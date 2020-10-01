@@ -17,8 +17,6 @@ class TestConfig:
     early_stop_tolerance: int = 10
     val_set_size: float = 0.2
     training_epochs: int = 1000
-    overwrite_models: bool = False
-    use_cached_files: bool = False
     seed: int = None
     deterministic: bool = False
     debug: bool = False
