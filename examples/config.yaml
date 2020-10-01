@@ -16,7 +16,6 @@ attacks:
     selection_strategy: "entropy"
     budget: 1000
     iterations: 10
-    training_epochs: 1000
     initial_seed_size: 2000
     output_type: "one_hot"
 
