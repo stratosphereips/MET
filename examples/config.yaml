@@ -19,7 +19,6 @@ attacks:
     training_epochs: 1000
     initial_seed_size: 2000
     output_type: "one_hot"
-    val_set_size: 0.2
 
   cloudleak:
     adversial_strategy: "pgd"
@@ -27,7 +26,3 @@ attacks:
     augmentation_multiplier: 5
     iterations: 10
     output_type: "one_hot"
-
-  copycat:
-    training_epochs: 1000
-    val_set_size: 0.2
