@@ -13,8 +13,7 @@ from tqdm import tqdm
 
 from .base import Base
 from ..utils.config import Configuration
-from ..utils.pytorch.datasets import AugmentationDataset, CustomDataset, \
-    CustomLabelDataset
+from ..utils.pytorch.datasets import AugmentationDataset, CustomDataset
 
 
 # Function so each worker generates different augmented data
@@ -134,12 +133,6 @@ class CloudLeak(Base):
                     "Substitute model Accuracy: {:.1f}% Loss: {:.3f}".format(
                             sub_test_acc, sub_test_loss))
 
-            # TODO: change to ATE metric
-            # Agreement score
-            self._logger.info("Getting attack metric")
-            self._get_attack_metric(self._substitute_model, self._test_set,
-                                    vict_test_labels)
-
             # Step 1: Randomly select images for current iteration
             self._logger.info("Preparing initial random query set")
             idx = np.random.choice(np.arange(len(available_samples)),
@@ -149,7 +142,8 @@ class CloudLeak(Base):
 
             # Step 2: Craft adversial examples
             self._logger.info(
-                    "Crafting adversial samples with substitute model")
+                    "Crafting adversial samples with {} method on substitute "
+                    "model".format(self._adversial_strategy))
             adversial_samples = self._craft_adversial_samples(
                     iteration_sets[iteration])
 
@@ -205,4 +199,10 @@ class CloudLeak(Base):
                     "Training substitute model with synthetic dataset")
             self._train_model(self._substitute_model, self._optimizer,
                               self._train_loss, train_set, val_set,
-                              iteration + 1)
+                              iteration + 1, worker_init_fn)
+
+            # TODO: change to ATE metric
+            # Agreement score
+            self._logger.info("Getting attack metric")
+            self._get_attack_metric(self._substitute_model, self._test_set,
+                                    vict_test_labels)

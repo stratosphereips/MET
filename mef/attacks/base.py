@@ -26,15 +26,17 @@ class Base:
         )
 
     def _train_model(self, model, optimizer, loss, train_set, val_set=None,
-                     iteration=None):
+                     iteration=None, worker_init_fn=None):
         train_dataloader = DataLoader(dataset=train_set, pin_memory=True,
                                       num_workers=4,
-                                      batch_size=self._test_config.batch_size)
+                                      batch_size=self._test_config.batch_size,
+                                      worker_init_fn=worker_init_fn)
         val_dataloader = None
         if val_set is not None:
             val_dataloader = DataLoader(dataset=val_set, pin_memory=True,
                                         num_workers=4,
-                                        batch_size=self._test_config.batch_size)
+                                        batch_size=self._test_config.batch_size,
+                                        worker_init_fn=worker_init_fn)
 
         mef_model = MefModule(model, optimizer, loss)
         trainer = get_trainer(**self._trainer_kargs, iteration=iteration)
