@@ -2,7 +2,7 @@ import torch
 from torch.utils.data import Dataset, random_split
 
 
-def split_data(dataset, split_size):
+def get_split_sizes(dataset, split_size):
     if isinstance(split_size, float):
         split_set_size = int(len(dataset) * split_size)
     elif isinstance(split_size, int):
@@ -11,6 +11,13 @@ def split_data(dataset, split_size):
         raise ValueError("split_size must be either float or integer!")
 
     rest_set_size = len(dataset) - split_set_size
+
+    return rest_set_size, split_set_size
+
+
+def split_data(dataset, split_size):
+    rest_set_size, split_set_size = get_split_sizes(dataset, split_size)
+
     rest_set, split_set = random_split(dataset, [rest_set_size,
                                                  split_set_size])
 
@@ -29,6 +36,9 @@ class ListDataset(Dataset):
 
 
 class CustomLabelDataset(Dataset):
+    """
+    Dataset that uses existing dataset with custom labels
+    """
     def __init__(self, dataset, labels):
         self.dataset = dataset
         self.labels = labels
@@ -39,29 +49,34 @@ class CustomLabelDataset(Dataset):
     def __len__(self):
         return len(self.dataset)
 
+class CustomDataset(Dataset):
+    """
+    Create completely new dataset from data
+    """
+    def __init__(self, data, labels):
+        self.data = data
+        self.labels = labels
+
+    def __getitem__(self, index):
+        return self.data[index], self.labels[index]
+
+    def __len__(self):
+        return len(self.data)
 
 class AugmentationDataset(Dataset):
-    def __init__(self, data, labels, transform=None,
-                 augmentation_multiplier=1):
+    def __init__(self, data, labels, transform):
         self.data = data
         self.labels = labels
         self.transform = transform
-        self.augmentation_multiplier = augmentation_multiplier
 
     def __getitem__(self, index):
-        if index < index % len(self.data):
-            return self.data[index], self.labels[index]
-        else:
-            sample = self.data[(index % len(self.data))]
-            if self.transform:
-                if isinstance(sample, torch.Tensor):
-                    sample = sample.numpy().transpose(1, 2, 0)
-                sample = self.transform(sample)
+        sample = self.data[(index % len(self.data))]
+        # imgaug works with numpy arrays
+        if isinstance(sample, torch.Tensor):
+            sample = sample.numpy().transpose(1, 2, 0)
+        sample = self.transform(sample)
 
-        return sample, self.labels[(index % len(self.data))]
+        return sample, self.labels[index]
 
     def __len__(self):
-        # Pytorch is performing transformations on the fly so in order to
-        # simulate bigger dataset
-        # we multiply the size by augmentation multiplier
-        return len(self.data) * self.augmentation_multiplier
+        return len(self.data)

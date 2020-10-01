@@ -26,7 +26,6 @@ attacks:
     set_size: 200
     augmentation_multiplier: 5
     iterations: 10
-    training_epochs: 1000
     output_type: "one_hot"
 
   copycat:
