@@ -220,7 +220,7 @@ class ActiveThief(Base):
     def _deepfool_strategy(self, k, idx, remaining_samples):
         self._substitute_model.eval()
         loader = DataLoader(remaining_samples, num_workers=4, pin_memory=True,
-                            batch_size=self._test_config.batch_size)
+                            batch_size=self._test_config.batch_size // 2)
 
         df = DeepFool(self._substitute_model, self._num_classes)
 
