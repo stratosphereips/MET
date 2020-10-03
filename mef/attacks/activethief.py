@@ -1,9 +1,12 @@
+import copy
 import math
 from dataclasses import dataclass
 
 import numpy as np
 import torch
 import torch.nn.functional as F
+from torch.autograd import Variable
+from torch.autograd.gradcheck import zero_gradients
 from torch.utils.data import ConcatDataset, DataLoader, Subset
 from tqdm import tqdm
 
@@ -12,94 +15,79 @@ from ..utils.config import Configuration
 from ..utils.pytorch.datasets import CustomLabelDataset, split_data
 
 
-class DeepFool:
-    """Batch deepfool
-    https://github.com/tobylyf/adv-attack/blob/master/mydeepfool.py"""
+def deepfool(image, net, num_classes, overshoot, max_iter):
+    """
+    Taken from https://github.com/BXuan694/Universal-Adversarial
+    -Perturbation/blob/master/deepfool.py
+    """
 
-    def __init__(self, model, nb_candidate, overshoot=0.02, max_iter=50,
-                 clip_min=0.0, clip_max=1.0, force_max_iter=False):
-        self._model = model
-        self._nb_candidate = nb_candidate
-        self._overshoot = overshoot
-        self._max_iter = max_iter
-        self._clip_min = clip_min
-        self._clip_max = clip_max
-        self._force_max_iter = force_max_iter
-        self._device = next(model.parameters()).device
+    is_cuda = torch.cuda.is_available()
+    if is_cuda:
+        image = image.cuda()
+        net = net.cuda()
 
-    @staticmethod
-    def _jacobian(predictions, x, nb_classes):
-        list_derivatives = []
+    f_image = net.forward(Variable(image[None, :, :, :],
+                                   requires_grad=True)).data \
+        .cpu().numpy().flatten()
+    I = f_image.argsort()[::-1]
 
-        for class_ind in range(nb_classes):
-            outputs = predictions[:, class_ind]
-            derivatives, = torch.autograd.grad(outputs, x,
-                                               grad_outputs=torch.ones_like(
-                                                       outputs),
-                                               retain_graph=True)
-            list_derivatives.append(derivatives)
+    I = I[0:num_classes]
+    label = I[0]
 
-        return list_derivatives
+    input_shape = image.cpu().numpy().shape
+    pert_image = copy.deepcopy(image)
+    w = np.zeros(input_shape)
+    r_tot = np.zeros(input_shape)
 
-    def attack(self, model, x):
-        with torch.no_grad():
-            logits = model(x)
-        nb_classes = logits.size(-1)
-        assert self._nb_candidate <= nb_classes, "nb_candidate should not " \
-                                                 "be greater than nb_classes"
+    loop_i = 0
 
-        # preds = logits.topk(self.nb_candidate)[0]
-        # grads = torch.stack(jacobian(preds, x, self.nb_candidate), dim=1)
-        # grads will be the shape [batch_size, nb_candidate, image_size]
+    x = Variable(pert_image[None, :], requires_grad=True)
+    fs = net.forward(x)
+    k_i = label
 
-        adv_x = x.clone().requires_grad_()
+    while k_i == label and loop_i < max_iter:
 
-        iteration = 0
-        logits = model(adv_x)
-        current = logits.argmax(dim=1)
-        if current.size() == ():
-            current = torch.tensor([current])
-        w = torch.squeeze(torch.zeros(x.size()[1:])).to(self._device)
-        r_tot = torch.zeros(x.size()).to(self._device)
-        original = current
+        pert = np.inf
+        fs[0, I[0]].backward(retain_graph=True)
+        grad_orig = x.grad.data.cpu().numpy().copy()
 
-        while (current == original).any and (
-                self._force_max_iter or iteration < self._max_iter):
-            predictions_val = logits.topk(self._nb_candidate)[0]
-            gradients = torch.stack(self._jacobian(predictions_val, adv_x,
-                                                   self._nb_candidate), dim=1)
-            with torch.no_grad():
-                for idx in range(x.size(0)):
-                    pert = float('inf')
-                    if current[idx] != original[idx]:
-                        continue
-                    for k in range(1, self._nb_candidate):
-                        w_k = gradients[idx, k, ...] - gradients[idx, 0, ...]
-                        f_k = predictions_val[idx, k] - predictions_val[idx, 0]
-                        # Calculate distance to the hyperplane
-                        # Added 1e-4 for numerical stability
-                        pert_k = (f_k.abs() + 0.00001) / w_k.view(-1).norm()
-                        if pert_k < pert:
-                            pert = pert_k
-                            w = w_k
+        for k in range(1, num_classes):
+            zero_gradients(x)
 
-                    # Calculate minimal vector (perturbation) that projects
-                    # sample onto the
-                    # closest hyperplane
-                    r_i = pert * w / w.view(-1).norm()
-                    r_tot[idx, ...] = r_tot[idx, ...] + r_i
+            fs[0, I[k]].backward(retain_graph=True)
+            cur_grad = x.grad.data.cpu().numpy().copy()
 
-            adv_x = torch.clamp(r_tot + x, self._clip_min,
-                                self._clip_max).requires_grad_()
-            logits = model(adv_x)
-            current = logits.argmax(dim=1)
-            if current.size() == ():
-                current = torch.tensor([current])
-            iteration = iteration + 1
+            # set new w_k and new f_k
+            w_k = cur_grad - grad_orig
+            f_k = (fs[0, I[k]] - fs[0, I[0]]).data.cpu().numpy()
 
-        adv_x = (1 + self._overshoot) * r_tot + x
+            pert_k = abs(f_k) / np.linalg.norm(w_k.flatten())
 
-        return adv_x
+            # determine which w_k to use
+            if pert_k < pert:
+                pert = pert_k
+                w = w_k
+
+        # compute r_i and r_tot
+        # Added 1e-4 for numerical stability
+        r_i = (pert + 1e-4) * w / np.linalg.norm(w)
+        r_tot = np.float32(r_tot + r_i)
+
+        if is_cuda:
+            pert_image = image + (1 + overshoot) * \
+                         torch.from_numpy(r_tot).cuda()
+        else:
+            pert_image = image + (1 + overshoot) * torch.from_numpy(r_tot)
+
+        x = Variable(pert_image, requires_grad=True)
+        # print(image.shape)
+        # print(x.view(1,1,image.shape[0],-1).shape)
+        fs = net.forward(x.view(1, 1, image.shape[1], -1))
+        k_i = np.argmax(fs.data.cpu().numpy().flatten())
+
+        loop_i += 1
+
+    return pert_image.cpu()
 
 
 @dataclass
@@ -133,6 +121,11 @@ class ActiveThief(Base):
         self._val_size = int(self._budget * self._test_config.val_set_size)
         self._k = (self._budget - self._val_size -
                    self._config.initial_seed_size) // self._config.iterations
+
+        if self._k <= 0:
+            self._logger.error("ActiveThief's per iteration selection must "
+                               "be bigger than 0!")
+            raise ValueError()
 
         # Models
         self._victim_model = victim_model
@@ -219,23 +212,16 @@ class ActiveThief(Base):
 
     def _deepfool_strategy(self, k, idx, remaining_samples):
         self._substitute_model.eval()
-        loader = DataLoader(remaining_samples, num_workers=4, pin_memory=True,
-                            batch_size=self._test_config.batch_size // 2)
-
-        df = DeepFool(self._substitute_model, self._num_classes)
+        loader = DataLoader(remaining_samples, num_workers=4, pin_memory=True)
 
         scores = []
         for _, batch in enumerate(
                 tqdm(loader, desc="Getting samples dfal scores")):
-            x = batch[0]
+            x = batch[0].squeeze(dim=0)
 
-            adversary_x = df.attack(self._substitute_model, x)
+            adv_x = deepfool(x, self._substitute_model, 2, 0.02, 50)
 
-            batch_scores = []
-            for adversary, original in zip(adversary_x, x):
-                scores.append(torch.dist(adversary, original).item())
-
-            scores.extend(batch_scores)
+            scores.append(torch.dist(adv_x, x).item())
 
         scores = dict(zip(idx, scores))
         scores = dict(sorted(scores.items(), key=lambda x: x[1], reverse=True))
@@ -381,12 +367,16 @@ class ActiveThief(Base):
 
             # Step 4: Approximate labels are obtained for remaining samples
             # using the substitute
-            self._logger.info("Getting substitute's predictions for the rest "
-                              "of the thief dataset")
             idx = sorted(list(available_samples))
             remaining_samples = Subset(thief_dataset_rest, idx)
-            remaining_samples_preds = self._get_predictions(
-                    self._substitute_model, remaining_samples)
+
+            remaining_samples_preds = None
+            if self._config.selection_strategy not in {"random", "dfal"}:
+                self._logger.info(
+                        "Getting substitute's predictions for the rest of "
+                        "the thief dataset")
+                remaining_samples_preds = self._get_predictions(
+                        self._substitute_model, remaining_samples)
 
             # Step 5: An active learning subset selection strategy is used
             # to select set of k
@@ -409,3 +399,4 @@ class ActiveThief(Base):
                                                     query_sets[iteration],
                                                     self._config.output_type)
             query_sets_preds.append(query_set_preds)
+        return
