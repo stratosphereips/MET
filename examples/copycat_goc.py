@@ -1,11 +1,10 @@
-import argparse
 import os
 import sys
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import ConcatDataset, random_split
+from torch.utils.data import ConcatDataset, DataLoader, random_split
 from torchvision.datasets import CIFAR10, ImageNet, STL10
 from torchvision.transforms import transforms
 
@@ -15,8 +14,17 @@ import mef
 from mef.attacks.copycat import CopyCat
 from mef.models.vision.vgg import Vgg
 from mef.utils.ios import mkdir_if_missing
-from mef.utils.pytorch.datasets import split_data
+from mef.utils.pytorch.datasets import CustomDataset, split_dataset
 from mef.utils.pytorch.lighting.training import train_victim_model
+
+SEED = 0
+DATA_DIR = "./data"
+IMAGENET_DIR = "E:\Datasets\ImageNet2012"
+SAVE_LOC = "./cache/copycat/GOC"
+NPD_SIZE = 2000  # Number of images taken from (non-problem) ImageNet dataset
+VICT_TRAIN_EPOCHS = 10
+GPUS = 1
+DIMS = (3, 64, 64)
 
 
 class GOCData:
@@ -120,60 +128,39 @@ class GOCData:
         self.thief_dataset = ConcatDataset([pd_dataset, npd_dataset])
 
 
-def parse_args():
-    parser = argparse.ArgumentParser("ActiveThief - MNIST example")
-    parser.add_argument("-c", "--config_file", type=str,
-                        default="./config.yaml",
-                        help="path to configuration file")
-    parser.add_argument("-d", "--data_dir", type=str, default="./data",
-                        help="path to directory where datasets will be "
-                             "downloaded")
-    parser.add_argument("-i", "--imagenet_dir", type=str,
-                        help="path to directory where ImageNet2012 is located")
-    parser.add_argument("-s", "--save_loc", type=str,
-                        default="./cache/copycat/GOC",
-                        help="path to folder where attack's files will be "
-                             "saved")
-    parser.add_argument("-n", "--npd_size", type=int, default=2000,
-                        help="size of the non problem domain dataset that "
-                             "should be taken from ImageNet2012")
-    parser.add_argument("-t", "--train_epochs", type=int, default=1000,
-                        help="number of trainining epochs for the target "
-                             "model and pd_ol model")
-    parser.add_argument("-g", "--gpus", type=int, default=0,
-                        help="number of gpus to be used for training of "
-                             "victim model")
-
-    args = parser.parse_args()
-    return args
-
-
-def set_up(args):
-    data_dir = args.data_dir
-    imagenet_dir = args.imagenet_dir
-    save_loc = args.save_loc
-    victim_save_loc = save_loc + "/victim/"
-    npd_size = args.npd_size
-    training_epochs = args.train_epochs
-    gpus = args.gpus
-    dims = (3, 64, 64)
-
-    victim_model = Vgg(vgg_type="vgg_16", input_dimensions=dims, num_classes=9)
-    substitute_model = Vgg(vgg_type="vgg_16", input_dimensions=dims,
+def set_up():
+    victim_model = Vgg(vgg_type="vgg_16", input_dimensions=DIMS, num_classes=9)
+    substitute_model = Vgg(vgg_type="vgg_16", input_dimensions=DIMS,
                            num_classes=9)
 
-    if gpus:
+    if GPUS:
         victim_model.cuda()
         substitute_model.cuda()
 
     print("Preparing data")
-    goc = GOCData(npd_size, imagenet_dir, data_dir=data_dir, dims=dims)
+    goc = GOCData(NPD_SIZE, IMAGENET_DIR, data_dir=DATA_DIR, dims=DIMS)
     goc.prepare_data()
     goc.setup()
 
+    test_loader = DataLoader(goc.test_set, batch_size=len(goc.test_set))
+
+    x_test = next(iter(test_loader))[0].numpy()
+    y_test = next(iter(test_loader))[1].numpy()
+
+    od_loader = DataLoader(goc.od_dataset, batch_size=len(goc.od_dataset))
+
+    x_od = next(iter(od_loader))[0].numpy()
+    y_od = next(iter(od_loader))[1].numpy()
+
+    thief_loader = DataLoader(goc.thief_dataset,
+                              batch_size=len(goc.thief_dataset))
+
+    x_thief = next(iter(thief_loader))[0].numpy()
+    y_thief = next(iter(thief_loader))[1].numpy()
+
     # Prepare target model
     try:
-        saved_model = torch.load(victim_save_loc + "final_victim_model.pt")
+        saved_model = torch.load(SAVE_LOC + "/victim/final_victim_model.pt")
         victim_model.load_state_dict(saved_model["state_dict"])
         print("Loaded victim model")
     except FileNotFoundError:
@@ -181,20 +168,22 @@ def set_up(args):
         optimizer = torch.optim.SGD(victim_model.parameters(), lr=0.01,
                                     momentum=0.8)
         loss = F.cross_entropy
-        train_set, val_set = split_data(goc.od_dataset, 0.2)
+
+        data = CustomDataset(x_od, y_od)
+        train_set, val_set = split_dataset(data, 0.2)
         train_victim_model(victim_model, optimizer, loss, train_set, val_set,
-                           training_epochs, victim_save_loc, gpus)
+                           VICT_TRAIN_EPOCHS, SAVE_LOC + "/victim/", GPUS)
         torch.save(dict(state_dict=victim_model.state_dict()),
-                   victim_save_loc + "final_victim_model.pt")
+                   SAVE_LOC + "/victim/final_victim_model.pt")
 
     return dict(victim_model=victim_model, substitute_model=substitute_model,
-                test_set=goc.test_set, thief_dataset=goc.thief_dataset)
+                x_test=x_test, y_test=y_test), x_thief, y_thief
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    mef.Test(args.config_file)
-    mkdir_if_missing(args.save_loc)
+    mef.Test(gpus=GPUS, seed=SEED)
+    mkdir_if_missing(SAVE_LOC)
 
-    attack_variables = set_up(args)
-    copycat = CopyCat(**attack_variables, save_loc=args.save_loc).run()
+    attack_variables, x_thief, y_thief = set_up()
+    copycat = CopyCat(**attack_variables, save_loc=SAVE_LOC)
+    copycat.run(x_thief, y_thief)

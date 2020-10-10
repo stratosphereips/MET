@@ -1,71 +1,54 @@
+import numpy as np
 import torch
 import torch.nn.functional as F
 
-from mef.utils.pytorch.datasets import CustomLabelDataset, split_data
+from mef.utils.pytorch.datasets import CustomDataset, split_dataset
 from .base import Base
 
 
 class CopyCat(Base):
 
-    def __init__(self, victim_model, substitute_model, test_set, thief_dataset,
+    def __init__(self, victim_model, substitute_model, x_test, y_test,
+                 training_epochs=1000, early_stop_tolerance=10,
+                 evaluation_frequency=2, val_size=0.2, batch_size=64,
                  save_loc="./cache/copycat"):
-        super().__init__(save_loc)
+        optimizer = torch.optim.SGD(substitute_model.parameters(),
+                                    lr=0.01, momentum=0.8)
+        train_loss = F.cross_entropy
+        test_loss = train_loss
 
-        # Datasets
-        self._test_set = test_set
-        self._thief_dataset = thief_dataset
+        super().__init__(victim_model, substitute_model, x_test, y_test,
+                         optimizer, train_loss, test_loss, training_epochs,
+                         early_stop_tolerance, evaluation_frequency, val_size,
+                         batch_size, save_loc=save_loc)
 
-        # Models
-        self._victim_model = victim_model
-        self._substitute_model = substitute_model
 
-        # Optimizer, loss_functions
-        self._optimizer = torch.optim.SGD(self._substitute_model.parameters(),
-                                          lr=0.01, momentum=0.8)
-        self._loss = F.cross_entropy
-
-        if self._test_config.gpus:
-            self._victim_model.cuda()
-            self._substitute_model.cuda()
-
-    def run(self):
+    def run(self, x, y):
         self._logger.info("########### Starting CopyCat attack ###########")
+        self._logger.info("CopyCat's attack budget: {}".format(len(x)))
 
+        # Get stolen labels from victim model
         self._logger.info("Getting stolen labels")
-        self._logger.info("Dataset size: {}".format(len(self._thief_dataset)))
-        stolen_labels = self._get_predictions(self._victim_model,
-                                              self._thief_dataset)
-        stolen_labels = torch.argmax(stolen_labels, dim=1)
+        stolen_labels = self._get_predictions(self._victim_model, x)
+        stolen_labels = np.argmax(stolen_labels, axis=1)
 
-        synthetic_dataset = CustomLabelDataset(self._thief_dataset,
-                                               stolen_labels)
+        synthetic_dataset = CustomDataset(x, stolen_labels)
+        train_set, val_set = split_dataset(synthetic_dataset, self._val_size)
 
         self._logger.info("Training substitute model with synthetic dataset")
-        train_set, val_set = split_data(synthetic_dataset,
-                                        self._test_config.val_set_size)
-        self._train_model(self._substitute_model, self._optimizer, self._loss,
-                          train_set, val_set)
+        self._train_model(self._substitute_model, self._optimizer,
+                          self._train_loss, train_set, val_set)
 
         self._logger.info("Getting substitute model metrics on test set")
         sub_test_acc, sub_test_loss = self._test_model(self._substitute_model,
-                                                       self._loss,
+                                                       self._test_loss,
                                                        self._test_set)
         self._logger.info(
                 "Substitute model Accuracy: {:.1f}% Loss: {:.3f}".format(
                         sub_test_acc, sub_test_loss))
 
-        self._logger.info("Getting attack metric")
-        vict_test_labels = self._get_predictions(self._victim_model,
-                                                 self._test_set)
-        vict_test_labels = torch.argmax(vict_test_labels, dim=1).numpy()
-        self._get_attack_metric(self._substitute_model, self._test_set,
-                                vict_test_labels)
+        self._get_aggreement_score()
 
-        final_model_loc = self._save_loc + "/final_substitute_model.pt"
-        self._logger.info(
-                "Saving final substitute model state dictionary to: {}".format(
-                        final_model_loc))
-        torch.save(dict(state_dict=self._substitute_model.state_dict),
-                   final_model_loc)
+        self._save_final_subsitute()
 
         return

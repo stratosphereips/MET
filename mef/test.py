@@ -1,24 +1,20 @@
 from dataclasses import dataclass
 from logging import getLogger
+from typing import Optional
 
 from pytorch_lightning import seed_everything
 
 import mef.attacks.base
-from mef.utils.config import Configuration
+from mef.utils.config import get_configuration
 from mef.utils.logger import set_up_logger
 
 
 @dataclass
 class TestConfig:
-    gpus: int = 0
-    log_level: str = "info"
-    batch_size: int = 64
-    evaluation_frequency: int = 2
-    early_stop_tolerance: int = 10
-    val_set_size: float = 0.2
-    training_epochs: int = 1000
-    seed: int = None
-    deterministic: bool = False
+    gpus: int
+    log_level: str
+    seed: Optional[int] = None
+    deterministic: bool = True
     debug: bool = False
 
 
@@ -26,9 +22,14 @@ class Test:
     _config = None
     _logger = None
 
-    def __init__(self, config_file):
-        Configuration(config_file)
-        self._config = Configuration.get_configuration(TestConfig, "test")
+    def __init__(self, gpus=0, log_level="info", seed=None,
+                 deterministic=True, debug=False):
+        self._config = get_configuration(TestConfig,
+                                         dict(gpus=gpus,
+                                              log_level=log_level,
+                                              seed=seed,
+                                              deterministic=deterministic,
+                                              debug=debug))
 
         set_up_logger("Mef", self._config.log_level)
         self._logger = getLogger("Mef")

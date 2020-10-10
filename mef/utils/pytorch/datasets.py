@@ -1,27 +1,10 @@
 import torch
 from torch.utils.data import Dataset, random_split
 
+def split_dataset(dataset, split_size):
+    rest_set_size = len(dataset) - (len(dataset) * split_size)
 
-def get_split_sizes(dataset, split_size):
-    if isinstance(split_size, float):
-        split_set_size = int(len(dataset) * split_size)
-    elif isinstance(split_size, int):
-        split_set_size = split_size
-    else:
-        raise ValueError("split_size must be either float or integer!")
-
-    rest_set_size = len(dataset) - split_set_size
-
-    return rest_set_size, split_set_size
-
-
-def split_data(dataset, split_size):
-    rest_set_size, split_set_size = get_split_sizes(dataset, split_size)
-
-    rest_set, split_set = random_split(dataset, [rest_set_size,
-                                                 split_set_size])
-
-    return rest_set, split_set
+    return random_split(dataset, [rest_set_size, split_size])
 
 
 class ListDataset(Dataset):
@@ -39,29 +22,61 @@ class CustomLabelDataset(Dataset):
     """
     Dataset that uses existing dataset with custom labels
     """
-    def __init__(self, dataset, labels):
-        self.dataset = dataset
-        self.labels = labels
+
+    def __init__(self, x, y):
+        if not isinstance(x, torch.Tensor):
+            x = torch.from_numpy(x)
+        if not isinstance(y, torch.Tensor):
+            y = torch.from_numpy(y)
+
+        self.x = x
+        self.y = y
 
     def __getitem__(self, index):
-        return self.dataset[index][0], self.labels[index]
+        return self.x[index][0], self.y[index]
 
     def __len__(self):
-        return len(self.dataset)
+        return len(self.x)
+
 
 class CustomDataset(Dataset):
     """
-    Create completely new dataset from data
+    Create completely new dataset from torch tensors or numpy arrays
+    representing x, y
     """
-    def __init__(self, data, labels):
-        self.data = data
-        self.labels = labels
+
+    def __init__(self, x, y):
+        if not isinstance(x, torch.Tensor):
+            x = torch.from_numpy(x)
+        if not isinstance(y, torch.Tensor):
+            y = torch.from_numpy(y)
+
+        self.x = x
+        self.y = y
 
     def __getitem__(self, index):
-        return self.data[index], self.labels[index]
+        return self.x[index], self.y[index]
 
     def __len__(self):
-        return len(self.data)
+        return len(self.x)
+
+
+class NoYDataset(Dataset):
+    """
+    Dataset with only X
+    """
+
+    def __init__(self, x):
+        if not isinstance(x, torch.Tensor):
+            x = torch.from_numpy(x)
+        self.x = x
+
+    def __getitem__(self, index):
+        return self.x[index]
+
+    def __len__(self):
+        return len(self.x)
+
 
 class AugmentationDataset(Dataset):
     def __init__(self, data, labels, transform):

@@ -1,5 +1,4 @@
 import pytorch_lightning as pl
-import torch
 from pytorch_lightning.metrics import functional as FM
 
 
@@ -10,6 +9,7 @@ class MefModule(pl.LightningModule):
         self._optimizer = optimizer
         self._loss = loss
         self._lr_scheduler = lr_scheduler
+        self.to(next(model.parameters()).device)
 
     def training_step(self, batch, batch_idx):
         x, y = batch

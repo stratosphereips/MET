@@ -24,7 +24,7 @@ def train_victim_model(model, optimizer, loss, train_set, val_set,
 
 def get_trainer(gpus=0, training_epochs=10, early_stop_tolerance=3,
                 evaluation_frequency=2, save_loc="./cache", debug=False,
-                iteration=None, deterministic=True):
+                iteration=None, deterministic=True, validation=True):
     # Prepare callbacks
     early_stop_cb = EarlyStopping(patience=early_stop_tolerance, verbose=True)
 
@@ -43,6 +43,8 @@ def get_trainer(gpus=0, training_epochs=10, early_stop_tolerance=3,
                       deterministic=deterministic,
                       early_stop_callback=early_stop_cb,
                       checkpoint_callback=checkpoint_cb,
-                      fast_dev_run=debug)
+                      fast_dev_run=debug, weights_summary=None,
+                      num_sanity_val_steps=2 if validation else 0,
+                      limit_val_batches=1 if validation else 0)
 
     return trainer
