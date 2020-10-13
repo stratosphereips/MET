@@ -52,9 +52,9 @@ class Base:
         self._train_loss = train_loss
         self._test_loss = test_loss
 
-    def _train_model(self, model, optimizer, loss, train_set, val_set=None,
+    def _train_model(self, model, optimizer, train_set, val_set=None,
                      iteration=None, worker_init_fn=None,
-                     training_epochs=None):
+                     training_epochs=None, lr_scheduler=None):
         train_dataloader = DataLoader(dataset=train_set, pin_memory=True,
                                       num_workers=4,
                                       batch_size=self._batch_size,
@@ -66,12 +66,12 @@ class Base:
                                         batch_size=self._batch_size,
                                         worker_init_fn=worker_init_fn)
 
-        trainer_kwargs = self._trainer_kwargs
+        trainer_kwargs = self._trainer_kwargs.copy()
         if training_epochs is not None:
             trainer_kwargs["training_epochs"] = training_epochs
-        trainer = get_trainer(**self._trainer_kwargs, iteration=iteration)
+        trainer = get_trainer(**trainer_kwargs, iteration=iteration)
 
-        mef_model = MefModule(model, optimizer, loss)
+        mef_model = MefModule(model, optimizer, self._train_loss, lr_scheduler)
         trainer.fit(mef_model, train_dataloader, val_dataloader)
 
         # For some reason the model after fit is on CPU and not GPU
@@ -80,11 +80,11 @@ class Base:
 
         return
 
-    def _test_model(self, model, loss, test_set):
+    def _test_model(self, model, test_set):
         test_dataloader = DataLoader(dataset=test_set, pin_memory=True,
                                      num_workers=4,
                                      batch_size=self._batch_size)
-        mef_model = MefModule(model, loss=loss)
+        mef_model = MefModule(model, loss=self._test_loss)
         trainer = get_trainer(**self._trainer_kwargs)
         metrics = trainer.test(mef_model, test_dataloader)
 
@@ -127,8 +127,8 @@ class Base:
                             batch_size=self._batch_size)
         y_preds = []
         with torch.no_grad():
-            for _, x in enumerate(tqdm(loader, desc="Getting predictions",
-                                       total=len(loader))):
+            for x in tqdm(loader, desc="Getting predictions", total=len(
+                    loader)):
                 y_pred = model(x)
                 y_preds.append(y_pred.cpu())
 

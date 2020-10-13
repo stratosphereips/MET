@@ -210,7 +210,6 @@ class ActiveThief(Base):
         # Get victim model metrics on test set
         self._logger.info("Getting victim model's metrics for test set")
         vict_test_acc, vict_test_loss = self._test_model(self._victim_model,
-                                                         self._test_loss,
                                                          self._test_set)
 
         # Save substitute model state_dict for retraining from scratch
@@ -224,7 +223,7 @@ class ActiveThief(Base):
             self._logger.info("Getting substitute model's metrics for test "
                               "set")
             sub_test_acc, sub_test_loss = self._test_model(
-                    self._substitute_model, self._test_loss, self._test_set)
+                    self._substitute_model, self._test_set)
             self._logger.info("Test set metrics")
             self._logger.info(
                     "Victim model Accuracy: {:.1f}% Loss: {:.3f}".format(
@@ -244,7 +243,7 @@ class ActiveThief(Base):
             train_set = CustomDataset(np.vstack(x_queries),
                                       np.vstack(y_queries))
             self._train_model(self._substitute_model, self._optimizer,
-                              self._train_loss, train_set, val_set, it)
+                              train_set, val_set, it)
 
             self._get_aggreement_score()
 

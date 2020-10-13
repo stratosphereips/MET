@@ -40,4 +40,4 @@ class MefModule(pl.LightningModule):
     def configure_optimizers(self):
         if self._lr_scheduler is None:
             return self._optimizer
-        return self._optimizer, self._lr_scheduler
+        return [self._optimizer], [self._lr_scheduler]

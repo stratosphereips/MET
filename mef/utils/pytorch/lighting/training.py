@@ -1,25 +1,5 @@
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-from torch.utils.data import DataLoader
-
-from mef.utils.pytorch.lighting.module import MefModule
-
-
-def train_victim_model(model, optimizer, loss, train_set, val_set,
-                       training_epochs, save_loc, gpus):
-    mef_model = MefModule(model, optimizer, loss)
-
-    trainer = get_trainer(gpus, training_epochs, save_loc=save_loc)
-
-    train_dataloader = DataLoader(dataset=train_set, shuffle=True,
-                                  pin_memory=True, num_workers=4,
-                                  batch_size=64)
-    val_dataloader = DataLoader(dataset=val_set, pin_memory=True,
-                                num_workers=4, batch_size=64)
-
-    trainer.fit(mef_model, train_dataloader, val_dataloader)
-
-    return
 
 
 def get_trainer(gpus=0, training_epochs=10, early_stop_tolerance=3,

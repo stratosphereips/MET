@@ -22,7 +22,6 @@ class CopyCat(Base):
                          early_stop_tolerance, evaluation_frequency, val_size,
                          batch_size, save_loc=save_loc)
 
-
     def run(self, x, y):
         self._logger.info("########### Starting CopyCat attack ###########")
         self._logger.info("CopyCat's attack budget: {}".format(len(x)))
@@ -36,12 +35,11 @@ class CopyCat(Base):
         train_set, val_set = split_dataset(synthetic_dataset, self._val_size)
 
         self._logger.info("Training substitute model with synthetic dataset")
-        self._train_model(self._substitute_model, self._optimizer,
-                          self._train_loss, train_set, val_set)
+        self._train_model(self._substitute_model, self._optimizer, train_set,
+                          val_set)
 
         self._logger.info("Getting substitute model metrics on test set")
         sub_test_acc, sub_test_loss = self._test_model(self._substitute_model,
-                                                       self._test_loss,
                                                        self._test_set)
         self._logger.info(
                 "Substitute model Accuracy: {:.1f}% Loss: {:.3f}".format(

@@ -2,9 +2,10 @@ import torch
 from torch.utils.data import Dataset, random_split
 
 def split_dataset(dataset, split_size):
-    rest_set_size = len(dataset) - (len(dataset) * split_size)
+    split_set_size = int(len(dataset) * split_size)
+    rest_set_size = len(dataset) - split_set_size
 
-    return random_split(dataset, [rest_set_size, split_size])
+    return random_split(dataset, [rest_set_size, split_set_size])
 
 
 class ListDataset(Dataset):

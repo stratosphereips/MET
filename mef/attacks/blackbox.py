@@ -48,9 +48,7 @@ class BlackBox(Base):
         loader = DataLoader(data, pin_memory=True, num_workers=4,
                             batch_size=self._batch_size)
 
-        for _, x in tqdm(enumerate(loader), desc="Jacobian augmentation",
-                         total=len(loader)):
-
+        for x in tqdm(loader, desc="Jacobian augmentation", total=len(loader)):
             grads = self._jacobian(x)
 
             for idx in range(grads[0].shape[0]):
@@ -81,7 +79,7 @@ class BlackBox(Base):
 
             train_set = CustomDataset(x_sub, y_sub)
             self._train_model(self._substitute_model, self._optimizer,
-                              self._train_loss, train_set, iteration=it)
+                              train_set, iteration=it)
 
             if it < self._iterations - 1:
                 self._substitute_model.eval()
