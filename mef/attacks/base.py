@@ -5,7 +5,7 @@ from ignite.utils import to_onehot
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from mef.utils.pytorch.datasets import CustomDataset, NoYDataset
+from mef.utils.pytorch.datasets import CustomDataset
 from mef.utils.pytorch.lighting.module import MefModule
 from mef.utils.pytorch.lighting.training import get_trainer
 
@@ -14,8 +14,8 @@ class Base:
     _test_config = None
     _logger = None
 
-    def __init__(self, victim_model, substitute_model, x_test, y_test,
-                 optimizer, train_loss, test_loss, training_epochs=100,
+    def __init__(self, victim_model, substitute_model, optimizer,
+                 train_loss, test_loss, training_epochs=100,
                  early_stop_tolerance=10, evaluation_frequency=2,
                  val_size=0.2, batch_size=64, num_classes=None,
                  save_loc="./cache", validation=True):
@@ -34,8 +34,9 @@ class Base:
                 validation=validation
         )
 
-        # Test set
-        self._test_set = CustomDataset(x_test, y_test)
+        # Datasets
+        self._test_set = None
+        self._sub_dataset = None
 
         self._num_classes = num_classes
 
@@ -94,11 +95,11 @@ class Base:
         self._logger.info("Getting attack metric")
         # Agreement score
         vict_test_labels = self._get_predictions(self._victim_model,
-                                                 self._test_set.x)
-        vict_test_labels = np.argmax(vict_test_labels, axis=1)
+                                                 self._test_set)
+        vict_test_labels = torch.argmax(vict_test_labels, dim=1).numpy()
         sub_test_labels = self._get_predictions(self._substitute_model,
-                                                self._test_set.x)
-        sub_test_labels = np.argmax(sub_test_labels, axis=1)
+                                                self._test_set)
+        sub_test_labels = torch.argmax(sub_test_labels, dim=1).numpy()
 
         agreement_count = np.sum(vict_test_labels == sub_test_labels)
         self._logger.info("Agreement count: {}".format(agreement_count))
@@ -114,20 +115,18 @@ class Base:
         self._logger.info(
                 "Saving final substitute model state dictionary to: {}".format(
                         final_model_loc))
-        torch.save(dict(state_dict=self._substitute_model.state_dict),
+        torch.save(dict(state_dict=self._substitute_model.state_dict()),
                    final_model_loc)
 
         return
 
-    def _get_predictions(self, model, x, output_type="softmax"):
+    def _get_predictions(self, model, data, output_type="softmax"):
         model.eval()
-
-        data = NoYDataset(x)
         loader = DataLoader(data, pin_memory=True, num_workers=4,
                             batch_size=self._batch_size)
         y_preds = []
         with torch.no_grad():
-            for x in tqdm(loader, desc="Getting predictions", total=len(
+            for x, _ in tqdm(loader, desc="Getting predictions", total=len(
                     loader)):
                 y_pred = model(x)
                 y_preds.append(y_pred.cpu())
@@ -149,7 +148,80 @@ class Base:
                     "labels, logits}")
             raise ValueError()
 
-        return y_hat.numpy()
+        return y_hat
 
-    def run(self, x, y):
+    def _parse_args(self, args, kwargs):
+        # Numpy input (x_sub, y_sub, x_test, y_test)
+        if len(args) == 4:
+            for arg in args:
+                if not isinstance(arg, np.ndarray):
+                    self._logger.error(
+                            "Input arguments must be either numpy arrays or "
+                            "Pytorch datasets")
+                    raise TypeError()
+            else:
+                self._sub_dataset = CustomDataset(args[0], args[1])
+                self._test_set = CustomDataset(args[2], args[3])
+        elif len(kwargs) == 4:
+            for _, value in kwargs.items():
+                if not isinstance(value, np.ndarray):
+                    self._logger.error(
+                            "Input arguments must be either numpy arrays or "
+                            "Pytorch datasets")
+                    raise TypeError()
+            else:
+                if "x_sub" not in kwargs:
+                    self._logger.error("x_sub input argument is missing")
+                    raise ValueError()
+                if "y_sub" not in kwargs:
+                    self._logger.error("y_sub input argument is missing")
+                    raise ValueError()
+                if "x_test" not in kwargs:
+                    self._logger.error("x_test input argument is missing")
+                    raise ValueError()
+                if "y_test" not in kwargs:
+                    self._logger.error("y_test input argument is missing")
+                    raise ValueError()
+
+                self._sub_dataset = CustomDataset(kwargs["x_sub"],
+                                                  kwargs["y_sub"])
+                self._test_set = CustomDataset(kwargs["x_test"],
+                                               kwargs["y_test"])
+        # Pytorch input (sub_dataset, test_set)
+        elif len(args) == 2:
+            for arg in args:
+                if not isinstance(arg, torch.utils.data.Dataset):
+                    self._logger.error(
+                            "Input arguments must be either numpy arrays or "
+                            "Pytorch dataset")
+                    raise TypeError()
+            else:
+                self._sub_dataset = args[0]
+                self._test_set = args[1]
+        elif len(kwargs) == 2:
+            for _, value in kwargs.items():
+                if not isinstance(value, np.ndarray):
+                    self._logger.error(
+                            "Input arguments must be either numpy arrays or "
+                            "Pytorch datasets")
+                    raise TypeError()
+            else:
+                if "sub_dataset" not in kwargs:
+                    self._logger.error("sub_dataset input argument is missing")
+                    raise ValueError()
+                if "test_set" not in kwargs:
+                    self._logger.error("test_set input argument is missing")
+                    raise ValueError()
+
+                self._sub_dataset = kwargs["sub_dataset"]
+                self._test_set = kwargs["test_set"]
+        else:
+            self._logger.error(
+                    "Input arguments must be either numpy arrays (x_sub, "
+                    "y_sub, x_test, y_test) or Pytorch datasets ("
+                    "sub_dataset, test_set)")
+            raise ValueError()
+        return
+
+    def run(self, *args, **kwargs):
         raise NotImplementedError("Attacks must implement run method!")

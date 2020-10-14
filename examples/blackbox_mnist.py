@@ -1,21 +1,23 @@
 import os
 import sys
 
+import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import MNIST
 from torchvision.transforms import transforms
 
 from mef.attacks.blackbox import BlackBox
 from mef.models.vision.simplenet import SimpleNet
+from mef.utils.pytorch.lighting.module import MefModule
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 import mef
 from mef.utils.ios import mkdir_if_missing
-from mef.utils.pytorch.datasets import CustomDataset, split_dataset
-from mef.utils.pytorch.lighting.training import train_victim_model
+from mef.utils.pytorch.datasets import split_dataset
+from mef.utils.pytorch.lighting.training import get_trainer
 
 SEED = 0
 DATA_DIR = "./data"
@@ -44,20 +46,13 @@ def set_up():
     mnist["test"] = MNIST(root=DATA_DIR, train=False, download=True,
                           transform=transforms.Compose(transform))
 
-    train_loader = DataLoader(mnist["train"], batch_size=len(mnist["train"]))
-    test_loader = DataLoader(mnist["test"], batch_size=len(mnist["test"]))
+    idx_test = np.random.permutation(len(mnist["test"]))
 
-    x_test = next(iter(test_loader))[0].numpy()
-    y_test = next(iter(test_loader))[1].numpy()
+    idx_sub = idx_test[:HOLDOUT]
+    idx_test = idx_test[HOLDOUT:]
 
-    x_sub = x_test[:HOLDOUT]
-    y_sub = y_test[:HOLDOUT]
-
-    x_test = x_test[HOLDOUT:]
-    y_test = y_test[HOLDOUT:]
-
-    x_train = next(iter(train_loader))[0].numpy()
-    y_train = next(iter(train_loader))[1].numpy()
+    sub_dataset = Subset(mnist["test"], idx_sub)
+    test_set = Subset(mnist["test"], idx_test)
 
     # Train secret model
     try:
@@ -70,21 +65,29 @@ def set_up():
         optimizer = torch.optim.Adam(victim_model.parameters())
         loss = F.cross_entropy
 
-        data = CustomDataset(x_train, y_train)
-        train_set, val_set = split_dataset(data, 0.2)
-        train_victim_model(victim_model, optimizer, loss, train_set, val_set,
-                           VICT_TRAIN_EPOCHS, SAVE_LOC + "/victim/", GPUS)
+        train_set, val_set = split_dataset(mnist["train"], 0.2)
+        train_dataloader = DataLoader(dataset=train_set, shuffle=True,
+                                      num_workers=4, pin_memory=True,
+                                      batch_size=64)
+
+        val_dataloader = DataLoader(dataset=val_set, pin_memory=True,
+                                    num_workers=4, batch_size=64)
+
+        mef_model = MefModule(victim_model, optimizer, loss)
+        trainer = get_trainer(GPUS, VICT_TRAIN_EPOCHS, early_stop_tolerance=10,
+                              save_loc=SAVE_LOC + "/victim/")
+        trainer.fit(mef_model, train_dataloader, val_dataloader)
 
         torch.save(dict(state_dict=victim_model.state_dict()),
                    SAVE_LOC + "/victim/final_victim_model.pt")
 
     return dict(victim_model=victim_model, substitute_model=substitute_model,
-                x_test=x_test, y_test=y_test, num_classes=10), x_sub, y_sub
+                num_classes=10), sub_dataset, test_set
 
 
 if __name__ == "__main__":
     mef.Test(gpus=GPUS, seed=SEED)
     mkdir_if_missing(SAVE_LOC)
 
-    attack_variables, x_sub, y_sub = set_up()
-    BlackBox(**attack_variables, save_loc=SAVE_LOC).run(x_sub, y_sub)
+    attack_variables, sub_dataset, test_set = set_up()
+    BlackBox(**attack_variables, save_loc=SAVE_LOC).run(sub_dataset, test_set)

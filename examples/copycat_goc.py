@@ -8,14 +8,16 @@ from torch.utils.data import ConcatDataset, DataLoader, random_split
 from torchvision.datasets import CIFAR10, ImageNet, STL10
 from torchvision.transforms import transforms
 
+from mef.utils.pytorch.lighting.module import MefModule
+
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 import mef
 from mef.attacks.copycat import CopyCat
 from mef.models.vision.vgg import Vgg
 from mef.utils.ios import mkdir_if_missing
-from mef.utils.pytorch.datasets import CustomDataset, split_dataset
-from mef.utils.pytorch.lighting.training import train_victim_model
+from mef.utils.pytorch.datasets import split_dataset
+from mef.utils.pytorch.lighting.training import get_trainer
 
 SEED = 0
 DATA_DIR = "./data"
@@ -36,18 +38,18 @@ class GOCData:
         self.imagenet_dir = imagenet_dir
         self.data_dir = data_dir
 
-        mean = (0.5, 0.5, 0.5)
-        std = (0.5, 0.5, 0.5)
-        transforms_list = [transforms.Resize(dims[1:]), transforms.ToTensor(),
+        mean = [0.485, 0.456, 0.406]
+        std = [0.229, 0.224, 0.225]
+        transforms_list = [transforms.CenterCrop(dims[2]),
+                           transforms.ToTensor(),
                            transforms.Normalize(mean, std)]
-        self.transform1 = transforms.Compose(transforms_list)
-        self.transform2 = transforms.Compose(transforms_list[:-1])
+        self.transform = transforms.Compose(transforms_list)
 
         self.dims = dims
 
         self.test_set = None
         self.od_dataset = None
-        self.thief_dataset = None
+        self.sub_dataset = None
 
     def prepare_data(self):
         # download
@@ -125,7 +127,7 @@ class GOCData:
         npd_dataset, _ = random_split(imagenet["all"],
                                       [self.npd_size,
                                        len(imagenet["all"]) - self.npd_size])
-        self.thief_dataset = ConcatDataset([pd_dataset, npd_dataset])
+        self.sub_dataset = ConcatDataset([pd_dataset, npd_dataset])
 
 
 def set_up():
@@ -142,22 +144,6 @@ def set_up():
     goc.prepare_data()
     goc.setup()
 
-    test_loader = DataLoader(goc.test_set, batch_size=len(goc.test_set))
-
-    x_test = next(iter(test_loader))[0].numpy()
-    y_test = next(iter(test_loader))[1].numpy()
-
-    od_loader = DataLoader(goc.od_dataset, batch_size=len(goc.od_dataset))
-
-    x_od = next(iter(od_loader))[0].numpy()
-    y_od = next(iter(od_loader))[1].numpy()
-
-    thief_loader = DataLoader(goc.thief_dataset,
-                              batch_size=len(goc.thief_dataset))
-
-    x_thief = next(iter(thief_loader))[0].numpy()
-    y_thief = next(iter(thief_loader))[1].numpy()
-
     # Prepare target model
     try:
         saved_model = torch.load(SAVE_LOC + "/victim/final_victim_model.pt")
@@ -169,21 +155,31 @@ def set_up():
                                     momentum=0.8)
         loss = F.cross_entropy
 
-        data = CustomDataset(x_od, y_od)
-        train_set, val_set = split_dataset(data, 0.2)
-        train_victim_model(victim_model, optimizer, loss, train_set, val_set,
-                           VICT_TRAIN_EPOCHS, SAVE_LOC + "/victim/", GPUS)
+        train_set, val_set = split_dataset(goc.od_dataset, 0.2)
+        train_dataloader = DataLoader(dataset=train_set, shuffle=True,
+                                      num_workers=4, pin_memory=True,
+                                      batch_size=64)
+
+        val_dataloader = DataLoader(dataset=val_set, pin_memory=True,
+                                    num_workers=4, batch_size=64)
+
+        mef_model = MefModule(victim_model, optimizer, loss)
+        trainer = get_trainer(GPUS, VICT_TRAIN_EPOCHS, early_stop_tolerance=10,
+                              save_loc=SAVE_LOC + "/victim/")
+        trainer.fit(mef_model, train_dataloader, val_dataloader)
+
         torch.save(dict(state_dict=victim_model.state_dict()),
                    SAVE_LOC + "/victim/final_victim_model.pt")
 
-    return dict(victim_model=victim_model, substitute_model=substitute_model,
-                x_test=x_test, y_test=y_test), x_thief, y_thief
+    return dict(victim_model=victim_model,
+                substitute_model=substitute_model), goc.sub_dataset, \
+           goc.test_set
 
 
 if __name__ == "__main__":
     mef.Test(gpus=GPUS, seed=SEED)
     mkdir_if_missing(SAVE_LOC)
 
-    attack_variables, x_thief, y_thief = set_up()
+    attack_variables, sub_dataset, test_set = set_up()
     copycat = CopyCat(**attack_variables, save_loc=SAVE_LOC)
-    copycat.run(x_thief, y_thief)
+    copycat.run(sub_dataset, test_set)

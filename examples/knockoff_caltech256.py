@@ -4,7 +4,7 @@ import sys
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import ImageFolder
 from torchvision.transforms import transforms
 from tqdm import tqdm
@@ -18,7 +18,7 @@ sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 import mef
 from mef.utils.ios import mkdir_if_missing
-from mef.utils.pytorch.datasets import CustomDataset, split_dataset
+from mef.utils.pytorch.datasets import split_dataset
 
 SAMPLING_STRATEGY = "adaptive"
 REWARD_TYPE = "cert"
@@ -33,63 +33,29 @@ n_test = 25
 
 
 def prepare_caltech256():
-    try:
-        x_train = np.load(DATA_DIR + "caltech256_x_train.npy", mmap_mode='r')
-        y_train = np.load(DATA_DIR + "caltech256_y_train.npy", mmap_mode='r')
-        x_test = np.load(DATA_DIR + "caltech256_x_test.npy", mmap_mode='r')
-        y_test = np.load(DATA_DIR + "caltech256_y_test.npy", mmap_mode='r')
-    except FileNotFoundError:
-        # Imagenet standards
-        mean = [0.485, 0.456, 0.406]
-        std = [0.229, 0.224, 0.225]
-        transform = [transforms.CenterCrop(DIMS[2]), transforms.ToTensor(),
-                     transforms.Normalize(mean, std)]
-        caltech256_data = ImageFolder(root=DATA_DIR,
-                                      transform=transforms.Compose(transform))
+    # Imagenet standart values
+    mean = [0.485, 0.456, 0.406]
+    std = [0.229, 0.224, 0.225]
+    transform = [transforms.CenterCrop(DIMS[2]), transforms.ToTensor(),
+                 transforms.Normalize(mean, std)]
+    caltech256_data = ImageFolder(root=DATA_DIR,
+                                  transform=transforms.Compose(transform))
 
-        loader = DataLoader(caltech256_data, batch_size=256, num_workers=4)
+    y = np.array(caltech256_data.targets)
+    classes = np.unique(y)
 
-        x = []
-        y = []
-        for batch in tqdm(loader, desc="Loading dataset"):
-            x_batch, y_batch = batch
-            x.append(x_batch.numpy())
-            y.append(y_batch.numpy())
+    idx_train = []
+    idx_test = []
+    for cls in tqdm(classes, desc="Train/Test split creation"):
+        idx_cls = np.where(y == cls)[0]
+        idx_cls = np.random.permutation(idx_cls)
+        idx_test.append(idx_cls[:n_test])
+        idx_train.append(idx_cls[n_test:])
 
-        x = np.vstack(x)
-        y = np.hstack(y)
+    idx_train = np.hstack(idx_train)
+    idx_test = np.hstack(idx_test)
 
-        classes = np.unique(y)
-
-        x_train = []
-        y_train = []
-        x_test = []
-        y_test = []
-        for cls in tqdm(classes, desc="Train/Test split creation"):
-            x_ = x[y == cls]
-            x_ = np.random.permutation(x_)
-            x_test.append(x_[:n_test])
-            y_test.append(np.full(n_test, cls))
-            x_train.append(x_[n_test:])
-            y_train.append(np.full(len(x_) - n_test, cls))
-
-        x_train = np.vstack(x_train)
-        y_train = np.hstack(y_train)
-        x_test = np.vstack(x_test)
-        y_test = np.hstack(y_test)
-
-        print("Saving splits")
-        np.save(DATA_DIR + "caltech256_x_train.npy", x_train)
-        np.save(DATA_DIR + "caltech256_y_train.npy", y_train)
-        np.save(DATA_DIR + "caltech256_x_test.npy", x_test)
-        np.save(DATA_DIR + "caltech256_y_test.npy", y_test)
-
-        x_train = np.load(DATA_DIR + "caltech256_x_train.npy", mmap_mode='r')
-        y_train = np.load(DATA_DIR + "caltech256_y_train.npy", mmap_mode='r')
-        x_test = np.load(DATA_DIR + "caltech256_x_test.npy", mmap_mode='r')
-        y_test = np.load(DATA_DIR + "caltech256_y_test.npy", mmap_mode='r')
-
-    return x_train, y_train, x_test, y_test
+    return idx_train, idx_test, caltech256_data
 
 
 def set_up():
@@ -102,10 +68,11 @@ def set_up():
 
     # Prepare data
     print("Preparing data")
-    x_train, y_train, x_test, y_test = prepare_caltech256()
+    idx_train, idx_test, caltech256_data = prepare_caltech256()
 
-    x_sub = x_train
-    y_sub = y_train
+    train_set = Subset(caltech256_data, idx_train)
+    sub_dataset = train_set
+    test_set = Subset(caltech256_data, idx_test)
 
     # Train secret model
     try:
@@ -120,14 +87,13 @@ def set_up():
         loss = F.cross_entropy
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=60)
 
-        data = CustomDataset(x_train, y_train)
-        train_set, val_set = split_dataset(data, 0.2)
-
+        train_set, val_set = split_dataset(train_set, 0.2)
         train_dataloader = DataLoader(dataset=train_set, shuffle=True,
-                                      pin_memory=True, batch_size=64)
+                                      num_workers=4, pin_memory=True,
+                                      batch_size=64)
 
         val_dataloader = DataLoader(dataset=val_set, pin_memory=True,
-                                    batch_size=64)
+                                    num_workers=4, batch_size=64)
 
         mef_model = MefModule(victim_model, optimizer, loss, lr_scheduler)
         trainer = get_trainer(GPUS, VICT_TRAIN_EPOCHS, early_stop_tolerance=10,
@@ -138,13 +104,14 @@ def set_up():
                    SAVE_LOC + "/victim/final_victim_model.pt")
 
     return dict(victim_model=victim_model, substitute_model=substitute_model,
-                x_test=x_test, y_test=y_test, num_classes=256), x_sub, y_sub
+                num_classes=256), sub_dataset, test_set
 
 
 if __name__ == "__main__":
     mef.Test(gpus=GPUS, seed=SEED)
     mkdir_if_missing(SAVE_LOC)
 
-    attack_variables, x_sub, y_sub = set_up()
+    attack_variables, sub_dataset, test_set = set_up()
     KnockOff(**attack_variables, sampling_strategy=SAMPLING_STRATEGY,
-             reward_type=REWARD_TYPE, save_loc=SAVE_LOC).run(x_sub, y_sub)
+             reward_type=REWARD_TYPE, save_loc=SAVE_LOC).run(sub_dataset,
+                                                             test_set)

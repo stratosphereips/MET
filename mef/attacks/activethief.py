@@ -3,18 +3,18 @@ import math
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
+from torch.utils.data import ConcatDataset, DataLoader, Subset
 from torchattacks import DeepFool
 from tqdm import tqdm
 
 from .base import Base
-from ..utils.pytorch.datasets import CustomDataset, NoYDataset
+from ..utils.pytorch.datasets import CustomLabelDataset
 
 
 class ActiveThief(Base):
 
-    def __init__(self, victim_model, substitute_model, x_test, y_test,
-                 num_classes, iterations=10, selection_strategy="entropy",
+    def __init__(self, victim_model, substitute_model, num_classes,
+                 iterations=10, selection_strategy="entropy",
                  output_type="softmax", init_seed_size=20, budget=200,
                  training_epochs=1000, early_stop_tolerance=10,
                  evaluation_frequency=2, val_size=0.2, batch_size=64,
@@ -23,10 +23,10 @@ class ActiveThief(Base):
         train_loss = F.mse_loss
         test_loss = F.cross_entropy
 
-        super().__init__(victim_model, substitute_model, x_test, y_test,
-                         optimizer, train_loss, test_loss, training_epochs,
-                         early_stop_tolerance, evaluation_frequency, val_size,
-                         batch_size, num_classes, save_loc)
+        super().__init__(victim_model, substitute_model, optimizer, train_loss,
+                         test_loss, training_epochs, early_stop_tolerance,
+                         evaluation_frequency, val_size, batch_size,
+                         num_classes, save_loc)
 
         # BlackBox's specific attributes
         self._iterations = iterations
@@ -54,15 +54,16 @@ class ActiveThief(Base):
     def _random_strategy(self, k, idx_rest):
         return np.random.permutation(idx_rest)[:k]
 
-    def _entropy_strategy(self, k, idx_rest, y_rest):
+    def _entropy_strategy(self, k, idx_rest, data_rest):
         scores = {}
-        for _, sample in enumerate(tqdm(zip(idx_rest, y_rest),
-                                        desc="Calculating entropy scores")):
-            sample_id, prob_dist = sample
-            log_probs = prob_dist * np.log2(prob_dist)
-            raw_entropy = 0 - np.sum(log_probs)
+        for sample_id, sample in tqdm(zip(idx_rest, data_rest),
+                                      total=len(data_rest),
+                                      desc="Calculating entropy scores"):
+            _, prob_dist = sample
+            log_probs = prob_dist * torch.log2(prob_dist)
+            raw_entropy = 0 - torch.sum(log_probs)
 
-            normalized_entropy = raw_entropy / math.log2(prob_dist.size)
+            normalized_entropy = raw_entropy / math.log2(self._num_classes)
 
             scores[sample_id] = normalized_entropy
 
@@ -70,19 +71,18 @@ class ActiveThief(Base):
 
         return np.array(list(scores.keys())[:k])
 
-    def _kcenter_strategy(self, k, idx_rest, y_rest, init_centers):
-        y_rest = NoYDataset(y_rest)
-        y_rest_loader = DataLoader(y_rest, batch_size=self._batch_size,
-                                   num_workers=4, pin_memory=True)
+    def _kcenter_strategy(self, k, idx_rest, data_rest, init_centers):
+        data_rest_loader = DataLoader(data_rest, batch_size=self._batch_size,
+                                      num_workers=4, pin_memory=True)
 
-        curr_centers = torch.from_numpy(init_centers)
+        curr_centers = init_centers
 
         selected_points = []
         for _ in tqdm(range(k), desc="Selecting best points"):
             min_max_vals = []
             idx_min_max = []
             with torch.no_grad():
-                for y_rest_batch in y_rest_loader:
+                for _, y_rest_batch in data_rest_loader:
 
                     if self._test_config.gpus:
                         y_rest_batch = y_rest_batch.cuda()
@@ -97,27 +97,24 @@ class ActiveThief(Base):
                     idx_min_max.append(dist_min_max_id.cpu())
 
             batch_id = np.argmax(min_max_vals)
-            sample_id = batch_id * self._batch_size + idx_min_max[
-                batch_id.item()]
-            curr_centers = torch.from_numpy(
-                    np.vstack([curr_centers.cpu(), y_rest[sample_id]]))
+            sample_id = batch_id * self._batch_size + \
+                        idx_min_max[batch_id.item()]
+            curr_centers = torch.cat([curr_centers.cpu(),
+                                        data_rest.targets[sample_id][None, :]])
             selected_points.append(sample_id)
 
         return idx_rest[selected_points]
 
-    def _deepfool_strategy(self, k, idx_rest, x_rest):
+    def _deepfool_strategy(self, k, idx_rest, data_rest):
         self._substitute_model.eval()
 
-        x_rest_data = NoYDataset(x_rest)
-        x_rest_loader = DataLoader(x_rest_data, batch_size=self._batch_size,
-                                   num_workers=4, pin_memory=True)
+        data_rest_loader = DataLoader(data_rest, batch_size=self._batch_size,
+                                      num_workers=4, pin_memory=True)
 
         deepfool = DeepFool(self._substitute_model, steps=3)
 
         scores = []
-        for _, x in enumerate(
-                tqdm(x_rest_loader, desc="Getting dfal scores")):
-
+        for x, _ in tqdm(data_rest_loader, desc="Getting dfal scores"):
             x_adv = deepfool(x).cpu()
 
             # difference as L2-norm
@@ -129,81 +126,81 @@ class ActiveThief(Base):
 
         return np.array(list(scores.keys())[:k])
 
-    def _select_samples(self, idx_rest, x_rest, y_rest, x_queries):
+    def _select_samples(self, idx_rest, data_rest, query_sets):
         if self._selection_strategy == "entropy":
             selected_samples = self._entropy_strategy(self._k, idx_rest,
-                                                      y_rest)
+                                                      data_rest)
         elif self._selection_strategy == "random":
             selected_samples = self._random_strategy(self._k, idx_rest)
         elif self._selection_strategy == "k-center":
             # Get initial centers
             init_centers = self._get_predictions(self._substitute_model,
-                                                 x_queries)
+                                                 query_sets)
             selected_samples = self._kcenter_strategy(self._k, idx_rest,
-                                                      y_rest, init_centers)
+                                                      data_rest,
+                                                      init_centers)
         elif self._selection_strategy == "dfal":
             selected_samples = self._deepfool_strategy(self._k, idx_rest,
-                                                       x_rest)
+                                                       data_rest)
         elif self._selection_strategy == "dfal+k-center":
             dfal_top_idx = self._deepfool_strategy(self._budget, idx_rest,
-                                                   x_rest)
-            y_dfal_top = y_rest[dfal_top_idx]
+                                                   data_rest)
+            y_dfal_top = data_rest.targets[dfal_top_idx]
             # Get initial centers
             init_centers = self._get_predictions(self._substitute_model,
-                                                 x_queries)
+                                                 query_sets)
             selected_samples = self._kcenter_strategy(self._k, dfal_top_idx,
                                                       y_dfal_top, init_centers)
         else:
-            self._logger.warning(
-                    "Selection strategy must be one of {entropy, random, "
-                    "k-center, dfal, dfal+k-center}")
+            self._logger.warning("Selection strategy must be one of {entropy, "
+                                 "random, k-center, dfal, dfal+k-center}")
             raise ValueError
 
         return selected_samples
 
-    def run(self, x, y):
+    def run(self, *args, **kwargs):
+        self._parse_args(args, kwargs)
+
         self._logger.info(
                 "########### Starting ActiveThief attack ###########")
         # Get budget of the attack
         self._logger.info(
                 "ActiveThief's attack budget: {}".format(self._budget))
 
-        idx_rest = np.arange(len(x))
+        idx_rest = np.arange(len(self._sub_dataset))
 
         # Prepare validation set
         self._logger.info("Preparing validation dataset")
         idx_val = np.random.permutation(idx_rest)[:self._val_size]
         idx_rest = np.setdiff1d(idx_rest, idx_val)
-        x_val = x[idx_val]
-        y_val = self._get_predictions(self._victim_model, x_val,
+        val_set = Subset(self._sub_dataset, idx_val)
+        y_val = self._get_predictions(self._victim_model, val_set,
                                       self._output_type)
-        val_set = CustomDataset(x_val, y_val)
+        val_set = CustomLabelDataset(val_set, y_val)
 
         val_label_counts = dict(list(enumerate([0] * self._num_classes)))
-        for class_id in np.argmax(y_val, axis=1):
-            val_label_counts[class_id] += 1
+        for class_id in torch.argmax(y_val, dim=1):
+            val_label_counts[class_id.item()] += 1
 
         self._logger.info("Validation dataset labels distribution: {}".format(
                 val_label_counts))
 
         # Step 1: attacker picks random subset of initial seed samples
         self._logger.info("Preparing initial random query set")
-        x_queries = []
-        y_queries = []
+        query_sets = []
 
         idx_query = np.random.permutation(idx_rest)[:self._init_seed_size]
         idx_rest = np.setdiff1d(idx_rest, idx_query)
-        x_queries.append(x[idx_query])
-
-        y_query = self._get_predictions(self._victim_model, x_queries[0],
+        query_set = Subset(self._sub_dataset, idx_query)
+        y_query = self._get_predictions(self._victim_model, query_set,
                                         self._output_type)
-        y_queries.append(y_query)
+        query_sets.append(CustomLabelDataset(query_set, y_query))
 
         # Get victim model predicted labels for test set
         self._logger.info("Getting victim model's labels for test set")
         vict_test_labels = self._get_predictions(self._victim_model,
-                                                 self._test_set.x)
-        vict_test_labels = np.argmax(vict_test_labels, axis=1)
+                                                 self._test_set)
+        vict_test_labels = torch.argmax(vict_test_labels, dim=1)
         self._logger.info(
                 "Number of test samples: {}".format(len(vict_test_labels)))
 
@@ -240,8 +237,7 @@ class ActiveThief(Base):
             # labeled queried sets
             self._logger.info(
                     "Training substitute model with the query dataset")
-            train_set = CustomDataset(np.vstack(x_queries),
-                                      np.vstack(y_queries))
+            train_set = ConcatDataset(query_sets)
             self._train_model(self._substitute_model, self._optimizer,
                               train_set, val_set, it)
 
@@ -250,12 +246,16 @@ class ActiveThief(Base):
             # Step 4: Approximate labels are obtained for remaining samples
             # using the substitute
 
-            x_rest = x[idx_rest]
+            data_rest = Subset(self._sub_dataset, idx_rest)
             y_rest = None
             if self._selection_strategy not in {"random", "dfal"}:
                 self._logger.info("Getting substitute's predictions for the "
                                   "rest of the thief dataset")
-                y_rest = self._get_predictions(self._substitute_model, x_rest)
+                y_rest = self._get_predictions(self._substitute_model,
+                                               data_rest)
+
+            if y_rest is not None:
+                data_rest = CustomLabelDataset(data_rest, y_rest)
 
             # Step 5: An active learning subset selection strategy is used
             # to select set of k
@@ -264,16 +264,16 @@ class ActiveThief(Base):
                               " the remaining thief dataset"
                               .format(self._k, self._selection_strategy))
 
-            idx_query = self._select_samples(idx_rest, x_rest, y_rest,
-                                             np.vstack(x_queries))
+            idx_query = self._select_samples(idx_rest, data_rest,
+                                             ConcatDataset(query_sets))
             idx_rest = np.setdiff1d(idx_rest, idx_query)
-            x_queries.append(x[idx_query])
+            query_set = Subset(self._sub_dataset, idx_query)
 
             # Step 2: Attacker queries current picked samples to secret
             # model for labeling
             self._logger.info("Getting predictions for the current query set "
                               "from the victim model")
-            y_query = self._get_predictions(self._victim_model, x_queries[it],
+            y_query = self._get_predictions(self._victim_model, query_set,
                                             self._output_type)
-            y_queries.append(y_query)
+            query_sets.append(CustomLabelDataset(query_set, y_query))
         return

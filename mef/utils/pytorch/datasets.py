@@ -1,6 +1,7 @@
 import torch
 from torch.utils.data import Dataset, random_split
 
+
 def split_dataset(dataset, split_size):
     split_set_size = int(len(dataset) * split_size)
     rest_set_size = len(dataset) - split_set_size
@@ -24,20 +25,15 @@ class CustomLabelDataset(Dataset):
     Dataset that uses existing dataset with custom labels
     """
 
-    def __init__(self, x, y):
-        if not isinstance(x, torch.Tensor):
-            x = torch.from_numpy(x)
-        if not isinstance(y, torch.Tensor):
-            y = torch.from_numpy(y)
-
-        self.x = x
-        self.y = y
+    def __init__(self, dataset, targets):
+        self.dataset = dataset
+        self.targets = targets
 
     def __getitem__(self, index):
-        return self.x[index][0], self.y[index]
+        return self.dataset[index][0], self.targets[index]
 
     def __len__(self):
-        return len(self.x)
+        return len(self.dataset)
 
 
 class CustomDataset(Dataset):
@@ -46,37 +42,33 @@ class CustomDataset(Dataset):
     representing x, y
     """
 
-    def __init__(self, x, y):
-        if not isinstance(x, torch.Tensor):
-            x = torch.from_numpy(x)
-        if not isinstance(y, torch.Tensor):
-            y = torch.from_numpy(y)
+    def __init__(self, data, targets):
+        if not isinstance(data, torch.Tensor):
+            data = torch.from_numpy(data)
+        if not isinstance(targets, torch.Tensor):
+            targets = torch.from_numpy(targets)
 
-        self.x = x
-        self.y = y
+        self.data = data
+        self.targets = targets
 
     def __getitem__(self, index):
-        return self.x[index], self.y[index]
+        return self.data[index], self.targets[index]
 
     def __len__(self):
-        return len(self.x)
+        return len(self.data)
 
 
 class NoYDataset(Dataset):
-    """
-    Dataset with only X
-    """
-
-    def __init__(self, x):
-        if not isinstance(x, torch.Tensor):
-            x = torch.from_numpy(x)
-        self.x = x
+    def __init__(self, data):
+        self.data = data
 
     def __getitem__(self, index):
-        return self.x[index]
+        # Returning random dummy integer as target because pytorch requires
+        # that batch contains only tensor or numpy array and not NoneType
+        return self.data[index], torch.randint(1, (1,))
 
     def __len__(self):
-        return len(self.x)
+        return len(self.data)
 
 
 class AugmentationDataset(Dataset):
