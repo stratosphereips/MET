@@ -80,14 +80,14 @@ class GOCData:
 
     def setup(self):
         cifar10 = dict()
-        cifar10["train"] = CIFAR10(self.data_dir, transform=self.transform1)
+        cifar10["train"] = CIFAR10(self.data_dir, transform=self.transform)
         cifar10["test"] = CIFAR10(self.data_dir, train=False,
-                                  transform=self.transform1)
+                                  transform=self.transform)
 
         stl10 = dict()
-        stl10["train"] = STL10(self.data_dir, transform=self.transform1)
+        stl10["train"] = STL10(self.data_dir, transform=self.transform)
         stl10["test"] = STL10(self.data_dir, split="test",
-                              transform=self.transform1)
+                              transform=self.transform)
 
         # Replace car with automobile to make the class name same as in the
         # cifar10
@@ -116,9 +116,9 @@ class GOCData:
 
         imagenet = dict()
         imagenet["train"] = ImageNet(self.imagenet_dir,
-                                     transform=self.transform2)
+                                     transform=self.transform)
         imagenet["test"] = ImageNet(self.imagenet_dir, split="val",
-                                    transform=self.transform2)
+                                    transform=self.transform)
         imagenet["all"] = ConcatDataset(imagenet.values())
 
         self.test_set = cifar10["test"]
