@@ -100,7 +100,8 @@ class ActiveThief(Base):
             sample_id = batch_id * self._batch_size + \
                         idx_min_max[batch_id.item()]
             curr_centers = torch.cat([curr_centers.cpu(),
-                                        data_rest.targets[sample_id][None, :]])
+                                      data_rest.dataset.targets[sample_id]
+                                      [None, :]])
             selected_points.append(sample_id)
 
         return idx_rest[selected_points]
@@ -145,7 +146,7 @@ class ActiveThief(Base):
         elif self._selection_strategy == "dfal+k-center":
             dfal_top_idx = self._deepfool_strategy(self._budget, idx_rest,
                                                    data_rest)
-            y_dfal_top = data_rest.targets[dfal_top_idx]
+            y_dfal_top = data_rest.dataset.targets[dfal_top_idx]
             # Get initial centers
             init_centers = self._get_predictions(self._substitute_model,
                                                  query_sets)
