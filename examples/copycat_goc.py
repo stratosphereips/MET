@@ -21,7 +21,7 @@ from mef.utils.pytorch.lighting.training import get_trainer
 
 SEED = 0
 DATA_DIR = "./data"
-IMAGENET_DIR = "E:\Datasets\ImageNet2012"
+IMAGENET_DIR = None  # Define path to Imagenet dataset
 SAVE_LOC = "./cache/copycat/GOC"
 NPD_SIZE = 2000  # Number of images taken from (non-problem) ImageNet dataset
 VICT_TRAIN_EPOCHS = 10
