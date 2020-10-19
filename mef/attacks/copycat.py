@@ -1,6 +1,4 @@
-import numpy as np
 import torch
-import torch.nn.functional as F
 
 from mef.utils.pytorch.datasets import CustomLabelDataset, split_dataset
 from .base import Base
@@ -13,13 +11,16 @@ class CopyCat(Base):
                  val_size=0.2, batch_size=64, save_loc="./cache/copycat"):
         optimizer = torch.optim.SGD(substitute_model.parameters(),
                                     lr=0.01, momentum=0.8)
-        train_loss = F.cross_entropy
+        train_loss = torch.nn.CrossEntropyLoss()
         test_loss = train_loss
 
         super().__init__(victim_model, substitute_model, optimizer,
-                         train_loss, test_loss, training_epochs,
-                         early_stop_tolerance, evaluation_frequency, val_size,
-                         batch_size, save_loc=save_loc)
+                         train_loss, test_loss,
+                         training_epochs=training_epochs,
+                         early_stop_tolerance=early_stop_tolerance,
+                         evaluation_frequency=evaluation_frequency,
+                         val_size=val_size, batch_size=batch_size,
+                         save_loc=save_loc)
 
     def run(self, *args, **kwargs):
         self._parse_args(args, kwargs)

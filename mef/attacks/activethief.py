@@ -2,7 +2,6 @@ import math
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from torch.utils.data import ConcatDataset, DataLoader, Subset
 from torchattacks import DeepFool
 from tqdm import tqdm
@@ -20,13 +19,15 @@ class ActiveThief(Base):
                  evaluation_frequency=2, val_size=0.2, batch_size=64,
                  save_loc="./cache/activethief"):
         optimizer = torch.optim.Adam(substitute_model.parameters())
-        train_loss = F.mse_loss
-        test_loss = F.cross_entropy
+        train_loss = torch.nn.MSELoss()
+        test_loss = torch.nn.CrossEntropyLoss()
 
         super().__init__(victim_model, substitute_model, optimizer, train_loss,
-                         test_loss, training_epochs, early_stop_tolerance,
-                         evaluation_frequency, val_size, batch_size,
-                         num_classes, save_loc)
+                         test_loss, training_epochs=training_epochs,
+                         early_stop_tolerance=early_stop_tolerance,
+                         evaluation_frequency=evaluation_frequency,
+                         val_size=val_size, batch_size=batch_size,
+                         num_classes=num_classes, save_loc=save_loc)
 
         # BlackBox's specific attributes
         self._iterations = iterations

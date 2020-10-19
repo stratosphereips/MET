@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Subset
-from torchvision.datasets import ImageFolder
+from torchvision.datasets import ImageFolder, ImageNet
 from torchvision.transforms import transforms
 from tqdm import tqdm
 
@@ -21,14 +21,15 @@ from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import split_dataset
 
 SAMPLING_STRATEGY = "adaptive"
-REWARD_TYPE = "cert"
+REWARD_TYPE = "all"
 SEED = 0
-DATA_DIR = "E:/Datasets/Caltech256/256_ObjectCategories/"
+DATA_DIR = None  # Define path to Caltech256 dataset
+IMAGENET_DIR = None  # Define path to Imagenet2012 dataset
 SAVE_LOC = "./cache/knockoff/CALTECH256"
 VICT_TRAIN_EPOCHS = 200
 GPUS = 1
 DIMS = (3, 224, 224)
-# Reccomnded value from dataset paper
+# Recommended value from dataset paper
 n_test = 25
 
 
@@ -58,6 +59,17 @@ def prepare_caltech256():
     return idx_train, idx_test, caltech256_data
 
 
+def prepare_imagenet2012():
+    mean = [0.485, 0.456, 0.406]
+    std = [0.229, 0.224, 0.225]
+    transform = [transforms.CenterCrop(DIMS[2]), transforms.ToTensor(),
+                 transforms.Normalize(mean, std)]
+    imagenet_data = ImageNet(root=IMAGENET_DIR,
+                             transform=transforms.Compose(transform))
+
+    return imagenet_data
+
+
 def set_up():
     victim_model = ResNet(resnet_type="resnet_34", num_classes=256)
     substitute_model = ResNet(resnet_type="resnet_34", num_classes=256)
@@ -69,9 +81,10 @@ def set_up():
     # Prepare data
     print("Preparing data")
     idx_train, idx_test, caltech256_data = prepare_caltech256()
+    imagenet_data = prepare_imagenet2012()
 
     train_set = Subset(caltech256_data, idx_train)
-    sub_dataset = train_set
+    sub_dataset = imagenet_data
     test_set = Subset(caltech256_data, idx_test)
 
     # Train secret model

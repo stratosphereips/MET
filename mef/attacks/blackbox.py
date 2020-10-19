@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data import ConcatDataset, DataLoader
@@ -14,11 +13,12 @@ class BlackBox(Base):
                  iterations=6, lmbda=0.1, training_epochs=10,
                  batch_size=64, save_loc="./cache/blackbox"):
         optimizer = torch.optim.Adam(substitute_model.parameters())
-        train_loss = F.cross_entropy
+        train_loss = torch.nn.CrossEntropyLoss()
         test_loss = train_loss
 
         super().__init__(victim_model, substitute_model, optimizer,
-                         train_loss, test_loss, training_epochs,
+                         train_loss, test_loss,
+                         training_epochs=training_epochs,
                          batch_size=batch_size, save_loc=save_loc,
                          num_classes=num_classes, validation=False)
 
