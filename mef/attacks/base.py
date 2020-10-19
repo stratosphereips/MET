@@ -5,6 +5,7 @@ from ignite.utils import to_onehot
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from mef.utils.logger import set_up_logger
 from mef.utils.pytorch.datasets import CustomDataset
 from mef.utils.pytorch.lighting.module import MefModule
 from mef.utils.pytorch.lighting.training import get_trainer
@@ -15,7 +16,7 @@ class Base:
     _logger = None
 
     def __init__(self, victim_model, substitute_model, optimizer,
-                 train_loss, test_loss, training_epochs=100,
+                 train_loss, test_loss, lr_scheduler=None, training_epochs=100,
                  early_stop_tolerance=10, evaluation_frequency=2,
                  val_size=0.2, batch_size=64, num_classes=None,
                  save_loc="./cache", validation=True):
@@ -34,6 +35,9 @@ class Base:
                 validation=validation
         )
 
+        self._logger = set_up_logger("Mef", self._test_config.log_level,
+                                     self._save_loc)
+
         # Datasets
         self._test_set = None
         self._sub_dataset = None
@@ -50,6 +54,7 @@ class Base:
 
         # Optimizer, loss_functions
         self._optimizer = optimizer
+        self._lr_scheduler = lr_scheduler
         self._train_loss = train_loss
         self._test_loss = test_loss
 
