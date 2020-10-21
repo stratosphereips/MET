@@ -5,14 +5,14 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data import ConcatDataset, DataLoader, random_split
-from torchvision.datasets import CIFAR10, ImageNet, STL10
+from torchvision.datasets import CIFAR10, STL10
 from torchvision.transforms import transforms
 
+from mef.datasets.vision.imagenet1000 import ImageNet1000
 from mef.utils.pytorch.lighting.module import MefModule
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
-import mef
 from mef.attacks.copycat import CopyCat
 from mef.models.vision.vgg import Vgg
 from mef.utils.ios import mkdir_if_missing
@@ -114,10 +114,10 @@ class GOCData:
                                    setx.classes)
 
         imagenet = dict()
-        imagenet["train"] = ImageNet(self.imagenet_dir,
-                                     transform=self.transform)
-        imagenet["test"] = ImageNet(self.imagenet_dir, split="val",
-                                    transform=self.transform)
+        imagenet["train"] = ImageNet1000(self.imagenet_dir,
+                                         transform=self.transform)
+        imagenet["val"] = ImageNet1000(self.imagenet_dir, train=False,
+                                       transform=self.transform)
         imagenet["all"] = ConcatDataset(imagenet.values())
 
         self.test_set = cifar10["test"]

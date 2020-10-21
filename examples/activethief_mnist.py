@@ -4,9 +4,10 @@ import sys
 import torch
 import torch.nn.functional as F
 from torch.utils.data import ConcatDataset, DataLoader
-from torchvision.datasets import CIFAR10, MNIST
+from torchvision.datasets import MNIST
 from torchvision.transforms import transforms
 
+from mef.datasets.vision.imagenet1000 import ImageNet1000
 from mef.utils.pytorch.lighting.module import MefModule
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
@@ -49,14 +50,14 @@ def set_up():
 
     transform = [transforms.CenterCrop(DIMS[2]), transforms.Grayscale(),
                  transforms.ToTensor()]
-    cifar10 = dict()
-    cifar10["train"] = CIFAR10(root=DATA_DIR, download=True,
-                               transform=transforms.Compose(transform))
-    cifar10["test"] = CIFAR10(root=DATA_DIR, download=True, train=False,
-                              transform=transforms.Compose(transform))
-    cifar10["all"] = ConcatDataset([cifar10["train"], cifar10["test"]])
+    imagenet = dict()
+    imagenet["train"] = ImageNet1000(root=DATA_DIR,
+                                     transform=transforms.Compose(transform))
+    imagenet["val"] = ImageNet1000(root=DATA_DIR, train=False,
+                                   transform=transforms.Compose(transform))
+    imagenet["all"] = ConcatDataset(imagenet.values())
 
-    sub_dataset = cifar10["all"]
+    sub_dataset = imagenet["all"]
 
     try:
         saved_model = torch.load(SAVE_LOC + "/victim/final_victim_model.pt")

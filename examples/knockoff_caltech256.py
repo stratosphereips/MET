@@ -1,22 +1,20 @@
 import os
 import sys
 
-import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, Subset
-from torchvision.datasets import ImageFolder, ImageNet
+from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
-from tqdm import tqdm
 
 from mef.attacks.knockoff import KnockOff
+from mef.datasets.vision.caltech256 import Caltech256
+from mef.datasets.vision.imagenet1000 import ImageNet1000
 from mef.models.vision.resnet import ResNet
 from mef.utils.pytorch.lighting.module import MefModule
 from mef.utils.pytorch.lighting.training import get_trainer
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
-import mef
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import split_dataset
 
@@ -29,45 +27,6 @@ SAVE_LOC = "./cache/knockoff/CALTECH256"
 VICT_TRAIN_EPOCHS = 200
 GPUS = 1
 DIMS = (3, 224, 224)
-# Recommended value from dataset paper
-n_test = 25
-
-
-def prepare_caltech256():
-    # Imagenet standart values
-    mean = [0.485, 0.456, 0.406]
-    std = [0.229, 0.224, 0.225]
-    transform = [transforms.CenterCrop(DIMS[2]), transforms.ToTensor(),
-                 transforms.Normalize(mean, std)]
-    caltech256_data = ImageFolder(root=DATA_DIR,
-                                  transform=transforms.Compose(transform))
-
-    y = np.array(caltech256_data.targets)
-    classes = np.unique(y)
-
-    idx_train = []
-    idx_test = []
-    for cls in tqdm(classes, desc="Train/Test split creation"):
-        idx_cls = np.where(y == cls)[0]
-        idx_cls = np.random.permutation(idx_cls)
-        idx_test.append(idx_cls[:n_test])
-        idx_train.append(idx_cls[n_test:])
-
-    idx_train = np.hstack(idx_train)
-    idx_test = np.hstack(idx_test)
-
-    return idx_train, idx_test, caltech256_data
-
-
-def prepare_imagenet2012():
-    mean = [0.485, 0.456, 0.406]
-    std = [0.229, 0.224, 0.225]
-    transform = [transforms.CenterCrop(DIMS[2]), transforms.ToTensor(),
-                 transforms.Normalize(mean, std)]
-    imagenet_data = ImageNet(root=IMAGENET_DIR,
-                             transform=transforms.Compose(transform))
-
-    return imagenet_data
 
 
 def set_up():
@@ -79,13 +38,15 @@ def set_up():
         substitute_model.cuda()
 
     # Prepare data
-    print("Preparing data")
-    idx_train, idx_test, caltech256_data = prepare_caltech256()
-    imagenet_data = prepare_imagenet2012()
+    mean = [0.485, 0.456, 0.406]
+    std = [0.229, 0.224, 0.225]
+    transform = [transforms.CenterCrop(DIMS[2]), transforms.ToTensor(),
+                 transforms.Normalize(mean, std)]
 
-    train_set = Subset(caltech256_data, idx_train)
-    sub_dataset = imagenet_data
-    test_set = Subset(caltech256_data, idx_test)
+    train_set = Caltech256(DATA_DIR, transform=transform, seed=SEED)
+    test_set = Caltech256(DATA_DIR, train=False, transform=transform,
+                          seed=SEED)
+    sub_dataset = ImageNet1000(IMAGENET_DIR, transform=transform, seed=SEED)
 
     # Train secret model
     try:
