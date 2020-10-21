@@ -14,10 +14,11 @@ class ActiveThief(Base):
 
     def __init__(self, victim_model, substitute_model, num_classes,
                  iterations=10, selection_strategy="entropy",
-                 output_type="softmax", init_seed_size=20, budget=200,
-                 training_epochs=1000, early_stop_tolerance=10,
+                 output_type="softmax", init_seed_size=2000, budget=20000,
+                 training_epochs=1000, early_stop_tolerance=100,
                  evaluation_frequency=2, val_size=0.2, batch_size=64,
-                 save_loc="./cache/activethief"):
+                 save_loc="./cache/activethief", gpus=0, seed=None,
+                 deterministic=True, debug=False):
         optimizer = torch.optim.Adam(substitute_model.parameters())
         train_loss = torch.nn.MSELoss()
         test_loss = torch.nn.CrossEntropyLoss()
@@ -27,7 +28,9 @@ class ActiveThief(Base):
                          early_stop_tolerance=early_stop_tolerance,
                          evaluation_frequency=evaluation_frequency,
                          val_size=val_size, batch_size=batch_size,
-                         num_classes=num_classes, save_loc=save_loc)
+                         num_classes=num_classes, save_loc=save_loc,
+                         gpus=gpus, seed=seed, deterministic=deterministic,
+                         debug=debug)
 
         # BlackBox's specific attributes
         self._iterations = iterations
@@ -85,7 +88,7 @@ class ActiveThief(Base):
             with torch.no_grad():
                 for _, y_rest_batch in data_rest_loader:
 
-                    if self._test_config.gpus:
+                    if self._gpus:
                         y_rest_batch = y_rest_batch.cuda()
                         curr_centers = curr_centers.cuda()
 

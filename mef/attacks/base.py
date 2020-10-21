@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from ignite.utils import to_onehot
+from pytorch_lightning import seed_everything
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -12,43 +13,32 @@ from mef.utils.pytorch.lighting.training import get_trainer
 
 
 class Base:
-    _test_config = None
-    _logger = None
 
     def __init__(self, victim_model, substitute_model, optimizer,
                  train_loss, test_loss, lr_scheduler=None, training_epochs=100,
                  early_stop_tolerance=10, evaluation_frequency=2,
                  val_size=0.2, batch_size=64, num_classes=None,
-                 save_loc="./cache", validation=True):
-        self._val_size = val_size
-        self._batch_size = batch_size
+                 save_loc="./cache", validation=True, gpus=0, seed=None,
+                 deterministic=True, debug=False):
+        # Mef set up
+        self._gpus = gpus
         self._save_loc = save_loc
-
-        self._trainer_kwargs = dict(
-                gpus=self._test_config.gpus,
-                training_epochs=training_epochs,
-                early_stop_tolerance=early_stop_tolerance,
-                evaluation_frequency=evaluation_frequency,
-                save_loc=self._save_loc,
-                debug=self._test_config.debug,
-                deterministic=self._test_config.deterministic,
-                validation=validation
-        )
-
-        self._logger = set_up_logger("Mef", self._test_config.log_level,
+        seed_everything(seed)
+        self._logger = set_up_logger("Mef", "debug" if debug else "info",
                                      self._save_loc)
 
         # Datasets
         self._test_set = None
         self._sub_dataset = None
-
+        self._val_size = val_size
+        self._batch_size = batch_size
         self._num_classes = num_classes
 
         # Models
         self._victim_model = victim_model
         self._substitute_model = substitute_model
 
-        if self._test_config.gpus:
+        if self._gpus:
             self._victim_model.cuda()
             self._substitute_model.cuda()
 
@@ -57,6 +47,18 @@ class Base:
         self._lr_scheduler = lr_scheduler
         self._train_loss = train_loss
         self._test_loss = test_loss
+
+        # Pytorch-lighting trainer
+        self._trainer_kwargs = dict(
+                gpus=self._gpus,
+                training_epochs=training_epochs,
+                early_stop_tolerance=early_stop_tolerance,
+                evaluation_frequency=evaluation_frequency,
+                save_loc=self._save_loc,
+                debug=debug,
+                deterministic=deterministic,
+                validation=validation
+        )
 
     def _train_model(self, model, optimizer, train_set, val_set=None,
                      iteration=None, worker_init_fn=None,
@@ -81,7 +83,7 @@ class Base:
         trainer.fit(mef_model, train_dataloader, val_dataloader)
 
         # For some reason the model after fit is on CPU and not GPU
-        if self._test_config.gpus:
+        if self._gpus:
             model.cuda()
 
         return

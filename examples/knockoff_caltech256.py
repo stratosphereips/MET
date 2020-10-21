@@ -121,10 +121,10 @@ def set_up():
 
 
 if __name__ == "__main__":
-    mef.Test(gpus=GPUS, seed=SEED)
     mkdir_if_missing(SAVE_LOC)
 
     attack_variables, sub_dataset, test_set = set_up()
-    KnockOff(**attack_variables, sampling_strategy=SAMPLING_STRATEGY,
-             reward_type=REWARD_TYPE, save_loc=SAVE_LOC).run(sub_dataset,
-                                                             test_set)
+    ko = KnockOff(**attack_variables, sampling_strategy=SAMPLING_STRATEGY,
+                  reward_type=REWARD_TYPE, save_loc=SAVE_LOC, gpus=GPUS,
+                  seed=SEED)
+    ko.run(sub_dataset, test_set)

@@ -25,7 +25,8 @@ class KnockOff(Base):
     def __init__(self, victim_model, substitute_model, num_classes,
                  sampling_strategy="adaptive", reward_type="cert",
                  output_type="softmax", budget=1000, training_epochs=100,
-                 batch_size=64, save_loc="./cache/knockoff"):
+                 batch_size=64, save_loc="./cache/knockoff", gpus=0, seed=None,
+                 deterministic=True, debug=False):
         optimizer = torch.optim.SGD(substitute_model.parameters(), lr=0.01,
                                     momentum=0.5)
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
@@ -36,7 +37,8 @@ class KnockOff(Base):
         super().__init__(victim_model, substitute_model, optimizer,
                          train_loss, test_loss, lr_scheduler, training_epochs,
                          batch_size=batch_size, num_classes=num_classes,
-                         save_loc=save_loc, validation=False)
+                         save_loc=save_loc, validation=False, gpus=gpus,
+                         seed=seed, deterministic=deterministic, debug=debug)
 
         # KnockOff's specific attributes
         self._online_optimizer = torch.optim.SGD(
@@ -97,7 +99,7 @@ class KnockOff(Base):
 
         for x, y_output in tqdm(loader, desc="Online training",
                                 total=len(loader)):
-            if self._test_config.gpus:
+            if self._gpus:
                 x = x.cuda()
                 y_output = y_output.cuda()
 

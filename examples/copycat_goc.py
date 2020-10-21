@@ -175,9 +175,9 @@ def set_up():
 
 
 if __name__ == "__main__":
-    mef.Test(gpus=GPUS, seed=SEED)
     mkdir_if_missing(SAVE_LOC)
 
     attack_variables, sub_dataset, test_set = set_up()
-    copycat = CopyCat(**attack_variables, save_loc=SAVE_LOC)
+    copycat = CopyCat(**attack_variables, save_loc=SAVE_LOC, gpus=GPUS,
+                      seed=SEED)
     copycat.run(sub_dataset, test_set)

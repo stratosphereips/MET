@@ -11,14 +11,13 @@ from mef.utils.pytorch.lighting.module import MefModule
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
-import mef
 from mef.attacks.activethief import ActiveThief
 from mef.models.vision.simplenet import SimpleNet
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.lighting.training import get_trainer
 
-SELECTION_STRATEGY = "k-center"
+SELECTION_STRATEGY = "entropy"
 SEED = 0
 DATA_DIR = "./data"
 SAVE_LOC = "./cache/activethief/MNIST"
@@ -89,10 +88,9 @@ def set_up():
 
 
 if __name__ == "__main__":
-    mef.Test(gpus=GPUS, seed=SEED, debug=True)
     mkdir_if_missing(SAVE_LOC)
 
     attack_variables, sub_dataset, test_set = set_up()
     af = ActiveThief(**attack_variables, selection_strategy=SELECTION_STRATEGY,
-                     save_loc=SAVE_LOC)
+                     save_loc=SAVE_LOC, gpus=GPUS, seed=SEED)
     af.run(sub_dataset, test_set)

@@ -11,7 +11,8 @@ class BlackBox(Base):
 
     def __init__(self, victim_model, substitute_model, num_classes,
                  iterations=6, lmbda=0.1, training_epochs=10,
-                 batch_size=64, save_loc="./cache/blackbox"):
+                 batch_size=64, save_loc="./cache/blackbox",gpus=0, seed=None,
+                 deterministic=True, debug=False):
         optimizer = torch.optim.Adam(substitute_model.parameters())
         train_loss = torch.nn.CrossEntropyLoss()
         test_loss = train_loss
@@ -20,7 +21,9 @@ class BlackBox(Base):
                          train_loss, test_loss,
                          training_epochs=training_epochs,
                          batch_size=batch_size, save_loc=save_loc,
-                         num_classes=num_classes, validation=False)
+                         num_classes=num_classes, validation=False,
+                         gpus=gpus, seed=seed, deterministic=deterministic,
+                         debug=debug)
 
         # BlackBox's specific attributes
         self._iterations = iterations
