@@ -29,12 +29,14 @@ class Vgg(Base):
         # Load convolutional part of vgg
         vgg_loader = VGG_TYPES[vgg_type]
         self._vgg = vgg_loader(pretrained=True)
-        self._set_parameter_requires_grad(self._vgg,
-                                          self._feature_extraction)
 
-        in_features = self._vgg.classifier[6].in_features
-        self._classifier[6] = nn.Linear(in_features=in_features,
-                                        out_features=num_classes)
+        if num_classes != 1000:
+            self._set_parameter_requires_grad(self._vgg,
+                                              self._feature_extraction)
+
+            in_features = self._vgg.classifier[6].in_features
+            self._vgg.classifier[6] = nn.Linear(in_features=in_features,
+                                                out_features=num_classes)
 
     @auto_move_data
     def forward(self, x):
