@@ -1,8 +1,8 @@
-import pytorch_lightning as pl
-import torch
 import torch.nn as nn
 import torchvision
 from pytorch_lightning.core.decorators import auto_move_data
+
+from mef.models.base import Base
 
 VGG_TYPES = {"vgg_11": torchvision.models.vgg11,
              "vgg_11_bn": torchvision.models.vgg11_bn,
@@ -14,60 +14,29 @@ VGG_TYPES = {"vgg_11": torchvision.models.vgg11,
              "vgg_19": torchvision.models.vgg19}
 
 
-class Vgg(pl.LightningModule):
+class Vgg(Base):
     """
     Vgg model architecture using pytorch pretrained models with modifiable
     input size.
     """
 
-    def __init__(self, vgg_type, input_dimensions, num_classes):
-        super().__init__()
+    def __init__(self, vgg_type, num_classes, feature_extraction=False):
+        super().__init__(num_classes, feature_extraction)
 
         if vgg_type not in VGG_TYPES:
             raise ValueError("Unknown vgg_type '{}'".format(vgg_type))
 
         # Load convolutional part of vgg
         vgg_loader = VGG_TYPES[vgg_type]
-        vgg = vgg_loader(pretrained=True)
-        self._features = vgg.features
+        self._vgg = vgg_loader(pretrained=True)
+        self._set_parameter_requires_grad(self._vgg,
+                                          self._feature_extraction)
 
-        # Init fully connected part of vgg
-        test_input = torch.zeros(1, input_dimensions[0], input_dimensions[1],
-                                 input_dimensions[2])
-        test_out = vgg.features(test_input)
-        n_features = test_out.size(1) * test_out.size(2) * test_out.size(3)
-        if vgg.classifier[0].in_features != n_features:
-            self._classifier = nn.Sequential(nn.Linear(n_features, 4096),
-                                             nn.ReLU(True),
-                                             nn.Dropout(),
-                                             nn.Linear(4096, 4096),
-                                             nn.ReLU(True),
-                                             nn.Dropout(),
-                                             nn.Linear(4096, num_classes)
-                                             )
-            self._init_classifier_weights()
-        else:
-            self._classifier = vgg.classifier
-            self._classifier[6] = nn.Linear(in_features=4096,
-                                            out_features=num_classes)
-            self._classifier[6].weight.data.normal_(std=0.01)
-            self._classifier[6].bias.data.zero_()
-
-        self._freeze_features_weights()
+        in_features = self._vgg.classifier[6].in_features
+        self._classifier[6] = nn.Linear(in_features=in_features,
+                                        out_features=num_classes)
 
     @auto_move_data
     def forward(self, x):
-        x = self._features(x)
-        x = x.view(x.size(0), -1)
-        x = self._classifier(x)
-        return x
-
-    def _init_classifier_weights(self):
-        for m in self._classifier:
-            if isinstance(m, nn.Linear):
-                m.weight.data.normal_(std=0.01)
-                m.bias.data.zero_()
-
-    def _freeze_features_weights(self):
-        for param in self._features.parameters():
-            param.requires_grad = False
+        logits = self._vgg(x)
+        return logits

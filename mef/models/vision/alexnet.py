@@ -1,63 +1,27 @@
-import pytorch_lightning as pl
-import torch
 import torch.nn as nn
 import torchvision
 
+from mef.models.base import Base
 
-class AlexNet(pl.LightningModule):
+
+class AlexNet(Base):
     """
     AlexNet model architecture using pytorch pretrained models with modifiable
     input size.
     """
 
-    def __init__(self, input_dimensions, num_classes):
-        super().__init__()
+    def __init__(self, num_classes, feature_extraction=False):
+        super().__init__(num_classes, feature_extraction)
 
         # Load convolutional part of resnet
-        alexnet = torchvision.models.alexnet(pretrained=True)
-        self._features = alexnet.features
+        self._alexnet = torchvision.models.alexnet(pretrained=True)
+        self._set_parameter_requires_grad(self._alexnet,
+                                          self._feature_extraction)
 
-        # Init fully connected part of resnet
-        test_input = torch.zeros(1, input_dimensions[0], input_dimensions[1],
-                                 input_dimensions[2])
-        test_out = alexnet.features(test_input)
-        n_features = test_out.size(1) * test_out.size(2) * test_out.size(3)
-
-        if alexnet.classifier[1].in_features != n_features:
-            self._classifier = nn.Sequential(nn.Dropout(),
-                                             nn.Linear(
-                                                     in_features=n_features,
-                                                     out_features=4096),
-                                             nn.ReLU(inplace=True),
-                                             nn.Dropout(),
-                                             nn.Linear(
-                                                     in_features=4096,
-                                                     out_features=4096),
-                                             nn.ReLU(inplace=True),
-                                             nn.Linear(4096, num_classes)
-                                             )
-            self._init_classifier_weights()
-        else:
-            self._classifier = alexnet.classifier
-            self._classifier[6] = nn.Linear(in_features=4096,
-                                            out_features=num_classes)
-            self._classifier[6].weight.data.normal_(std=0.01)
-            self._classifier[6].bias.data.zero_()
-
-        self._freeze_features_weights()
+        in_features = self._alexnet.classifier[6].in_features
+        self._classifier[6] = nn.Linear(in_features=in_features,
+                                        out_features=num_classes)
 
     def forward(self, x):
-        x = self.features(x)
-        x = x.view(x.size(0), -1)
-        x = self.classifier(x)
-        return x
-
-    def _init_classifier_weights(self):
-        for m in self._classifier:
-            if isinstance(m, nn.Linear):
-                m.weight.data.normal_(std=0.01)
-                m.bias.data.zero_()
-
-    def _freeze_features_weights(self):
-        for param in self._features.parameters():
-            param.requires_grad = False
+        logits = self._alexnet(x)
+        return logits

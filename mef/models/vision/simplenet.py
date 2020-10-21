@@ -1,17 +1,17 @@
-import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from pytorch_lightning.core.decorators import auto_move_data
 
+from mef.models.base import Base
 from mef.utils.pytorch.blocks import ConvBlock
 
 
-class SimpleNet(pl.LightningModule):
+class SimpleNet(Base):
     """https://paperswithcode.com/paper/lets-keep-it-simple-using-simple"""
 
     def __init__(self, input_dimensions, num_classes, pool=False, drop=False):
-        super().__init__()
+        super().__init__(num_classes)
 
         self._layers = self._make_layers(input_dimensions[0])
 

@@ -26,13 +26,12 @@ SAVE_LOC = "./cache/copycat/GOC"
 NPD_SIZE = 2000  # Number of images taken from (non-problem) ImageNet dataset
 VICT_TRAIN_EPOCHS = 10
 GPUS = 1
-DIMS = (3, 64, 64)
 
 
 class GOCData:
 
     def __init__(self, npd_size, imagenet_dir, data_dir="./data",
-                 dims=(3, 64, 64)):
+                 dims=(3, 224, 224)):
         super().__init__()
         self.npd_size = npd_size
         self.imagenet_dir = imagenet_dir
@@ -131,16 +130,15 @@ class GOCData:
 
 
 def set_up():
-    victim_model = Vgg(vgg_type="vgg_16", input_dimensions=DIMS, num_classes=9)
-    substitute_model = Vgg(vgg_type="vgg_16", input_dimensions=DIMS,
-                           num_classes=9)
+    victim_model = Vgg(vgg_type="vgg_16", num_classes=9)
+    substitute_model = Vgg(vgg_type="vgg_16", num_classes=9)
 
     if GPUS:
         victim_model.cuda()
         substitute_model.cuda()
 
     print("Preparing data")
-    goc = GOCData(NPD_SIZE, IMAGENET_DIR, data_dir=DATA_DIR, dims=DIMS)
+    goc = GOCData(NPD_SIZE, IMAGENET_DIR, data_dir=DATA_DIR)
     goc.prepare_data()
     goc.setup()
 

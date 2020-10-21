@@ -1,10 +1,14 @@
-import torch.nn as nn
+import pytorch_lightning as pl
 
 
-class Base(nn.Module):
+class Base(pl.LightningModule):
 
-    def __init__(self, input_dimensions, num_classes, model_details):
+    def __init__(self, num_classes, feature_extraction=False):
         super().__init__()
-        self.input_dimensions = input_dimensions
-        self.details = model_details
-        self.num_classes = num_classes
+        self._num_classes = num_classes
+        self._feature_extraction = feature_extraction
+
+    def _set_parameter_requires_grad(self, model, feature_extraction):
+        if feature_extraction:
+            for param in model.parameters():
+                param.requires_grad = False
