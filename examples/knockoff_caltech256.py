@@ -1,3 +1,4 @@
+import argparse
 import os
 import sys
 
@@ -18,35 +19,53 @@ sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import split_dataset
 
-SAMPLING_STRATEGY = "adaptive"
 REWARD_TYPE = "all"
 SEED = 0
-DATA_DIR = None  # Define path to Caltech256 dataset
-IMAGENET_DIR = None  # Define path to Imagenet2012 dataset
 SAVE_LOC = "./cache/knockoff/CALTECH256"
 VICT_TRAIN_EPOCHS = 200
-GPUS = 1
-DIMS = (3, 224, 224)
 
 
-def set_up():
+def parse_args():
+    parser = argparse.ArgumentParser(description="KnockOff-Nets model "
+                                                 "extraction attack - "
+                                                 "Caltech256 example")
+    parser.add_argument("-s", "--sampling_strategy", default="adaptive",
+                        type=str, help="KnockOff-Nets sampling strategy can "
+                                       "be one of {random, adaptive}")
+    parser.add_argument("-r", "--reward_type", default="all", type=str,
+                        help="Type of reward for adaptive strategy, can be "
+                             "one of {cert, div, loss, all}")
+    parser.add_argument("-c", "--caltech256_dir", default="./data", type=str,
+                        help="Path to Caltech256 dataset")
+    parser.add_argument("-i", "--imagenet_dir", type=str,
+                        help="Path to ImageNet dataset")
+    parser.add_argument("-g", "--gpus", type=int, default=0,
+                        help="Number of gpus to be used")
+    args = parser.parse_args()
+
+    return args
+
+
+def set_up(args):
     victim_model = ResNet(resnet_type="resnet_34", num_classes=256)
     substitute_model = ResNet(resnet_type="resnet_34", num_classes=256)
 
-    if GPUS:
+    if args.gpus:
         victim_model.cuda()
         substitute_model.cuda()
 
     # Prepare data
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
-    transform = [transforms.CenterCrop(DIMS[2]), transforms.ToTensor(),
-                 transforms.Normalize(mean, std)]
+    transform = transforms.Compose([transforms.CenterCrop(224),
+                                    transforms.ToTensor(),
+                                    transforms.Normalize(mean, std)])
 
-    train_set = Caltech256(DATA_DIR, transform=transform, seed=SEED)
-    test_set = Caltech256(DATA_DIR, train=False, transform=transform,
-                          seed=SEED)
-    sub_dataset = ImageNet1000(IMAGENET_DIR, transform=transform, seed=SEED)
+    train_set = Caltech256(args.caltech256_dir, transform=transform, seed=SEED)
+    test_set = Caltech256(args.caltech256_dir, train=False,
+                          transform=transform, seed=SEED)
+    sub_dataset = ImageNet1000(args.imagenet_dir, transform=transform,
+                               seed=SEED)
 
     # Train secret model
     try:
@@ -70,7 +89,8 @@ def set_up():
                                     num_workers=4, batch_size=64)
 
         mef_model = MefModule(victim_model, optimizer, loss, lr_scheduler)
-        trainer = get_trainer(GPUS, VICT_TRAIN_EPOCHS, early_stop_tolerance=10,
+        trainer = get_trainer(args.gpus, VICT_TRAIN_EPOCHS,
+                              early_stop_tolerance=10,
                               save_loc=SAVE_LOC + "/victim/")
         trainer.fit(mef_model, train_dataloader, val_dataloader)
 
@@ -82,10 +102,12 @@ def set_up():
 
 
 if __name__ == "__main__":
-    mkdir_if_missing(SAVE_LOC)
+    args = parse_args()
 
-    attack_variables, sub_dataset, test_set = set_up()
-    ko = KnockOff(**attack_variables, sampling_strategy=SAMPLING_STRATEGY,
-                  reward_type=REWARD_TYPE, save_loc=SAVE_LOC, gpus=GPUS,
+    mkdir_if_missing(SAVE_LOC)
+    attack_variables, sub_dataset, test_set = set_up(args)
+
+    ko = KnockOff(**attack_variables, sampling_strategy=args.sampling_strategy,
+                  reward_type=REWARD_TYPE, save_loc=SAVE_LOC, gpus=args.gpus,
                   seed=SEED)
     ko.run(sub_dataset, test_set)

@@ -1,3 +1,4 @@
+import argparse
 import os
 import sys
 
@@ -18,45 +19,60 @@ from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.lighting.training import get_trainer
 
-SELECTION_STRATEGY = "entropy"
 SEED = 0
-DATA_DIR = "./data"
 SAVE_LOC = "./cache/activethief/MNIST"
 VICT_TRAIN_EPOCHS = 10
-GPUS = 1
 DIMS = (1, 28, 28)
 
 
-def set_up():
+def parse_args():
+    parser = argparse.ArgumentParser(description="Activethief model "
+                                                 "extraction attack - Mnist "
+                                                 "example")
+    parser.add_argument("-s", "--selection_strategy", default="entropy",
+                        type=str, help="Activethief selection strategy can "
+                                       "be one of {random, entropy, "
+                                       "k-center, dfal, dfal+k-center}")
+    parser.add_argument("-m", "--mnist_dir", default="./data", type=str,
+                        help="Path to MNIST dataset")
+    parser.add_argument("-i", "--imagenet_dir", type=str,
+                        help="Path to ImageNet dataset")
+    parser.add_argument("-g", "--gpus", type=int, default=0,
+                        help="Number of gpus to be used")
+    args = parser.parse_args()
+
+    return args
+
+
+def set_up(args):
     victim_model = SimpleNet(input_dimensions=DIMS, num_classes=10)
     substitute_model = SimpleNet(input_dimensions=DIMS, num_classes=10)
 
-    if GPUS:
+    if args.gpus:
         victim_model.cuda()
         substitute_model.cuda()
 
     # Prepare data
     print("Preparing data")
-    transform = [transforms.CenterCrop(DIMS[2]), transforms.ToTensor()]
+    transform = transforms.Compose([transforms.CenterCrop(DIMS[2]),
+                                    transforms.ToTensor()])
     mnist = dict()
-    mnist["train"] = MNIST(root=DATA_DIR, download=True,
-                           transform=transforms.Compose(transform))
-
-    mnist["test"] = MNIST(root=DATA_DIR, train=False, download=True,
-                          transform=transforms.Compose(transform))
-
+    mnist["train"] = MNIST(root=args.mnist_dir, download=True,
+                           transform=transform)
+    mnist["test"] = MNIST(root=args.mnist_dir, train=False, download=True,
+                          transform=transform)
     test_set = mnist["test"]
     train_set = mnist["train"]
 
-    transform = [transforms.CenterCrop(DIMS[2]), transforms.Grayscale(),
-                 transforms.ToTensor()]
+    transform = transforms.Compose([transforms.CenterCrop(DIMS[2]),
+                                    transforms.Grayscale(),
+                                    transforms.ToTensor()])
     imagenet = dict()
-    imagenet["train"] = ImageNet1000(root=DATA_DIR,
-                                     transform=transforms.Compose(transform))
-    imagenet["val"] = ImageNet1000(root=DATA_DIR, train=False,
-                                   transform=transforms.Compose(transform))
+    imagenet["train"] = ImageNet1000(root=args.imagenet_dir,
+                                     transform=transform)
+    imagenet["val"] = ImageNet1000(root=args.imagenet_dir, train=False,
+                                   transform=transform)
     imagenet["all"] = ConcatDataset(imagenet.values())
-
     sub_dataset = imagenet["all"]
 
     try:
@@ -77,7 +93,8 @@ def set_up():
                                     num_workers=4, batch_size=64)
 
         mef_model = MefModule(victim_model, optimizer, loss)
-        trainer = get_trainer(GPUS, VICT_TRAIN_EPOCHS, early_stop_tolerance=10,
+        trainer = get_trainer(args.gpus, VICT_TRAIN_EPOCHS,
+                              early_stop_tolerance=10,
                               save_loc=SAVE_LOC + "/victim/")
         trainer.fit(mef_model, train_dataloader, val_dataloader)
 
@@ -89,9 +106,12 @@ def set_up():
 
 
 if __name__ == "__main__":
-    mkdir_if_missing(SAVE_LOC)
+    args = parse_args()
 
-    attack_variables, sub_dataset, test_set = set_up()
-    af = ActiveThief(**attack_variables, selection_strategy=SELECTION_STRATEGY,
-                     save_loc=SAVE_LOC, gpus=GPUS, seed=SEED)
+    mkdir_if_missing(SAVE_LOC)
+    attack_variables, sub_dataset, test_set = set_up(args)
+
+    af = ActiveThief(**attack_variables,
+                     selection_strategy=args.selection_strategy,
+                     save_loc=SAVE_LOC, gpus=args.gpus, seed=SEED)
     af.run(sub_dataset, test_set)

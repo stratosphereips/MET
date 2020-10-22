@@ -1,3 +1,4 @@
+import argparse
 import os
 import sys
 
@@ -20,31 +21,27 @@ from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.lighting.training import get_trainer
 
 SEED = 0
-DATA_DIR = "./data"
-IMAGENET_DIR = None  # Define path to Imagenet dataset
 SAVE_LOC = "./cache/copycat/GOC"
-NPD_SIZE = 2000  # Number of images taken from (non-problem) ImageNet dataset
 VICT_TRAIN_EPOCHS = 10
-GPUS = 1
 
 
 class GOCData:
 
-    def __init__(self, npd_size, imagenet_dir, data_dir="./data",
-                 dims=(3, 224, 224)):
+    def __init__(self, npd_size, imagenet_dir, stl10_dir, cifar10_dir):
         super().__init__()
         self.npd_size = npd_size
         self.imagenet_dir = imagenet_dir
-        self.data_dir = data_dir
+        self.stl10_dir = stl10_dir
+        self.cifar10_dir = cifar10_dir
+        self.dims = (3, 224, 224)
 
+        # Imagenet values
         mean = [0.485, 0.456, 0.406]
         std = [0.229, 0.224, 0.225]
-        transforms_list = [transforms.CenterCrop(dims[2]),
+        transforms_list = [transforms.CenterCrop(self.dims[2]),
                            transforms.ToTensor(),
                            transforms.Normalize(mean, std)]
         self.transform = transforms.Compose(transforms_list)
-
-        self.dims = dims
 
         self.test_set = None
         self.od_dataset = None
@@ -52,10 +49,10 @@ class GOCData:
 
     def prepare_data(self):
         # download
-        CIFAR10(self.data_dir, download=True)
-        CIFAR10(self.data_dir, train=False, download=True)
-        STL10(self.data_dir, download=True)
-        STL10(self.data_dir, split="test", download=True)
+        CIFAR10(self.cifar10_dir, download=True)
+        CIFAR10(self.cifar10_dir, train=False, download=True)
+        STL10(self.stl10_dir, download=True)
+        STL10(self.stl10_dir, split="test", download=True)
 
     def _remove_class(self, class_to_remove, labels, data, class_to_idx,
                       classes):
@@ -79,13 +76,13 @@ class GOCData:
 
     def setup(self):
         cifar10 = dict()
-        cifar10["train"] = CIFAR10(self.data_dir, transform=self.transform)
-        cifar10["test"] = CIFAR10(self.data_dir, train=False,
+        cifar10["train"] = CIFAR10(self.cifar10_dir, transform=self.transform)
+        cifar10["test"] = CIFAR10(self.cifar10_dir, train=False,
                                   transform=self.transform)
 
         stl10 = dict()
-        stl10["train"] = STL10(self.data_dir, transform=self.transform)
-        stl10["test"] = STL10(self.data_dir, split="test",
+        stl10["train"] = STL10(self.stl10_dir, transform=self.transform)
+        stl10["test"] = STL10(self.stl10_dir, split="test",
                               transform=self.transform)
 
         # Replace car with automobile to make the class name same as in the
@@ -129,16 +126,39 @@ class GOCData:
         self.sub_dataset = ConcatDataset([pd_dataset, npd_dataset])
 
 
-def set_up():
+def parse_args():
+    parser = argparse.ArgumentParser(description="CopyCat model extraction "
+                                                 "attack - General Object "
+                                                 "Classification (GOC) "
+                                                 "example")
+    parser.add_argument("-s", "--stl10_dir", default="./data", type=str,
+                        help="Path to Stl10 dataset")
+    parser.add_argument("-c", "--cifar10_dir", default="./data", type=str,
+                        help="Path to Cifar10 dataset")
+    parser.add_argument("-i", "--imagenet_dir", type=str,
+                        help="Path to ImageNet dataset")
+    parser.add_argument("-n", "--npd_size", type=int, default=120000,
+                        help="Number of images taken from (non-problem) "
+                             "ImageNet dataset")
+    parser.add_argument("-g", "--gpus", type=int, default=0,
+                        help="Number of gpus to be used")
+
+    args = parser.parse_args()
+
+    return args
+
+
+def set_up(args):
     victim_model = Vgg(vgg_type="vgg_16", num_classes=9)
     substitute_model = Vgg(vgg_type="vgg_16", num_classes=9)
 
-    if GPUS:
+    if args.gpus:
         victim_model.cuda()
         substitute_model.cuda()
 
     print("Preparing data")
-    goc = GOCData(NPD_SIZE, IMAGENET_DIR, data_dir=DATA_DIR)
+    goc = GOCData(args.npd_size, args.imagenet_dir,
+                  cifar10_dir=args.cifar10_dir, stl10_dir=args.stl10_dir)
     goc.prepare_data()
     goc.setup()
 
@@ -156,13 +176,14 @@ def set_up():
         train_set, val_set = split_dataset(goc.od_dataset, 0.2)
         train_dataloader = DataLoader(dataset=train_set, shuffle=True,
                                       num_workers=4, pin_memory=True,
-                                      batch_size=64)
+                                      batch_size=32)
 
         val_dataloader = DataLoader(dataset=val_set, pin_memory=True,
-                                    num_workers=4, batch_size=64)
+                                    num_workers=4, batch_size=32)
 
         mef_model = MefModule(victim_model, optimizer, loss)
-        trainer = get_trainer(GPUS, VICT_TRAIN_EPOCHS, early_stop_tolerance=10,
+        trainer = get_trainer(args.gpus, VICT_TRAIN_EPOCHS,
+                              early_stop_tolerance=10,
                               save_loc=SAVE_LOC + "/victim/")
         trainer.fit(mef_model, train_dataloader, val_dataloader)
 
@@ -175,9 +196,11 @@ def set_up():
 
 
 if __name__ == "__main__":
-    mkdir_if_missing(SAVE_LOC)
+    args = parse_args()
 
-    attack_variables, sub_dataset, test_set = set_up()
-    copycat = CopyCat(**attack_variables, save_loc=SAVE_LOC, gpus=GPUS,
+    mkdir_if_missing(SAVE_LOC)
+    attack_variables, sub_dataset, test_set = set_up(args)
+
+    copycat = CopyCat(**attack_variables, save_loc=SAVE_LOC, gpus=args.gpus,
                       seed=SEED)
     copycat.run(sub_dataset, test_set)
