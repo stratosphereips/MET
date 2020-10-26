@@ -29,7 +29,7 @@ def parse_args():
                                                  "attack - Mnist example")
     parser.add_argument("-m", "--mnist_dir", default="./data", type=str,
                         help="Path to MNIST dataset")
-    parser.add_argument("-h", "--holdout", default=150, type=int,
+    parser.add_argument("-o", "--holdout", default=150, type=int,
                         help="Number of samples from MNIST-test to holdout "
                              "for the attack")
     parser.add_argument("-g", "--gpus", type=int, default=0,
