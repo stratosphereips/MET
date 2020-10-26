@@ -7,17 +7,17 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 
+sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
+
 from mef.attacks.knockoff import KnockOff
 from mef.datasets.vision.caltech256 import Caltech256
 from mef.datasets.vision.imagenet1000 import ImageNet1000
 from mef.models.vision.resnet import ResNet
+from mef.utils.ios import mkdir_if_missing
+from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.lighting.module import MefModule
 from mef.utils.pytorch.lighting.training import get_trainer
 
-sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
-
-from mef.utils.ios import mkdir_if_missing
-from mef.utils.pytorch.datasets import split_dataset
 
 REWARD_TYPE = "all"
 SEED = 0
