@@ -9,15 +9,14 @@ from torch.utils.data import ConcatDataset, DataLoader, random_split
 from torchvision.datasets import CIFAR10, STL10
 from torchvision.transforms import transforms
 
-from mef.datasets.vision.imagenet1000 import ImageNet1000
-from mef.utils.pytorch.lighting.module import MefModule
-
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.copycat import CopyCat
+from mef.datasets.vision.imagenet1000 import ImageNet1000
 from mef.models.vision.vgg import Vgg
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import split_dataset
+from mef.utils.pytorch.lighting.module import MefModule
 from mef.utils.pytorch.lighting.training import get_trainer
 
 SEED = 0
