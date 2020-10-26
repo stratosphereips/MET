@@ -8,15 +8,14 @@ from torch.utils.data import ConcatDataset, DataLoader
 from torchvision.datasets import MNIST
 from torchvision.transforms import transforms
 
-from mef.datasets.vision.imagenet1000 import ImageNet1000
-from mef.utils.pytorch.lighting.module import MefModule
-
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.activethief import ActiveThief
+from mef.datasets.vision.imagenet1000 import ImageNet1000
 from mef.models.vision.simplenet import SimpleNet
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import split_dataset
+from mef.utils.pytorch.lighting.module import MefModule
 from mef.utils.pytorch.lighting.training import get_trainer
 
 SEED = 0
