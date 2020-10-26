@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-from ignite.utils import to_onehot
 from pytorch_lightning import seed_everything
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -141,8 +140,8 @@ class Base:
         y_preds = torch.cat(y_preds)
 
         if output_type == "one_hot":
-            y_hat = to_onehot(torch.argmax(y_preds, dim=1),
-                              num_classes=y_preds.size()[1])
+            y_hat = onehot(torch.argmax(y_preds, dim=1),
+                           num_classes=y_preds.size()[1])
             # to_oneshot returns tensor with uint8 type
             y_hat = y_hat.float()
         elif output_type == "softmax":
