@@ -1,7 +1,0 @@
-attacks:
-  cloudleak:
-    adversial_strategy: "pgd"
-    set_size: 200
-    augmentation_multiplier: 5
-    iterations: 10
-    output_type: "one_hot"
