@@ -1,4 +1,3 @@
-import argparse
 import os
 import sys
 
@@ -9,6 +8,8 @@ from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import MNIST
 from torchvision.transforms import transforms
 
+from mef.utils.config import get_default_parser
+
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.blackbox import BlackBox
@@ -18,22 +19,25 @@ from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.lighting.module import MefModule
 from mef.utils.pytorch.lighting.training import get_trainer
 
-SEED = 0
-SAVE_LOC = "./cache/blackbox/MNIST"
-VICT_TRAIN_EPOCHS = 10
 DIMS = (1, 28, 28)
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="BlackBox model extraction "
-                                                 "attack - Mnist example")
-    parser.add_argument("-m", "--mnist_dir", default="./data", type=str,
-                        help="Path to MNIST dataset")
-    parser.add_argument("-o", "--holdout", default=150, type=int,
-                        help="Number of samples from MNIST-test to holdout "
-                             "for the attack")
-    parser.add_argument("-g", "--gpus", type=int, default=0,
-                        help="Number of gpus to be used")
+def blackbox_parse_args():
+    description = "Blackbox model extraction attack - Mnist example"
+    parser = get_default_parser(description)
+
+    parser.add_argument("-m", "--mnist_dir", default="./data/", type=str,
+                        help="Path to MNIST dataset (Default: ./data/")
+    parser.add_argument("-i", "--imagenet_dir", type=str,
+                        help="Path to ImageNet dataset")
+    parser.add_argument("-o", "--iterations", default=6, type=int,
+                        help="Number of iterations of the attacks (Default: "
+                             "6)")
+    parser.add_argument("-q", "--lmbda", default=0.1, type=float,
+                        help="Value of lambda in Jacobian augmentation ("
+                             "Default: 0.1)")
+    parser.add_argument("-z", "--holdout_size", default=150, type=int,
+                        help="Hold out size from MNIST test (Default: 150)")
     args = parser.parse_args()
 
     return args
@@ -58,15 +62,16 @@ def set_up(args):
                           transform=transform)
 
     idx_test = np.random.permutation(len(mnist["test"]))
-    idx_sub = idx_test[:args.holdout]
-    idx_test = idx_test[args.holdout:]
+    idx_sub = idx_test[:args.holdout_size]
+    idx_test = idx_test[args.holdout_size:]
 
-    sub_dataset = Subset(mnist["test"], idx_sub)
+    thief_dataset = Subset(mnist["test"], idx_sub)
     test_set = Subset(mnist["test"], idx_test)
 
     # Train secret model
     try:
-        saved_model = torch.load(SAVE_LOC + "/victim/final_victim_model.pt")
+        saved_model = torch.load(args.save_loc +
+                                 "/victim/final_victim_model.pt")
         victim_model.load_state_dict(saved_model["state_dict"])
         print("Loaded victim model")
     except FileNotFoundError:
@@ -75,33 +80,34 @@ def set_up(args):
         optimizer = torch.optim.Adam(victim_model.parameters())
         loss = F.cross_entropy
 
-        train_set, val_set = split_dataset(mnist["train"], 0.2)
+        train_set, val_set = split_dataset(mnist["train"], args.val_size)
         train_dataloader = DataLoader(dataset=train_set, shuffle=True,
                                       num_workers=4, pin_memory=True,
-                                      batch_size=64)
+                                      batch_size=args.batch_size)
 
         val_dataloader = DataLoader(dataset=val_set, pin_memory=True,
-                                    num_workers=4, batch_size=64)
+                                    num_workers=4, batch_size=args.batch_size)
 
         mef_model = MefModule(victim_model, optimizer, loss)
-        trainer = get_trainer(args.gpus, VICT_TRAIN_EPOCHS,
-                              early_stop_tolerance=10,
-                              save_loc=SAVE_LOC + "/victim/")
+        trainer = get_trainer(args.gpus, args.victim_train_epochs,
+                              early_stop_tolerance=args.early_stop_tolerance,
+                              save_loc=args.save_loc + "/victim/")
         trainer.fit(mef_model, train_dataloader, val_dataloader)
 
         torch.save(dict(state_dict=victim_model.state_dict()),
-                   SAVE_LOC + "/victim/final_victim_model.pt")
+                   args.save_loc + "/victim/final_victim_model.pt")
 
-    models = dict(victim_model=victim_model, substitute_model=substitute_model)
-    return models, sub_dataset, test_set
+    return victim_model, substitute_model, thief_dataset, test_set
 
 
 if __name__ == "__main__":
-    args = parse_args()
+    args = blackbox_parse_args()
 
-    mkdir_if_missing(SAVE_LOC)
-    attack_variables, sub_dataset, test_set = set_up(args)
+    mkdir_if_missing(args.save_loc)
+    victim_model, substitute_model, thief_dataset, test_set = set_up(args)
 
-    bb = BlackBox(**attack_variables, num_classes=10, save_loc=SAVE_LOC,
-                  gpus=args.gpus, seed=SEED)
-    bb.run(sub_dataset, test_set)
+    bb = BlackBox(victim_model, substitute_model, 10, args.iterations,
+                  args.lmbda, args.training_epochs, args.batch_size,
+                  args.save_loc, args.gpus, args.seed, args.deterministic,
+                  args.debug)
+    bb.run(thief_dataset, test_set)
