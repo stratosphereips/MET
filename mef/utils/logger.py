@@ -6,8 +6,7 @@ from ..utils.ios import delete_file, mkdir_if_missing
 
 
 def set_up_logger(logger_name, log_level, save_loc):
-    log_file = Path(save_loc).joinpath("mef_log", "log_lvl_" + log_level +
-                                       ".log")
+    log_file = Path(save_loc).joinpath("mef_log_lvl_" + log_level + ".log")
     mkdir_if_missing(log_file.parent)
     delete_file(log_file)
 
