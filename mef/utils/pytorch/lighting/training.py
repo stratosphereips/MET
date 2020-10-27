@@ -8,7 +8,7 @@ def get_trainer(gpus=0, training_epochs=10, early_stop_tolerance=3,
     # Prepare callbacks
     callbacks = None
     checkpoint_cb = False
-    if validation:
+    if validation and not debug:
         callbacks = [EarlyStopping(monitor="val_loss", verbose=True,
                                    patience=early_stop_tolerance)]
 
