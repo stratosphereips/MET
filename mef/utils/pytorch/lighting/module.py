@@ -30,13 +30,13 @@ class MefModule(pl.LightningModule):
         return loss, acc
 
     def validation_step(self, batch, batch_idx):
-        loss, acc = self.shared_step(batch)
+        loss, acc = self._shared_step(batch)
         self.log_dict({"val_loss": loss, "val_acc": acc}, prog_bar=True)
 
         return
 
     def test_step(self, batch, batch_idx):
-        loss, acc = self.shared_step(batch)
+        loss, acc = self._shared_step(batch)
         self.log_dict({"test_loss": loss, "test_acc": acc}, prog_bar=True)
 
         return
