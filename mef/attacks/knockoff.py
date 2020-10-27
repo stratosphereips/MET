@@ -24,7 +24,7 @@ class KnockOff(Base):
 
     def __init__(self, victim_model, substitute_model, num_classes,
                  sampling_strategy="adaptive", reward_type="cert",
-                 output_type="softmax", budget=1000, training_epochs=100,
+                 output_type="softmax", budget=10000, training_epochs=100,
                  batch_size=64, save_loc="./cache/knockoff", gpus=0, seed=None,
                  deterministic=True, debug=False):
         optimizer = torch.optim.SGD(substitute_model.parameters(), lr=0.01,
