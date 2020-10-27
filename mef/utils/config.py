@@ -1,40 +1,34 @@
-# import yaml
-from dacite import from_dict
+import argparse
 
 
-#
-#
-# class Configuration:
-#     config_file = None
-#     configs = None
-#
-#     def __init__(self, config_file):
-#         Configuration.config_file = config_file
-#         try:
-#             with open(self.config_file) as f:
-#                 Configuration.configs = yaml.full_load(f)
-#         except FileNotFoundError:
-#             print("Configuration file {} was not found.".format(
-#                 self.config_file))
-#
-#     @staticmethod
-#     def _find_config(configs, keys):
-#         for key in configs.keys():
-#             if key == keys[0]:
-#                 if isinstance(configs[key], dict):
-#                     if len(keys) == 1:
-#                         return configs[key]
-#                     else:
-#                         return Configuration._find_config(configs[key],
-#                                                           keys[1:])
-#
-#         return configs
-#
-#     @classmethod
-#     def get_configuration(cls, data_class, dict_):
-#         return from_dict(data_class,
-#                          cls._find_config(cls.configs, config_type.split(
-#                          '/')))
+def get_default_parser(description):
+    parser = argparse.ArgumentParser(description=description)
 
-def get_configuration(data_class, dict_):
-    return from_dict(data_class, dict_)
+    parser.add_argument("-v", "--victim_train_epochs", default=10, type=int,
+                        help="Number of epochs for which the victim should "
+                             "train for (Default: 10)")
+    parser.add_argument("-r", "--seed", default=0, type=int,
+                        help="Random seed to be used (Default: 0)")
+    parser.add_argument("-t", "--training_epochs", default=1000, type=int,
+                        help="Number of training epochs for substitute model "
+                             "(Default: 1000)")
+    parser.add_argument("-e", "--early_stop_tolerance", default=10, type=int,
+                        help="Number of epochs without improvement for early "
+                             "stop (Default: 10)")
+    parser.add_argument("-a", "--evaluation_frequency", default=2, type=int,
+                        help="Epochs interval of validation (Default: 2)")
+    parser.add_argument("-s", "--val_size", type=float, default=0.2,
+                        help="Size of validation set (Default: 0.2)")
+    parser.add_argument("-b", "--batch_size", type=int, default=32,
+                        help="Batch size to be used (Default: 32)")
+    parser.add_argument("-l", "--save_loc", type=str, default="./cache/",
+                        help="Path where the attacks file should be "
+                             "saved (Default: ./cache/)")
+    parser.add_argument("-g", "--gpus", type=int, default=0,
+                        help="Number of gpus to be used (Default: 0)")
+    parser.add_argument("-d", "--deterministic", type=bool, default=True,
+                        help="Run in deterministic mode (Default: True)")
+    parser.add_argument("-u", "--debug", type=bool, default=False,
+                        help="Run in debug mode (Default: False)")
+
+    return parser
