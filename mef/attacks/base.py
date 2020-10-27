@@ -140,8 +140,8 @@ class Base:
         y_preds = torch.cat(y_preds)
 
         if output_type == "one_hot":
-            y_hat = onehot(torch.argmax(y_preds, dim=1),
-                           num_classes=y_preds.size()[1])
+            y_hat = F.one_hot(torch.argmax(y_preds, dim=1),
+                              num_classes=y_preds.size()[1])
             # to_oneshot returns tensor with uint8 type
             y_hat = y_hat.float()
         elif output_type == "softmax":
@@ -158,75 +158,66 @@ class Base:
 
     def _parse_args(self, args, kwargs):
         # Numpy input (x_sub, y_sub, x_test, y_test)
-        if len(args) == 4:
-            for arg in args:
-                if not isinstance(arg, np.ndarray):
-                    self._logger.error(
-                            "Input arguments must be either numpy arrays or "
-                            "Pytorch datasets")
-                    raise TypeError()
-            else:
-                self._sub_dataset = CustomDataset(args[0], args[1])
-                self._test_set = CustomDataset(args[2], args[3])
-        elif len(kwargs) == 4:
-            for _, value in kwargs.items():
-                if not isinstance(value, np.ndarray):
-                    self._logger.error(
-                            "Input arguments must be either numpy arrays or "
-                            "Pytorch datasets")
-                    raise TypeError()
-            else:
-                if "x_sub" not in kwargs:
-                    self._logger.error("x_sub input argument is missing")
-                    raise ValueError()
-                if "y_sub" not in kwargs:
-                    self._logger.error("y_sub input argument is missing")
-                    raise ValueError()
-                if "x_test" not in kwargs:
-                    self._logger.error("x_test input argument is missing")
-                    raise ValueError()
-                if "y_test" not in kwargs:
-                    self._logger.error("y_test input argument is missing")
-                    raise ValueError()
+        try:
+            if len(args) == 4:
+                for arg in args:
+                    if not isinstance(arg, np.ndarray):
+                        raise TypeError()
+                else:
+                    self._sub_dataset = CustomDataset(args[0], args[1])
+                    self._test_set = CustomDataset(args[2], args[3])
+            elif len(kwargs) == 4:
+                for _, value in kwargs.items():
+                    if not isinstance(value, np.ndarray):
+                        raise TypeError()
+                else:
+                    if "x_sub" not in kwargs:
+                        self._logger.error("x_sub input argument is missing")
+                        raise ValueError()
+                    if "y_sub" not in kwargs:
+                        self._logger.error("y_sub input argument is missing")
+                        raise ValueError()
+                    if "x_test" not in kwargs:
+                        self._logger.error("x_test input argument is missing")
+                        raise ValueError()
+                    if "y_test" not in kwargs:
+                        self._logger.error("y_test input argument is missing")
+                        raise ValueError()
 
-                self._sub_dataset = CustomDataset(kwargs["x_sub"],
-                                                  kwargs["y_sub"])
-                self._test_set = CustomDataset(kwargs["x_test"],
-                                               kwargs["y_test"])
-        # Pytorch input (sub_dataset, test_set)
-        elif len(args) == 2:
-            for arg in args:
-                if not isinstance(arg, torch.utils.data.Dataset):
-                    self._logger.error(
-                            "Input arguments must be either numpy arrays or "
-                            "Pytorch dataset")
-                    raise TypeError()
-            else:
-                self._sub_dataset = args[0]
-                self._test_set = args[1]
-        elif len(kwargs) == 2:
-            for _, value in kwargs.items():
-                if not isinstance(value, np.ndarray):
-                    self._logger.error(
-                            "Input arguments must be either numpy arrays or "
-                            "Pytorch datasets")
-                    raise TypeError()
-            else:
-                if "sub_dataset" not in kwargs:
-                    self._logger.error("sub_dataset input argument is missing")
-                    raise ValueError()
-                if "test_set" not in kwargs:
-                    self._logger.error("test_set input argument is missing")
-                    raise ValueError()
+                    self._sub_dataset = CustomDataset(kwargs["x_sub"],
+                                                      kwargs["y_sub"])
+                    self._test_set = CustomDataset(kwargs["x_test"],
+                                                   kwargs["y_test"])
+            # Pytorch input (sub_dataset, test_set)
+            elif len(args) == 2:
+                for arg in args:
+                    if not isinstance(arg, torch.utils.data.Dataset):
+                        raise TypeError()
+                else:
+                    self._sub_dataset = args[0]
+                    self._test_set = args[1]
+            elif len(kwargs) == 2:
+                for _, value in kwargs.items():
+                    if not isinstance(value, torch.utils.data.Dataset):
+                        raise TypeError()
+                else:
+                    if "sub_dataset" not in kwargs:
+                        self._logger.error(
+                                "sub_dataset input argument is missing")
+                        raise ValueError()
+                    if "test_set" not in kwargs:
+                        self._logger.error(
+                                "test_set input argument is missing")
+                        raise ValueError()
 
-                self._sub_dataset = kwargs["sub_dataset"]
-                self._test_set = kwargs["test_set"]
-        else:
+                    self._sub_dataset = kwargs["sub_dataset"]
+                    self._test_set = kwargs["test_set"]
+        except ValueError or TypeError:
             self._logger.error(
-                    "Input arguments must be either numpy arrays (x_sub, "
-                    "y_sub, x_test, y_test) or Pytorch datasets ("
+                    "Input arguments for attack must be either numpy arrays ("
+                    "x_sub, y_sub, x_test, y_test) or Pytorch datasets ("
                     "sub_dataset, test_set)")
-            raise ValueError()
+            exit()
         return
 
     def run(self, *args, **kwargs):

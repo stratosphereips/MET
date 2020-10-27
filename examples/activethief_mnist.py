@@ -100,8 +100,8 @@ def set_up(args):
         torch.save(dict(state_dict=victim_model.state_dict()),
                    SAVE_LOC + "/victim/final_victim_model.pt")
 
-    return dict(victim_model=victim_model, substitute_model=substitute_model,
-                num_classes=10), sub_dataset, test_set
+    models = dict(victim_model=victim_model, substitute_model=substitute_model)
+    return models, sub_dataset, test_set
 
 
 if __name__ == "__main__":
@@ -110,7 +110,7 @@ if __name__ == "__main__":
     mkdir_if_missing(SAVE_LOC)
     attack_variables, sub_dataset, test_set = set_up(args)
 
-    af = ActiveThief(**attack_variables,
+    af = ActiveThief(**attack_variables, num_classes=10,
                      selection_strategy=args.selection_strategy,
                      save_loc=SAVE_LOC, gpus=args.gpus, seed=SEED)
     af.run(sub_dataset, test_set)

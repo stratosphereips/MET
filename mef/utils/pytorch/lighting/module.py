@@ -16,11 +16,10 @@ class MefModule(pl.LightningModule):
         y_hat = self._model(x)
         loss = self._loss(y_hat, y)
 
-        result = pl.TrainResult(loss)
-        result.log("train_loss", loss)
-        return result
+        self.log("train_loss", loss)
+        return loss
 
-    def validation_step(self, batch, batch_idx):
+    def _shared_step(self, batch):
         x, y = batch
 
         y_hat = self._model(x)
@@ -28,14 +27,19 @@ class MefModule(pl.LightningModule):
         loss = self._loss(y_hat, y)
         acc = FM.accuracy(y_hat, y)
 
-        result = pl.EvalResult(checkpoint_on=loss, early_stop_on=loss)
-        result.log_dict({"val_loss": loss, "val_acc": acc}, prog_bar=True)
-        return result
+        return loss, acc
+
+    def validation_step(self, batch, batch_idx):
+        loss, acc = self.shared_step(batch)
+        self.log_dict({"val_loss": loss, "val_acc": acc}, prog_bar=True)
+
+        return
 
     def test_step(self, batch, batch_idx):
-        result = self.validation_step(batch, batch_idx)
-        result.rename_keys({"val_acc": "test_acc", "val_loss": "test_loss"})
-        return result
+        loss, acc = self.shared_step(batch)
+        self.log_dict({"test_loss": loss, "test_acc": acc}, prog_bar=True)
+
+        return
 
     def configure_optimizers(self):
         if self._lr_scheduler is None:

@@ -18,7 +18,6 @@ from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.lighting.module import MefModule
 from mef.utils.pytorch.lighting.training import get_trainer
 
-
 REWARD_TYPE = "all"
 SEED = 0
 SAVE_LOC = "./cache/knockoff/CALTECH256"
@@ -97,8 +96,8 @@ def set_up(args):
         torch.save(dict(state_dict=victim_model.state_dict()),
                    SAVE_LOC + "/victim/final_victim_model.pt")
 
-    return dict(victim_model=victim_model, substitute_model=substitute_model,
-                num_classes=256), sub_dataset, test_set
+    models = dict(victim_model=victim_model, substitute_model=substitute_model)
+    return models, sub_dataset, test_set
 
 
 if __name__ == "__main__":
@@ -107,7 +106,7 @@ if __name__ == "__main__":
     mkdir_if_missing(SAVE_LOC)
     attack_variables, sub_dataset, test_set = set_up(args)
 
-    ko = KnockOff(**attack_variables, sampling_strategy=args.sampling_strategy,
-                  reward_type=REWARD_TYPE, save_loc=SAVE_LOC, gpus=args.gpus,
-                  seed=SEED)
+    ko = KnockOff(**attack_variables, num_classes=256, seed=SEED,
+                  sampling_strategy=args.sampling_strategy, gpus=args.gpus,
+                  reward_type=REWARD_TYPE, save_loc=SAVE_LOC)
     ko.run(sub_dataset, test_set)

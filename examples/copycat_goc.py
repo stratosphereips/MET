@@ -189,9 +189,8 @@ def set_up(args):
         torch.save(dict(state_dict=victim_model.state_dict()),
                    SAVE_LOC + "/victim/final_victim_model.pt")
 
-    return dict(victim_model=victim_model,
-                substitute_model=substitute_model), goc.sub_dataset, \
-           goc.test_set
+    models = dict(victim_model=victim_model, substitute_model=substitute_model)
+    return models, goc.sub_dataset, goc.test_set
 
 
 if __name__ == "__main__":
