@@ -26,9 +26,9 @@ def get_default_parser(description):
                              "saved (Default: ./cache/)")
     parser.add_argument("-g", "--gpus", type=int, default=0,
                         help="Number of gpus to be used (Default: 0)")
-    parser.add_argument("-d", "--deterministic", type=bool, default=True,
+    parser.add_argument("-d", "--deterministic", action="store_true",
                         help="Run in deterministic mode (Default: True)")
-    parser.add_argument("-u", "--debug", type=bool, default=False,
+    parser.add_argument("-u", "--debug", action="store_true",
                         help="Run in debug mode (Default: False)")
 
     return parser
