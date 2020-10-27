@@ -1,11 +1,8 @@
-torchattacks==2.4
-imgaug==0.4.0
-tqdm==4.48.2
 torch==1.5.1
-numpy==1.18.5
-pytorch_lightning==0.9.0
-torchvision==0.6.1
-pytorch_ignite==0.4.1
+pytorch_lightning==1.0.3
+torchattacks==2.4
 dacite==1.5.1
+tqdm==4.51.0
+torchvision==0.6.1
+numpy==1.19.2
 dataclasses==0.7
-ignite==1.1.0
