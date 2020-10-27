@@ -1,5 +1,4 @@
 import torch
-import torch.nn.functional as F
 from torch.utils.data import ConcatDataset, DataLoader
 from tqdm import tqdm
 
@@ -11,7 +10,7 @@ class BlackBox(Base):
 
     def __init__(self, victim_model, substitute_model, num_classes,
                  iterations=6, lmbda=0.1, training_epochs=10,
-                 batch_size=64, save_loc="./cache/blackbox",gpus=0, seed=None,
+                 batch_size=64, save_loc="./cache/blackbox", gpus=0, seed=None,
                  deterministic=True, debug=False):
         optimizer = torch.optim.Adam(substitute_model.parameters())
         train_loss = torch.nn.CrossEntropyLoss()
@@ -46,25 +45,25 @@ class BlackBox(Base):
         return list_derivatives
 
     def _jacobian_augmentation(self, query_sets, lmbda):
-        sub_dataset = ConcatDataset(query_sets)
-        loader = DataLoader(sub_dataset, pin_memory=True, num_workers=4,
+        thief_dataset = ConcatDataset(query_sets)
+        loader = DataLoader(thief_dataset, pin_memory=True, num_workers=4,
                             batch_size=self._batch_size)
         x_query_set = []
-        for x_sub, y_sub in tqdm(loader, desc="Jacobian augmentation",
-                                 total=len(loader)):
-            grads = self._jacobian(x_sub)
+        for x_thief, y_thief in tqdm(loader, desc="Jacobian augmentation",
+                                     total=len(loader)):
+            grads = self._jacobian(x_thief)
 
             for idx in range(grads[0].shape[0]):
                 # Select gradient corresponding to the label predicted by the
                 # oracle
-                grad = grads[y_sub[idx]][idx]
+                grad = grads[y_thief[idx]][idx]
 
                 # Compute sign matrix
                 grad_val = torch.sign(grad)
 
                 # Create new synthetic point in adversary substitute
                 # training set
-                x_new = x_sub[idx][0] + lmbda * grad_val
+                x_new = x_thief[idx][0] + lmbda * grad_val
                 x_query_set.append(x_new.detach())
 
         return torch.stack(x_query_set)
@@ -74,11 +73,11 @@ class BlackBox(Base):
 
         self._logger.info("########### Starting BlackBox attack ###########")
         # Get attack's budget
-        budget = len(self._sub_dataset) * (2 ** self._iterations) - \
-                 len(self._sub_dataset)
+        budget = len(self._thief_dataset) * (2 ** self._iterations) - \
+                 len(self._thief_dataset)
         self._logger.info("BlackBox's attack budget: {}".format(budget))
 
-        query_sets = [self._sub_dataset]
+        query_sets = [self._thief_dataset]
         for it in range(self._iterations):
             self._logger.info("---------- Iteration: {} ----------".format(
                     it + 1))

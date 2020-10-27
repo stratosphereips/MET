@@ -29,15 +29,15 @@ class CopyCat(Base):
 
         self._logger.info("########### Starting CopyCat attack ###########")
         self._logger.info(
-                "CopyCat's attack budget: {}".format(len(self._sub_dataset)))
+                "CopyCat's attack budget: {}".format(len(self._thief_dataset)))
 
         # Get stolen labels from victim model
         self._logger.info("Getting stolen labels")
         stolen_labels = self._get_predictions(self._victim_model,
-                                              self._sub_dataset)
+                                              self._thief_dataset)
         stolen_labels = torch.argmax(stolen_labels, dim=1)
 
-        synthetic_dataset = CustomLabelDataset(self._sub_dataset,
+        synthetic_dataset = CustomLabelDataset(self._thief_dataset,
                                                stolen_labels)
         train_set, val_set = split_dataset(synthetic_dataset, self._val_size)
 

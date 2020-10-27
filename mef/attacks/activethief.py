@@ -172,13 +172,13 @@ class ActiveThief(Base):
         self._logger.info(
                 "ActiveThief's attack budget: {}".format(self._budget))
 
-        idx_rest = np.arange(len(self._sub_dataset))
+        idx_rest = np.arange(len(self._thief_dataset))
 
         # Prepare validation set
         self._logger.info("Preparing validation dataset")
         idx_val = np.random.permutation(idx_rest)[:self._val_size]
         idx_rest = np.setdiff1d(idx_rest, idx_val)
-        val_set = Subset(self._sub_dataset, idx_val)
+        val_set = Subset(self._thief_dataset, idx_val)
         y_val = self._get_predictions(self._victim_model, val_set,
                                       self._output_type)
         val_set = CustomLabelDataset(val_set, y_val)
@@ -196,7 +196,7 @@ class ActiveThief(Base):
 
         idx_query = np.random.permutation(idx_rest)[:self._init_seed_size]
         idx_rest = np.setdiff1d(idx_rest, idx_query)
-        query_set = Subset(self._sub_dataset, idx_query)
+        query_set = Subset(self._thief_dataset, idx_query)
         y_query = self._get_predictions(self._victim_model, query_set,
                                         self._output_type)
         query_sets.append(CustomLabelDataset(query_set, y_query))
@@ -251,7 +251,7 @@ class ActiveThief(Base):
             # Step 4: Approximate labels are obtained for remaining samples
             # using the substitute
 
-            data_rest = Subset(self._sub_dataset, idx_rest)
+            data_rest = Subset(self._thief_dataset, idx_rest)
             y_rest = None
             if self._selection_strategy not in {"random", "dfal"}:
                 self._logger.info("Getting substitute's predictions for the "
@@ -272,7 +272,7 @@ class ActiveThief(Base):
             idx_query = self._select_samples(idx_rest, data_rest,
                                              ConcatDataset(query_sets))
             idx_rest = np.setdiff1d(idx_rest, idx_query)
-            query_set = Subset(self._sub_dataset, idx_query)
+            query_set = Subset(self._thief_dataset, idx_query)
 
             # Step 2: Attacker queries current picked samples to secret
             # model for labeling

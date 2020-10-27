@@ -28,7 +28,7 @@ class Base:
 
         # Datasets
         self._test_set = None
-        self._sub_dataset = None
+        self._thief_dataset = None
         self._val_size = val_size
         self._batch_size = batch_size
         self._num_classes = num_classes
@@ -164,7 +164,7 @@ class Base:
                     if not isinstance(arg, np.ndarray):
                         raise TypeError()
                 else:
-                    self._sub_dataset = CustomDataset(args[0], args[1])
+                    self._thief_dataset = CustomDataset(args[0], args[1])
                     self._test_set = CustomDataset(args[2], args[3])
             elif len(kwargs) == 4:
                 for _, value in kwargs.items():
@@ -184,8 +184,8 @@ class Base:
                         self._logger.error("y_test input argument is missing")
                         raise ValueError()
 
-                    self._sub_dataset = CustomDataset(kwargs["x_sub"],
-                                                      kwargs["y_sub"])
+                    self._thief_dataset = CustomDataset(kwargs["x_sub"],
+                                                        kwargs["y_sub"])
                     self._test_set = CustomDataset(kwargs["x_test"],
                                                    kwargs["y_test"])
             # Pytorch input (sub_dataset, test_set)
@@ -194,7 +194,7 @@ class Base:
                     if not isinstance(arg, torch.utils.data.Dataset):
                         raise TypeError()
                 else:
-                    self._sub_dataset = args[0]
+                    self._thief_dataset = args[0]
                     self._test_set = args[1]
             elif len(kwargs) == 2:
                 for _, value in kwargs.items():
@@ -210,7 +210,7 @@ class Base:
                                 "test_set input argument is missing")
                         raise ValueError()
 
-                    self._sub_dataset = kwargs["sub_dataset"]
+                    self._thief_dataset = kwargs["sub_dataset"]
                     self._test_set = kwargs["test_set"]
         except ValueError or TypeError:
             self._logger.error(

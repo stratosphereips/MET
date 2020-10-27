@@ -68,9 +68,9 @@ class KnockOff(Base):
     def _random_strategy(self):
         self._logger.info("Selecting random sample from thief dataset of "
                           "size {}".format(self._budget))
-        idx_x = np.arange(len(self._sub_dataset))
+        idx_x = np.arange(len(self._thief_dataset))
         idx_selected = np.random.permutation(idx_x)[:self._budget]
-        selected_data = Subset(self._sub_dataset, idx_selected)
+        selected_data = Subset(self._thief_dataset, idx_selected)
 
         self._logger.info("Getting fake labels from victim model")
         y_output = self._get_predictions(self._victim_model, selected_data,
@@ -79,18 +79,18 @@ class KnockOff(Base):
         return CustomLabelDataset(selected_data, y_output)
 
     def _sample_data(self, action):
-        if isinstance(self._sub_dataset, Subset):
-            idx_sub = np.array(self._sub_dataset.indices)
-            y = np.array(self._sub_dataset.dataset.targets)
+        if isinstance(self._thief_dataset, Subset):
+            idx_sub = np.array(self._thief_dataset.indices)
+            y = np.array(self._thief_dataset.dataset.targets)
             y = y[idx_sub]
         else:
-            y = np.array(self._sub_dataset.targets)
+            y = np.array(self._thief_dataset.targets)
 
         idx_action = np.where(y == action)[0]
         idx_sampled = np.random.permutation(idx_action)[:self._k]
         self._selected_idxs.append(idx_sampled)
 
-        return Subset(self._sub_dataset, idx_sampled)
+        return Subset(self._thief_dataset, idx_sampled)
 
     def _online_train(self, data):
         self._substitute_model.train()
@@ -180,12 +180,12 @@ class KnockOff(Base):
 
     def _adaptive_strategy(self):
         # Number of actions
-        if isinstance(self._sub_dataset, Subset):
+        if isinstance(self._thief_dataset, Subset):
             self._num_actions = len(
-                    np.unique(self._sub_dataset.dataset.targets))
+                    np.unique(self._thief_dataset.dataset.targets))
         else:
             self._num_actions = len(
-                    np.unique(self._sub_dataset.targets))
+                    np.unique(self._thief_dataset.targets))
 
         # We need to keep an average version of the victim output
         if self._reward_type == "div" or self._reward_type == "all":
