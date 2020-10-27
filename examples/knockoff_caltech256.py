@@ -28,9 +28,12 @@ def knockoff_parse_args():
                         type=str, help="KnockOff-Nets sampling strategy can "
                                        "be one of {random, adaptive} ("
                                        "Default: adaptive)")
-    parser.add_argument("-p", "--reward_type", default="all", type=str,
+    parser.add_argument("-y", "--reward_type", default="all", type=str,
                         help="Type of reward for adaptive strategy, can be "
                              "one of {cert, div, loss, all} (Default: all)")
+    parser.add_argument("-p", "--output_type", default="softmax", type=str,
+                        help="Type of output from victim model {softmax, "
+                             "logits, one_hot} (Default: softmax)")
     parser.add_argument("-c", "--caltech256_dir", default="./data/", type=str,
                         help="Path to Caltech256 dataset (Default: ./data/")
     parser.add_argument("-i", "--imagenet_dir", type=str,
