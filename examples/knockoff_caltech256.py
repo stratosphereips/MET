@@ -38,6 +38,8 @@ def knockoff_parse_args():
                         help="Path to Caltech256 dataset (Default: ./data/")
     parser.add_argument("-i", "--imagenet_dir", type=str,
                         help="Path to ImageNet dataset")
+    parser.add_argument("-q", "--budget", default=10000, type=int,
+                        help="Size of the budget (Default: 10000)")
 
     args = parser.parse_args()
 
