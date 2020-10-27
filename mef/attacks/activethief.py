@@ -7,37 +7,7 @@ from torchattacks import DeepFool
 from tqdm import tqdm
 
 from .base import Base
-from ..utils.config import get_default_parser
 from ..utils.pytorch.datasets import CustomLabelDataset
-
-
-def activethief_parse_args():
-    description = "Activethief model extraction attack - Mnist example"
-    parser = get_default_parser(description)
-
-    parser.add_argument("-c", "--selection_strategy", default="entropy",
-                        type=str, help="Activethief selection strategy can "
-                                       "be one of {random, entropy, k-center, "
-                                       "dfal, dfal+k-center} (Default: "
-                                       "entropy)")
-    parser.add_argument("-m", "--mnist_dir", default="./data/", type=str,
-                        help="Path to MNIST dataset (Default: ./data/")
-    parser.add_argument("-i", "--imagenet_dir", type=str,
-                        help="Path to ImageNet dataset")
-    parser.add_argument("-o", "--iterations", default=10, type=int,
-                        help="Number of iterations of the attacks (Default: "
-                             "10)")
-    parser.add_argument("-p", "--output_type", default="softmax", type=str,
-                        help="Type of output from victim model {softmax, "
-                             "logits, one_hot} (Default: softmax)")
-    parser.add_argument("-z", "--init_seed_size", default=2000, type=int,
-                        help="Size of the initial random query set (Default: "
-                             "2000)")
-    parser.add_argument("-q", "--budget", default=20000, type=int,
-                        help="Size of the budget (Default: 20000)")
-    args = parser.parse_args()
-
-    return args
 
 
 class ActiveThief(Base):

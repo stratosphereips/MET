@@ -8,9 +8,11 @@ from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import MNIST
 from torchvision.transforms import transforms
 
+from mef.utils.config import get_default_parser
+
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
-from mef.attacks.activethief import ActiveThief, activethief_parse_args
+from mef.attacks.activethief import ActiveThief
 from mef.datasets.vision.imagenet1000 import ImageNet1000
 from mef.models.vision.simplenet import SimpleNet
 from mef.utils.ios import mkdir_if_missing
@@ -20,6 +22,35 @@ from mef.utils.pytorch.lighting.training import get_trainer
 
 IMAGENET_SUBSET_SIZE = 120000
 DIMS = (1, 28, 28)
+
+
+def activethief_parse_args():
+    description = "Activethief model extraction attack - Mnist example"
+    parser = get_default_parser(description)
+
+    parser.add_argument("-c", "--selection_strategy", default="entropy",
+                        type=str, help="Activethief selection strategy can "
+                                       "be one of {random, entropy, k-center, "
+                                       "dfal, dfal+k-center} (Default: "
+                                       "entropy)")
+    parser.add_argument("-m", "--mnist_dir", default="./data/", type=str,
+                        help="Path to MNIST dataset (Default: ./data/")
+    parser.add_argument("-i", "--imagenet_dir", type=str,
+                        help="Path to ImageNet dataset")
+    parser.add_argument("-o", "--iterations", default=10, type=int,
+                        help="Number of iterations of the attacks (Default: "
+                             "10)")
+    parser.add_argument("-p", "--output_type", default="softmax", type=str,
+                        help="Type of output from victim model {softmax, "
+                             "logits, one_hot} (Default: softmax)")
+    parser.add_argument("-z", "--init_seed_size", default=2000, type=int,
+                        help="Size of the initial random query set (Default: "
+                             "2000)")
+    parser.add_argument("-q", "--budget", default=20000, type=int,
+                        help="Size of the budget (Default: 20000)")
+    args = parser.parse_args()
+
+    return args
 
 
 def set_up(args):
