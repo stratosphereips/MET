@@ -92,7 +92,8 @@ def set_up(args):
         trainer = get_trainer(args.gpus, training_epochs=1000,
                               evaluation_frequency=args.evaluation_frequency,
                               early_stop_tolerance=args.early_stop_tolerance,
-                              save_loc=args.save_loc + "/victim/")
+                              save_loc=args.save_loc + "/victim/",
+                              precision=args.precision)
         trainer.fit(mef_model, train_dataloader, val_dataloader)
 
         torch.save(dict(state_dict=victim_model.state_dict()),

@@ -1,4 +1,3 @@
-import argparse
 import os
 import sys
 
@@ -168,7 +167,8 @@ def set_up(args):
         mef_model = MefModule(victim_model, optimizer, loss)
         trainer = get_trainer(args.gpus, training_epochs=20,
                               validation=False,
-                              save_loc=args.save_loc + "/victim/")
+                              save_loc=args.save_loc + "/victim/",
+                              precision=args.precision)
         trainer.fit(mef_model, train_dataloader, val_dataloader)
 
         torch.save(dict(state_dict=victim_model.state_dict()),

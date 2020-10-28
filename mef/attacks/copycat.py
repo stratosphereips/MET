@@ -10,7 +10,8 @@ class CopyCat(Base):
     def __init__(self, victim_model, substitute_model, training_epochs=1000,
                  early_stop_tolerance=10, evaluation_frequency=2,
                  val_size=0.2, batch_size=64, save_loc="./cache/copycat",
-                 gpus=0, seed=None, deterministic=True, debug=False):
+                 gpus=0, seed=None, deterministic=True, debug=False,
+                 precision=32):
         optimizer = torch.optim.SGD(substitute_model.parameters(),
                                     lr=0.01, momentum=0.8)
         loss = F.cross_entropy
@@ -21,7 +22,8 @@ class CopyCat(Base):
                          evaluation_frequency=evaluation_frequency,
                          val_size=val_size, batch_size=batch_size,
                          save_loc=save_loc, gpus=gpus, seed=seed,
-                         deterministic=deterministic, debug=debug)
+                         deterministic=deterministic, debug=debug,
+                         precision=precision)
 
     def run(self, *args, **kwargs):
         self._parse_args(args, kwargs)

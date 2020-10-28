@@ -112,5 +112,8 @@ def get_attack_parser(description, attack_type):
                         help="Run in deterministic mode (Default: True)")
     parser.add_argument("--debug", action="store_true",
                         help="Run in debug mode (Default: False)")
+    parser.add_argument("--precision", default=32, type=int,
+                        help="Precision of caluclation in bits must be one "
+                             "of {16, 32} (Default: 32)")
 
     return parser

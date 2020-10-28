@@ -19,7 +19,7 @@ class ActiveThief(Base):
                  training_epochs=1000, early_stop_tolerance=100,
                  evaluation_frequency=2, val_size=0.2, batch_size=64,
                  save_loc="./cache/activethief", gpus=0, seed=None,
-                 deterministic=True, debug=False):
+                 deterministic=True, debug=False, precision=32):
         optimizer = torch.optim.Adam(substitute_model.parameters(),
                                      weight_decay=1e-3)
         loss = soft_cross_entropy
@@ -31,7 +31,7 @@ class ActiveThief(Base):
                          val_size=val_size, batch_size=batch_size,
                          num_classes=num_classes, save_loc=save_loc,
                          gpus=gpus, seed=seed, deterministic=deterministic,
-                         debug=debug)
+                         debug=debug, precision=precision)
 
         # BlackBox's specific attributes
         self._iterations = iterations
