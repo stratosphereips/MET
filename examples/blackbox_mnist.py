@@ -8,12 +8,11 @@ from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import MNIST
 from torchvision.transforms import transforms
 
-from mef.utils.config import get_default_parser
-
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.blackbox import BlackBox
 from mef.models.vision.simplenet import SimpleNet
+from mef.utils.config import get_attack_parser
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.lighting.module import MefModule
@@ -24,20 +23,15 @@ DIMS = (1, 28, 28)
 
 def blackbox_parse_args():
     description = "Blackbox model extraction attack - Mnist example"
-    parser = get_default_parser(description)
+    parser = get_attack_parser(description, "blackbox")
 
-    parser.add_argument("-m", "--mnist_dir", default="./data/", type=str,
+    parser.add_argument("--mnist_dir", default="./data/", type=str,
                         help="Path to MNIST dataset (Default: ./data/")
-    parser.add_argument("-i", "--imagenet_dir", type=str,
+    parser.add_argument("--imagenet_dir", type=str,
                         help="Path to ImageNet dataset")
-    parser.add_argument("-o", "--iterations", default=6, type=int,
-                        help="Number of iterations of the attacks (Default: "
-                             "6)")
-    parser.add_argument("-q", "--lmbda", default=0.1, type=float,
-                        help="Value of lambda in Jacobian augmentation ("
-                             "Default: 0.1)")
-    parser.add_argument("-z", "--holdout_size", default=150, type=int,
+    parser.add_argument("--holdout_size", default=150, type=int,
                         help="Hold out size from MNIST test (Default: 150)")
+
     args = parser.parse_args()
 
     return args
@@ -89,8 +83,7 @@ def set_up(args):
                                     num_workers=4, batch_size=args.batch_size)
 
         mef_model = MefModule(victim_model, optimizer, loss)
-        trainer = get_trainer(args.gpus, args.victim_train_epochs,
-                              early_stop_tolerance=args.early_stop_tolerance,
+        trainer = get_trainer(args.gpus, validation=False,
                               save_loc=args.save_loc + "/victim/")
         trainer.fit(mef_model, train_dataloader, val_dataloader)
 
@@ -107,7 +100,7 @@ if __name__ == "__main__":
     victim_model, substitute_model, thief_dataset, test_set = set_up(args)
 
     bb = BlackBox(victim_model, substitute_model, 10, args.iterations,
-                  args.lmbda, args.training_epochs, args.batch_size,
+                  args.lmbda, args.substitute_train_epochs, args.batch_size,
                   args.save_loc, args.gpus, args.seed, args.deterministic,
                   args.debug)
     bb.run(thief_dataset, test_set)

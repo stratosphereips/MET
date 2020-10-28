@@ -13,7 +13,7 @@ from mef.attacks.knockoff import KnockOff
 from mef.datasets.vision.caltech256 import Caltech256
 from mef.datasets.vision.imagenet1000 import ImageNet1000
 from mef.models.vision.resnet import ResNet
-from mef.utils.config import get_default_parser
+from mef.utils.config import get_attack_parser
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.lighting.module import MefModule
@@ -22,24 +22,15 @@ from mef.utils.pytorch.lighting.training import get_trainer
 
 def knockoff_parse_args():
     description = "Knockoff-nets model extraction attack - Caltech256 example"
-    parser = get_default_parser(description)
+    parser = get_attack_parser(description, "knockoff")
 
-    parser.add_argument("-q", "--sampling_strategy", default="adaptive",
-                        type=str, help="KnockOff-Nets sampling strategy can "
-                                       "be one of {random, adaptive} ("
-                                       "Default: adaptive)")
-    parser.add_argument("-y", "--reward_type", default="all", type=str,
-                        help="Type of reward for adaptive strategy, can be "
-                             "one of {cert, div, loss, all} (Default: all)")
-    parser.add_argument("-p", "--output_type", default="softmax", type=str,
-                        help="Type of output from victim model {softmax, "
-                             "logits, one_hot} (Default: softmax)")
-    parser.add_argument("-c", "--caltech256_dir", default="./data/", type=str,
+    parser.add_argument("--caltech256_dir", default="./data/", type=str,
                         help="Path to Caltech256 dataset (Default: ./data/")
-    parser.add_argument("-i", "--imagenet_dir", type=str,
+    parser.add_argument("--imagenet_dir", type=str,
                         help="Path to ImageNet dataset")
-    parser.add_argument("-q", "--budget", default=10000, type=int,
-                        help="Size of the budget (Default: 10000)")
+    parser.add_argument("--victim_train_epochs", default=200, type=int,
+                        help="Number of epochs for which the victim should "
+                             "train for (Default: 200)")
 
     args = parser.parse_args()
 
@@ -92,7 +83,7 @@ def set_up(args):
 
         mef_model = MefModule(victim_model, optimizer, loss, lr_scheduler)
         trainer = get_trainer(args.gpus, args.victim_train_epochs,
-                              early_stop_tolerance=args.early_stop_tolerance,
+                              validation=False,
                               save_loc=args.save_loc + "/victim/")
         trainer.fit(mef_model, train_dataloader, val_dataloader)
 
