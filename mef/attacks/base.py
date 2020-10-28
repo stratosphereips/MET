@@ -18,7 +18,7 @@ class Base:
                  early_stop_tolerance=10, evaluation_frequency=2,
                  val_size=0.2, batch_size=64, num_classes=None,
                  save_loc="./cache", validation=True, gpus=0, seed=None,
-                 deterministic=True, debug=False, precision=precision):
+                 deterministic=True, debug=False, precision=32):
         # Mef set up
         self._gpus = gpus
         self._save_loc = save_loc
