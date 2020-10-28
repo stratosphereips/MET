@@ -55,6 +55,7 @@ class Caltech256(ImageFolder):
         }
 
         # Use this random seed to make partition consistent
+        before_state = np.random.get_state()
         np.random.seed(self._seed)
 
         # ----------------- Create mapping: classidx -> idx
@@ -72,5 +73,7 @@ class Caltech256(ImageFolder):
             partition_to_idxs["test"] += idxs[:self._test_size]
             # Train on remaining
             partition_to_idxs["train"] += idxs[self._test_size:]
+
+        np.random.set_state(before_state)
 
         return partition_to_idxs

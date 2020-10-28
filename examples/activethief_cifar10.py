@@ -3,6 +3,7 @@ import sys
 
 import torch
 import torch.nn.functional as F
+from pytorch_lightning import seed_everything
 from torch.utils.data import ConcatDataset, DataLoader
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import transforms
@@ -39,6 +40,8 @@ def activethief_parse_args():
 
 
 def set_up(args):
+    seed_everything(args.seed)
+
     victim_model = SimpleNet(input_dimensions=DIMS, num_classes=10)
     substitute_model = SimpleNet(input_dimensions=DIMS, num_classes=10)
 

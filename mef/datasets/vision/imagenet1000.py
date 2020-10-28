@@ -40,6 +40,7 @@ class ImageNet1000(ImageFolder):
         partition_to_idxs = []
 
         # Use this random seed to make partition consistent
+        before_state = np.random.get_state()
         np.random.seed(self._seed)
 
         # ----------------- Create mapping: classidx -> idx
@@ -54,5 +55,7 @@ class ImageNet1000(ImageFolder):
 
         for classidx, idxs in classidx_to_idxs.items():
             partition_to_idxs += idxs[:samples_per_class]
+
+        np.random.set_state(before_state)
 
         return partition_to_idxs

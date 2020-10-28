@@ -3,6 +3,7 @@ import sys
 
 import torch
 import torch.nn.functional as F
+from pytorch_lightning import seed_everything
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 
@@ -37,6 +38,8 @@ def knockoff_parse_args():
 
 
 def set_up(args):
+    seed_everything(args.seed)
+
     victim_model = ResNet(resnet_type="resnet_34", num_classes=256)
     substitute_model = ResNet(resnet_type="resnet_34", num_classes=256)
 

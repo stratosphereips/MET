@@ -4,6 +4,7 @@ import sys
 import numpy as np
 import torch
 import torch.nn.functional as F
+from pytorch_lightning import seed_everything
 from torch.utils.data import ConcatDataset, DataLoader, Subset
 from torchvision.datasets import CIFAR10, STL10
 from torchvision.transforms import transforms
@@ -132,6 +133,8 @@ def parse_args():
 
 
 def set_up(args):
+    seed_everything(args.seed)
+
     victim_model = Vgg(vgg_type="vgg_16", num_classes=9)
     substitute_model = Vgg(vgg_type="vgg_16", num_classes=9)
 

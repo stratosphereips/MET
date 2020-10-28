@@ -4,6 +4,7 @@ import sys
 import numpy as np
 import torch
 import torch.nn.functional as F
+from pytorch_lightning import seed_everything
 from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import MNIST
 from torchvision.transforms import transforms
@@ -38,6 +39,8 @@ def blackbox_parse_args():
 
 
 def set_up(args):
+    seed_everything(args.seed)
+
     victim_model = SimpleNet(input_dimensions=DIMS, num_classes=10)
     substitute_model = SimpleNet(input_dimensions=DIMS, num_classes=10)
 
