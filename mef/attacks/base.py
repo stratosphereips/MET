@@ -97,6 +97,21 @@ class Base:
 
         return 100 * metrics[0]["test_acc"], metrics[0]["test_loss"]
 
+    def _test_set_metrics(self):
+        self._logger.info("Test set metrics")
+        vict_test_acc, vict_test_loss = self._test_model(self._victim_model,
+                                                         self._test_set)
+        sub_test_acc, sub_test_loss = self._test_model(self._substitute_model,
+                                                       self._test_set)
+        self._logger.info(
+                "Victim model Accuracy: {:.1f}% Loss: {:.3f}".format(
+                        vict_test_acc, vict_test_loss))
+        self._logger.info(
+                "Substitute model Accuracy: {:.1f}% Loss: {:.3f}".format(
+                        sub_test_acc, sub_test_loss))
+
+        return
+
     def _get_aggreement_score(self):
         self._logger.info("Getting attack metric")
         # Agreement score

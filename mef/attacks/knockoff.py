@@ -274,26 +274,8 @@ class KnockOff(Base):
         self._train_model(self._substitute_model, self._optimizer,
                           transfer_data)
 
-        self._logger.info("Test set metrics")
-        vict_test_acc, vict_test_loss = self._test_model(self._victim_model,
-                                                         self._test_set)
-        sub_test_acc, sub_test_loss = self._test_model(self._substitute_model,
-                                                       self._test_set)
-        self._logger.info(
-                "Victim model Accuracy: {:.1f}% Loss: {:.3f}".format(
-                        vict_test_acc, vict_test_loss))
-        self._logger.info(
-                "Substitute model Accuracy: {:.1f}% Loss: {:.3f}".format(
-                        sub_test_acc, sub_test_loss))
-
-        # with open(self._save_loc + "/selected_idxs.pkl", 'wb') as f:
-        #     pickle.dump(self._selected_idxs, f)
-        #
-        # with open(self._save_loc + "/selected_action.pkl", 'wb') as f:
-        #     pickle.dump(self._selected_action, f)
-
+        self._test_set_metrics()
         self._get_aggreement_score()
-
         self._save_final_subsitute()
 
         return

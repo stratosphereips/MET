@@ -281,4 +281,9 @@ class ActiveThief(Base):
             y_query = self._get_predictions(self._victim_model, query_set,
                                             self._output_type)
             query_sets.append(CustomLabelDataset(query_set, y_query))
+
+        self._test_set_metrics()
+        self._get_aggreement_score()
+        self._save_final_subsitute()
+
         return

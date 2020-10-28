@@ -45,15 +45,8 @@ class CopyCat(Base):
         self._train_model(self._substitute_model, self._optimizer, train_set,
                           val_set)
 
-        self._logger.info("Getting substitute model metrics on test set")
-        sub_test_acc, sub_test_loss = self._test_model(self._substitute_model,
-                                                       self._test_set)
-        self._logger.info(
-                "Substitute model Accuracy: {:.1f}% Loss: {:.3f}".format(
-                        sub_test_acc, sub_test_loss))
-
+        self._test_set_metrics()
         self._get_aggreement_score()
-
         self._save_final_subsitute()
 
         return
