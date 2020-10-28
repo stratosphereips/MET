@@ -1,4 +1,5 @@
 import pytorch_lightning as pl
+import torch
 from pytorch_lightning.metrics import functional as FM
 
 
@@ -23,6 +24,9 @@ class MefModule(pl.LightningModule):
         x, y = batch
 
         y_hat = self._model(x)
+
+        if (y.numel() // len(y)) != 1:
+            y = torch.argmax(y, dim=1)
 
         f1 = FM.f1_score(y_hat, y)
 
