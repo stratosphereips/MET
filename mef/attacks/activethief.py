@@ -28,10 +28,10 @@ class ActiveThief(Base):
                          training_epochs=training_epochs,
                          early_stop_tolerance=early_stop_tolerance,
                          evaluation_frequency=evaluation_frequency,
-                         val_size=val_size, batch_size=batch_size,
-                         num_classes=num_classes, save_loc=save_loc,
-                         gpus=gpus, seed=seed, deterministic=deterministic,
-                         debug=debug, precision=precision)
+                         batch_size=batch_size, num_classes=num_classes,
+                         save_loc=save_loc, gpus=gpus, seed=seed,
+                         deterministic=deterministic, debug=debug,
+                         precision=precision)
 
         # BlackBox's specific attributes
         self._iterations = iterations
