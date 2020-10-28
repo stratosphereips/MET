@@ -213,8 +213,7 @@ class ActiveThief(Base):
 
         # Get victim model metrics on test set
         self._logger.info("Getting victim model's metrics for test set")
-        vict_test_acc, vict_test_f1 = self._test_model(self._victim_model,
-                                                       self._test_set)
+        vict_test_f1 = self._test_model(self._victim_model, self._test_set)
 
         # Save substitute model state_dict for retraining from scratch
         sub_orig_state_dict = self._substitute_model.state_dict()
@@ -226,15 +225,13 @@ class ActiveThief(Base):
             # Get metrics from victim model and substitute model
             self._logger.info("Getting substitute model's metrics for test "
                               "set")
-            sub_test_acc, sub_test_f1 = self._test_model(
-                    self._substitute_model, self._test_set)
+            sub_test_f1 = self._test_model(self._substitute_model,
+                                           self._test_set)
             self._logger.info("Test set metrics")
             self._logger.info(
-                    "Victim model Accuracy: {:.1f}% F1-score: {:.3f}"
-                        .format(vict_test_acc, vict_test_f1))
+                    "Victim model F1-score: {:.3f}".format(vict_test_f1))
             self._logger.info(
-                    "Substitute model Accuracy: {:.1f}% F1-score: {:.3f}"
-                        .format(sub_test_acc, sub_test_f1))
+                    "Substitute model F1-score: {:.3f}".format(sub_test_f1))
 
             # Reset substitute model and optimizer
             self._substitute_model.load_state_dict(sub_orig_state_dict)
