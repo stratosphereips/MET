@@ -17,7 +17,7 @@ class ActiveThief(Base):
                  iterations=10, selection_strategy="entropy",
                  output_type="softmax", budget=20000,
                  training_epochs=1000, early_stop_tolerance=100,
-                 evaluation_frequency=2, val_size=0.2, batch_size=64,
+                 evaluation_frequency=2, batch_size=64,
                  save_loc="./cache/activethief", gpus=0, seed=None,
                  deterministic=True, debug=False, precision=32):
         optimizer = torch.optim.Adam(substitute_model.parameters(),

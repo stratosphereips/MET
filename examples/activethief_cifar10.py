@@ -112,8 +112,7 @@ if __name__ == "__main__":
                      args.iterations, args.selection_strategy,
                      args.output_type, args.budget,
                      args.substitute_train_epochs, args.early_stop_tolerance,
-                     args.evaluation_frequency, args.val_size, args.batch_size,
-                     args.save_loc, args.gpus, args.seed, args.deterministic,
-                     args.debug)
+                     args.evaluation_frequency, args.batch_size, args.save_loc,
+                     args.gpus, args.seed, args.deterministic, args.debug)
 
     af.run(thief_dataset, test_set)
