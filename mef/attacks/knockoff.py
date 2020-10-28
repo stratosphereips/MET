@@ -9,15 +9,7 @@ from tqdm import tqdm
 
 from mef.attacks.base import Base
 from mef.utils.pytorch.datasets import CustomLabelDataset
-
-
-def soft_cross_entropy(y_hat, y_output, weights=None):
-    if weights is not None:
-        return torch.mean(torch.sum(- y_output * F.log_softmax(y_hat, dim=1) *
-                                    weights, dim=1))
-    else:
-        return torch.mean(torch.sum(- y_output * F.log_softmax(y_hat, dim=1),
-                                    dim=1))
+from mef.utils.pytorch.functional import soft_cross_entropy
 
 
 class KnockOff(Base):
@@ -31,11 +23,10 @@ class KnockOff(Base):
                                     momentum=0.5)
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
                                                        step_size=60)
-        train_loss = soft_cross_entropy
-        test_loss = torch.nn.CrossEntropyLoss()
+        loss = soft_cross_entropy
 
         super().__init__(victim_model, substitute_model, optimizer,
-                         train_loss, test_loss, lr_scheduler, training_epochs,
+                         loss, lr_scheduler, training_epochs,
                          batch_size=batch_size, num_classes=num_classes,
                          save_loc=save_loc, validation=False, gpus=gpus,
                          seed=seed, deterministic=deterministic, debug=debug)

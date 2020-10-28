@@ -9,7 +9,7 @@ def get_trainer(gpus=0, training_epochs=10, early_stop_tolerance=3,
     callbacks = None
     checkpoint_cb = False
     if validation and not debug:
-        callbacks = [EarlyStopping(monitor="val_loss", verbose=True,
+        callbacks = [EarlyStopping(monitor="val_f1", verbose=True,
                                    patience=early_stop_tolerance)]
 
         checkpoint_name = "{epoch}-{val_loss:.2f}-{val_acc:.2f}"
@@ -18,7 +18,7 @@ def get_trainer(gpus=0, training_epochs=10, early_stop_tolerance=3,
                               checkpoint_name
         checkpoint_cb = ModelCheckpoint(
                 filepath=save_loc + "/" + checkpoint_name,
-                monitor="val_loss", verbose=True,
+                monitor="val_f1", verbose=True,
                 save_weights_only=True)
 
     # Prepare trainer

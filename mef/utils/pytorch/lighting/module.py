@@ -24,20 +24,19 @@ class MefModule(pl.LightningModule):
 
         y_hat = self._model(x)
 
-        loss = self._loss(y_hat, y)
-        acc = FM.accuracy(y_hat, y)
+        f1 = FM.f1_score(y_hat, y)
 
-        return loss, acc
+        return f1
 
     def validation_step(self, batch, batch_idx):
-        loss, acc = self._shared_step(batch)
-        self.log_dict({"val_loss": loss, "val_acc": acc}, prog_bar=True)
+        f1 = self._shared_step(batch)
+        self.log_dict({"val_f1": f1}, prog_bar=True)
 
         return
 
     def test_step(self, batch, batch_idx):
-        loss, acc = self._shared_step(batch)
-        self.log_dict({"test_loss": loss, "test_acc": acc}, prog_bar=True)
+        f1 = self._shared_step(batch)
+        self.log_dict({"test_f1": f1}, prog_bar=True)
 
         return
 

@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 
 from mef.utils.pytorch.datasets import CustomLabelDataset, split_dataset
 from .base import Base
@@ -12,12 +13,10 @@ class CopyCat(Base):
                  gpus=0, seed=None, deterministic=True, debug=False):
         optimizer = torch.optim.SGD(substitute_model.parameters(),
                                     lr=0.01, momentum=0.8)
-        train_loss = torch.nn.CrossEntropyLoss()
-        test_loss = train_loss
+        loss = F.cross_entropy
 
         super().__init__(victim_model, substitute_model, optimizer,
-                         train_loss, test_loss,
-                         training_epochs=training_epochs,
+                         loss, training_epochs=training_epochs,
                          early_stop_tolerance=early_stop_tolerance,
                          evaluation_frequency=evaluation_frequency,
                          val_size=val_size, batch_size=batch_size,

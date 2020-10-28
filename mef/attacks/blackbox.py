@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from torch.utils.data import ConcatDataset, DataLoader
 from tqdm import tqdm
 
@@ -13,12 +14,10 @@ class BlackBox(Base):
                  batch_size=64, save_loc="./cache/blackbox", gpus=0, seed=None,
                  deterministic=True, debug=False):
         optimizer = torch.optim.Adam(substitute_model.parameters())
-        train_loss = torch.nn.CrossEntropyLoss()
-        test_loss = train_loss
+        loss = F.cross_entropy
 
         super().__init__(victim_model, substitute_model, optimizer,
-                         train_loss, test_loss,
-                         training_epochs=training_epochs,
+                         loss, training_epochs=training_epochs,
                          batch_size=batch_size, save_loc=save_loc,
                          num_classes=num_classes, validation=False,
                          gpus=gpus, seed=seed, deterministic=deterministic,

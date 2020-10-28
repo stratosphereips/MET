@@ -13,9 +13,6 @@ def add_activethief_arguments(parser):
     parser.add_argument("--output_type", default="softmax", type=str,
                         help="Type of output from victim model {softmax, "
                              "logits, one_hot} (Default: softmax)")
-    parser.add_argument("--init_seed_size", default=2000, type=int,
-                        help="Size of the initial random query set (Default: "
-                             "2000)")
     parser.add_argument("--budget", default=20000, type=int,
                         help="Size of the budget (Default: 20000)")
     parser.add_argument("--seed", default=0, type=int,
@@ -26,11 +23,8 @@ def add_activethief_arguments(parser):
     parser.add_argument("--early_stop_tolerance", default=100, type=int,
                         help="Number of epochs without improvement for early "
                              "stop (Default: 10)")
-    parser.add_argument("--evaluation_frequency", default=2, type=int,
-                        help="Epochs interval of validation (Default: 2)")
-    parser.add_argument("--val_size", type=float, default=0.2,
-                        help="Size of validation set (Default: 0.2)")
-
+    parser.add_argument("--evaluation_frequency", default=1, type=int,
+                        help="Epochs interval of validation (Default: 1)")
     return
 
 

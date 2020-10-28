@@ -76,10 +76,11 @@ def set_up(args):
         print("Loaded victim model")
     except FileNotFoundError:
         print("Training victim model")
-        optimizer = torch.optim.Adam(victim_model.parameters())
+        optimizer = torch.optim.Adam(victim_model.parameters(),
+                                     weight_decay=1e-3)
         loss = F.cross_entropy
 
-        train_set, val_set = split_dataset(train_set, args.val_size)
+        train_set, val_set = split_dataset(train_set, 0.2)
         train_dataloader = DataLoader(dataset=train_set, shuffle=True,
                                       num_workers=4, pin_memory=True,
                                       batch_size=args.batch_size)
@@ -89,6 +90,7 @@ def set_up(args):
 
         mef_model = MefModule(victim_model, optimizer, loss)
         trainer = get_trainer(args.gpus, training_epochs=1000,
+                              evaluation_frequency=args.evaluation_frequency,
                               early_stop_tolerance=args.early_stop_tolerance,
                               save_loc=args.save_loc + "/victim/")
         trainer.fit(mef_model, train_dataloader, val_dataloader)
@@ -107,7 +109,7 @@ if __name__ == "__main__":
 
     af = ActiveThief(victim_model, substitute_model, NUM_CLASSES,
                      args.iterations, args.selection_strategy,
-                     args.output_type, args.init_seed_size, args.budget,
+                     args.output_type, args.budget,
                      args.substitute_train_epochs, args.early_stop_tolerance,
                      args.evaluation_frequency, args.val_size, args.batch_size,
                      args.save_loc, args.gpus, args.seed, args.deterministic,

@@ -14,7 +14,7 @@ from mef.utils.pytorch.lighting.training import get_trainer
 class Base:
 
     def __init__(self, victim_model, substitute_model, optimizer,
-                 train_loss, test_loss, lr_scheduler=None, training_epochs=100,
+                 loss, lr_scheduler=None, training_epochs=100,
                  early_stop_tolerance=10, evaluation_frequency=2,
                  val_size=0.2, batch_size=64, num_classes=None,
                  save_loc="./cache", validation=True, gpus=0, seed=None,
@@ -44,8 +44,7 @@ class Base:
         # Optimizer, loss_functions
         self._optimizer = optimizer
         self._lr_scheduler = lr_scheduler
-        self._train_loss = train_loss
-        self._test_loss = test_loss
+        self._loss = loss
 
         # Pytorch-lighting trainer
         self._trainer_kwargs = dict(
@@ -78,7 +77,7 @@ class Base:
             trainer_kwargs["training_epochs"] = training_epochs
         trainer = get_trainer(**trainer_kwargs, iteration=iteration)
 
-        mef_model = MefModule(model, optimizer, self._train_loss, lr_scheduler)
+        mef_model = MefModule(model, optimizer, self._loss, lr_scheduler)
         trainer.fit(mef_model, train_dataloader, val_dataloader)
 
         # For some reason the model after fit is on CPU and not GPU
@@ -91,24 +90,24 @@ class Base:
         test_dataloader = DataLoader(dataset=test_set, pin_memory=True,
                                      num_workers=4,
                                      batch_size=self._batch_size)
-        mef_model = MefModule(model, loss=self._test_loss)
+        mef_model = MefModule(model, loss=self._loss)
         trainer = get_trainer(**self._trainer_kwargs)
         metrics = trainer.test(mef_model, test_dataloader)
 
-        return 100 * metrics[0]["test_acc"], metrics[0]["test_loss"]
+        return metrics[0]["test_f1"]
 
     def _test_set_metrics(self):
         self._logger.info("Test set metrics")
-        vict_test_acc, vict_test_loss = self._test_model(self._victim_model,
-                                                         self._test_set)
-        sub_test_acc, sub_test_loss = self._test_model(self._substitute_model,
+        vict_test_acc, vict_test_f1 = self._test_model(self._victim_model,
                                                        self._test_set)
+        sub_test_acc, sub_test_f1 = self._test_model(self._substitute_model,
+                                                     self._test_set)
         self._logger.info(
-                "Victim model Accuracy: {:.1f}% Loss: {:.3f}".format(
-                        vict_test_acc, vict_test_loss))
+                "Victim model F1-score: {:.3f}".format(
+                        vict_test_acc, vict_test_f1))
         self._logger.info(
-                "Substitute model Accuracy: {:.1f}% Loss: {:.3f}".format(
-                        sub_test_acc, sub_test_loss))
+                "Substitute model F1-score: {:.3f}".format(
+                        sub_test_acc, sub_test_f1))
 
         return
 

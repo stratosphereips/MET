@@ -8,23 +8,24 @@ from tqdm import tqdm
 
 from .base import Base
 from ..utils.pytorch.datasets import CustomLabelDataset
+from ..utils.pytorch.functional import soft_cross_entropy
 
 
 class ActiveThief(Base):
 
     def __init__(self, victim_model, substitute_model, num_classes,
                  iterations=10, selection_strategy="entropy",
-                 output_type="softmax", init_seed_size=2000, budget=20000,
+                 output_type="softmax", budget=20000,
                  training_epochs=1000, early_stop_tolerance=100,
                  evaluation_frequency=2, val_size=0.2, batch_size=64,
                  save_loc="./cache/activethief", gpus=0, seed=None,
                  deterministic=True, debug=False):
-        optimizer = torch.optim.Adam(substitute_model.parameters())
-        train_loss = torch.nn.MSELoss()
-        test_loss = torch.nn.CrossEntropyLoss()
+        optimizer = torch.optim.Adam(substitute_model.parameters(),
+                                     weight_decay=1e-3)
+        loss = soft_cross_entropy
 
-        super().__init__(victim_model, substitute_model, optimizer, train_loss,
-                         test_loss, training_epochs=training_epochs,
+        super().__init__(victim_model, substitute_model, optimizer, loss,
+                         training_epochs=training_epochs,
                          early_stop_tolerance=early_stop_tolerance,
                          evaluation_frequency=evaluation_frequency,
                          val_size=val_size, batch_size=batch_size,
@@ -36,9 +37,10 @@ class ActiveThief(Base):
         self._iterations = iterations
         self._selection_strategy = selection_strategy
         self._output_type = output_type
-        self._init_seed_size = init_seed_size
         self._budget = budget
-        self._val_size = int(self._budget * self._val_size)
+        # Values from paper
+        self._init_seed_size = int(self._budget * 0.1)
+        self._val_size = int(self._budget * 0.2)
         self._k = (self._budget - self._val_size - self._init_seed_size) // \
                   self._iterations
 
@@ -116,7 +118,7 @@ class ActiveThief(Base):
         data_rest_loader = DataLoader(data_rest, batch_size=self._batch_size,
                                       num_workers=4, pin_memory=True)
 
-        deepfool = DeepFool(self._substitute_model, steps=3)
+        deepfool = DeepFool(self._substitute_model, steps=30)
 
         scores = []
         for x, _ in tqdm(data_rest_loader, desc="Getting dfal scores"):
@@ -211,8 +213,8 @@ class ActiveThief(Base):
 
         # Get victim model metrics on test set
         self._logger.info("Getting victim model's metrics for test set")
-        vict_test_acc, vict_test_loss = self._test_model(self._victim_model,
-                                                         self._test_set)
+        vict_test_acc, vict_test_f1 = self._test_model(self._victim_model,
+                                                       self._test_set)
 
         # Save substitute model state_dict for retraining from scratch
         sub_orig_state_dict = self._substitute_model.state_dict()
@@ -224,15 +226,15 @@ class ActiveThief(Base):
             # Get metrics from victim model and substitute model
             self._logger.info("Getting substitute model's metrics for test "
                               "set")
-            sub_test_acc, sub_test_loss = self._test_model(
+            sub_test_acc, sub_test_f1 = self._test_model(
                     self._substitute_model, self._test_set)
             self._logger.info("Test set metrics")
             self._logger.info(
-                    "Victim model Accuracy: {:.1f}% Loss: {:.3f}".format(
-                            vict_test_acc, vict_test_loss))
+                    "Victim model Accuracy: {:.1f}% F1-score: {:.3f}"
+                        .format(vict_test_acc, vict_test_f1))
             self._logger.info(
-                    "Substitute model Accuracy: {:.1f}% Loss: {:.3f}".format(
-                            sub_test_acc, sub_test_loss))
+                    "Substitute model Accuracy: {:.1f}% F1-score: {:.3f}"
+                        .format(sub_test_acc, sub_test_f1))
 
             # Reset substitute model and optimizer
             self._substitute_model.load_state_dict(sub_orig_state_dict)
