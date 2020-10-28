@@ -1,10 +1,9 @@
 import os
 import sys
 
-import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import ConcatDataset, DataLoader
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import transforms
 
@@ -19,7 +18,8 @@ from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.lighting.module import MefModule
 from mef.utils.pytorch.lighting.training import get_trainer
 
-IMAGENET_SUBSET_SIZE = 120000
+IMAGENET_TRAIN_SIZE = 100000
+IMAGENET_VAL_SIZE = 20000
 DIMS = (3, 32, 32)
 NUM_CLASSES = 10
 
@@ -61,9 +61,13 @@ def set_up(args):
     transform = transforms.Compose([transforms.CenterCrop(DIMS[1]),
                                     transforms.ToTensor(),
                                     transforms.Normalize(mean, std)])
-    imagenet = ImageNet1000(root=args.imagenet_dir, transform=transform)
-    idxs = np.random.permutation(len(imagenet))[:IMAGENET_SUBSET_SIZE]
-    thief_dataset = Subset(imagenet, idxs)
+    imagenet_train = ImageNet1000(root=args.imagenet_dir,
+                                  size=IMAGENET_TRAIN_SIZE,
+                                  transform=transform, seed=args.seed)
+    imagenet_test = ImageNet1000(root=args.imagenet_dir, train=False,
+                                 size=IMAGENET_VAL_SIZE, transform=transform,
+                                 seed=args.seed)
+    thief_dataset = ConcatDataset([imagenet_train, imagenet_test])
 
     try:
         saved_model = torch.load(args.save_loc +
