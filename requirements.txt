@@ -1,7 +1,6 @@
 torch==1.5.1
 pytorch_lightning==1.0.3
 torchattacks==2.4
-dacite==1.5.1
 tqdm==4.51.0
 torchvision==0.6.1
 numpy==1.19.2
