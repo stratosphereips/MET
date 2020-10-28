@@ -73,7 +73,7 @@ def set_up(args):
         loss = F.cross_entropy
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=60)
 
-        train_set, val_set = split_dataset(train_set, args.val_size)
+        train_set, val_set = split_dataset(train_set, 0.2)
         train_dataloader = DataLoader(dataset=train_set, shuffle=True,
                                       num_workers=4, pin_memory=True,
                                       batch_size=args.batch_size)

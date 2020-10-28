@@ -74,7 +74,7 @@ def set_up(args):
         optimizer = torch.optim.Adam(victim_model.parameters())
         loss = F.cross_entropy
 
-        train_set, val_set = split_dataset(mnist["train"], args.val_size)
+        train_set, val_set = split_dataset(mnist["train"], 0.2)
         train_dataloader = DataLoader(dataset=train_set, shuffle=True,
                                       num_workers=4, pin_memory=True,
                                       batch_size=args.batch_size)
