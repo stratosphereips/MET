@@ -104,9 +104,9 @@ class Base:
         vict_test_acc = self._test_model(self._victim_model, self._test_set)
         sub_test_acc = self._test_model(self._substitute_model, self._test_set)
         self._logger.info(
-                "Victim model F1-score: {:.3f}".format(vict_test_acc))
+                "Victim model Accuracy: {:.1f}%".format(vict_test_acc))
         self._logger.info(
-                "Substitute model F1-score: {:.3f}".format(sub_test_acc))
+                "Substitute model Accuracy: {:.1f}%".format(sub_test_acc))
 
         return
 
