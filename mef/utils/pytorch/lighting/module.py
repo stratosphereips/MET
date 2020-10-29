@@ -4,13 +4,14 @@ import torch
 
 class MefModule(pl.LightningModule):
     def __init__(self, model, num_classes, optimizer=None, loss=None,
-                 lr_scheduler=None):
+                 lr_scheduler=None, metric="accuracy"):
         super().__init__()
         self._model = model
         self._optimizer = optimizer
         self._loss = loss
         self._lr_scheduler = lr_scheduler
         self.to(next(model.parameters()).device)
+        self._accuracy = pl.metrics.Accuracy(compute_on_step=False)
         self._f1_macro = pl.metrics.Fbeta(num_classes, average="macro",
                                           compute_on_step=False)
 
@@ -29,17 +30,20 @@ class MefModule(pl.LightningModule):
         if (y.numel() // len(y)) != 1:
             y = torch.argmax(y, dim=1)
 
+        self._accuracy(y_hat, y)
         self._f1_macro(y_hat, y)
         return
 
     def validation_step(self, batch, batch_idx):
         self._shared_step(batch)
-        self.log("val_f1", self._f1_macro, prog_bar=True, on_epoch=True)
+        self.log_dict({"val_acc": self._accuracy, "val_f1": self._f1_macro},
+                      prog_bar=True, on_epoch=True)
         return
 
     def test_step(self, batch, batch_idx):
         self._shared_step(batch)
-        self.log("test_f1", self._f1_macro, on_epoch=True)
+        self.log_dict({"test_acc": self._accuracy, "test_f1": self._f1_macro},
+                      prog_bar=True, on_epoch=True)
         return
 
     def configure_optimizers(self):

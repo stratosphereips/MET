@@ -5,21 +5,22 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 def get_trainer(gpus=0, training_epochs=10, early_stop_tolerance=3,
                 evaluation_frequency=2, save_loc="./cache", debug=False,
                 iteration=None, deterministic=True, validation=True,
-                precision=32):
+                precision=32, accuracy=True):
     # Prepare callbacks
     callbacks = None
     checkpoint_cb = False
     if validation and not debug:
-        callbacks = [EarlyStopping(monitor="val_f1", verbose=True, mode="max",
+        monitor = "val_acc" if accuracy else "val_f1"
+        callbacks = [EarlyStopping(monitor=monitor, verbose=True, mode="max",
                                    patience=early_stop_tolerance)]
 
-        checkpoint_name = "{epoch}-{val_f1:.2f}"
+        checkpoint_name = "{epoch}-{" + monitor + ":.2f}"
         if iteration is not None:
             checkpoint_name = "iteration={}-".format(iteration) + \
                               checkpoint_name
         checkpoint_cb = ModelCheckpoint(
                 filepath=save_loc + "/" + checkpoint_name, mode="max",
-                monitor="val_f1", verbose=True, save_weights_only=True)
+                monitor=monitor, verbose=True, save_weights_only=True)
 
     # Prepare trainer
     trainer = Trainer(default_root_dir=save_loc, gpus=gpus,

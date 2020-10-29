@@ -76,7 +76,8 @@ class Base:
         trainer_kwargs = self._trainer_kwargs.copy()
         if training_epochs is not None:
             trainer_kwargs["training_epochs"] = training_epochs
-        trainer = get_trainer(**trainer_kwargs, iteration=iteration)
+        trainer = get_trainer(**trainer_kwargs, iteration=iteration,
+                              accuracy=False)
 
         mef_model = MefModule(model, self._num_classes, optimizer, self._loss,
                               lr_scheduler)
@@ -96,16 +97,16 @@ class Base:
         trainer = get_trainer(**self._trainer_kwargs)
         metrics = trainer.test(mef_model, test_dataloader)
 
-        return metrics[0]["test_f1"]
+        return 100 * metrics[0]["test_acc"]
 
     def _get_test_set_metrics(self):
         self._logger.info("Test set metrics")
-        vict_test_f1 = self._test_model(self._victim_model, self._test_set)
-        sub_test_f1 = self._test_model(self._substitute_model, self._test_set)
+        vict_test_acc = self._test_model(self._victim_model, self._test_set)
+        sub_test_acc = self._test_model(self._substitute_model, self._test_set)
         self._logger.info(
-                "Victim model F1-score: {:.3f}".format(vict_test_f1))
+                "Victim model F1-score: {:.3f}".format(vict_test_acc))
         self._logger.info(
-                "Substitute model F1-score: {:.3f}".format(sub_test_f1))
+                "Substitute model F1-score: {:.3f}".format(sub_test_acc))
 
         return
 
