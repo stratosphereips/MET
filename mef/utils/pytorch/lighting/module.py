@@ -28,7 +28,7 @@ class MefModule(pl.LightningModule):
         if (y.numel() // len(y)) != 1:
             y = torch.argmax(y, dim=1)
 
-        f1 = FM.f1_score(y_hat, y)
+        f1 = FM.f1_score(y_hat, y, class_reduction="macro")
 
         return f1
 
