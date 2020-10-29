@@ -97,18 +97,14 @@ class Base:
 
         return metrics[0]["test_f1"]
 
-    def _test_set_metrics(self):
+    def _get_test_set_metrics(self):
         self._logger.info("Test set metrics")
-        vict_test_acc, vict_test_f1 = self._test_model(self._victim_model,
-                                                       self._test_set)
-        sub_test_acc, sub_test_f1 = self._test_model(self._substitute_model,
-                                                     self._test_set)
+        vict_test_f1 = self._test_model(self._victim_model, self._test_set)
+        sub_test_f1 = self._test_model(self._substitute_model, self._test_set)
         self._logger.info(
-                "Victim model F1-score: {:.3f}".format(
-                        vict_test_acc, vict_test_f1))
+                "Victim model F1-score: {:.3f}".format(vict_test_f1))
         self._logger.info(
-                "Substitute model F1-score: {:.3f}".format(
-                        sub_test_acc, sub_test_f1))
+                "Substitute model F1-score: {:.3f}".format(sub_test_f1))
 
         return
 

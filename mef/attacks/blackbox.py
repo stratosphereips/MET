@@ -98,7 +98,7 @@ class BlackBox(Base):
                 y_query_set = torch.argmax(y_query_set, dim=1)
                 query_sets.append(CustomDataset(x_query_set, y_query_set))
 
-        self._test_set_metrics()
+        self._get_test_set_metrics()
         self._get_aggreement_score()
         self._save_final_subsitute()
 
