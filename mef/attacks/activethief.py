@@ -57,27 +57,25 @@ class ActiveThief(Base):
                     "{random, entropy, k-center, dfal, dfal+kcenter}")
             raise ValueError()
 
-    def _random_strategy(self, k, idx_rest):
-        return np.random.permutation(idx_rest)[:k]
+    def _random_strategy(self, k, ixds_rest):
+        return np.random.permutation(ixds_rest)[:k]
 
-    def _entropy_strategy(self, k, idx_rest, data_rest):
-        scores = {}
-        for sample_id, sample in tqdm(zip(idx_rest, data_rest),
-                                      total=len(data_rest),
-                                      desc="Calculating entropy scores"):
-            _, prob_dist = sample
-            log_probs = prob_dist * torch.log2(prob_dist)
-            raw_entropy = 0 - torch.sum(log_probs)
+    def _entropy_strategy(self, k, ixds_rest, data_rest):
+        scores = []
+        loader = DataLoader(data_rest, batch_size=self._batch_size,
+                            num_workers=4)
+        for _, prob_dists in tqdm(loader, desc="Calculating entropy scores"):
+            log_probs = prob_dists * torch.log2(prob_dists)
+            raw_entropy = 0 - torch.sum(log_probs, dim=1)
 
             normalized_entropy = raw_entropy / math.log2(self._num_classes)
 
-            scores[sample_id] = normalized_entropy
+            scores.append(normalized_entropy)
 
-        scores = dict(sorted(scores.items(), key=lambda x: x[1], reverse=True))
+        best = torch.topk(torch.cat(scores), k)
+        return ixds_rest[best.indices]
 
-        return np.array(list(scores.keys())[:k])
-
-    def _kcenter_strategy(self, k, idx_rest, data_rest, init_centers):
+    def _kcenter_strategy(self, k, ixds_rest, data_rest, init_centers):
         data_rest_loader = DataLoader(data_rest, batch_size=self._batch_size,
                                       num_workers=4, pin_memory=True)
 
@@ -86,7 +84,7 @@ class ActiveThief(Base):
         selected_points = []
         for _ in tqdm(range(k), desc="Selecting best points"):
             min_max_vals = []
-            idx_min_max = []
+            idxs_min_max = []
             with torch.no_grad():
                 for _, y_rest_batch in data_rest_loader:
 
@@ -100,19 +98,19 @@ class ActiveThief(Base):
                             dists_min_vals, dim=0)
 
                     min_max_vals.append(dist_min_max_val.cpu())
-                    idx_min_max.append(dist_min_max_id.cpu())
+                    idxs_min_max.append(dist_min_max_id.cpu())
 
             batch_id = np.argmax(min_max_vals)
             sample_id = batch_id * self._batch_size + \
-                        idx_min_max[batch_id.item()]
+                        idxs_min_max[batch_id.item()]
             curr_centers = torch.cat([curr_centers.cpu(),
                                       data_rest.dataset.targets[sample_id]
                                       [None, :]])
             selected_points.append(sample_id)
 
-        return idx_rest[selected_points]
+        return ixds_rest[selected_points]
 
-    def _deepfool_strategy(self, k, idx_rest, data_rest):
+    def _deepfool_strategy(self, k, ixds_rest, data_rest):
         self._substitute_model.eval()
 
         data_rest_loader = DataLoader(data_rest, batch_size=self._batch_size,
@@ -126,37 +124,35 @@ class ActiveThief(Base):
 
             # difference as L2-norm
             for adv, orig in zip(x_adv, x):
-                scores.append(torch.dist(adv, orig).item())
+                scores.append(torch.dist(adv, orig))
 
-        scores = dict(zip(idx_rest, scores))
-        scores = dict(sorted(scores.items(), key=lambda x: x[1], reverse=True))
+        best = torch.topk(torch.cat(scores), k)
+        return ixds_rest[best.indices]
 
-        return np.array(list(scores.keys())[:k])
-
-    def _select_samples(self, idx_rest, data_rest, query_sets):
+    def _select_samples(self, ixds_rest, data_rest, query_sets):
         if self._selection_strategy == "entropy":
-            selected_samples = self._entropy_strategy(self._k, idx_rest,
+            selected_samples = self._entropy_strategy(self._k, ixds_rest,
                                                       data_rest)
         elif self._selection_strategy == "random":
-            selected_samples = self._random_strategy(self._k, idx_rest)
+            selected_samples = self._random_strategy(self._k, ixds_rest)
         elif self._selection_strategy == "k-center":
             # Get initial centers
             init_centers = self._get_predictions(self._substitute_model,
                                                  query_sets)
-            selected_samples = self._kcenter_strategy(self._k, idx_rest,
+            selected_samples = self._kcenter_strategy(self._k, ixds_rest,
                                                       data_rest,
                                                       init_centers)
         elif self._selection_strategy == "dfal":
-            selected_samples = self._deepfool_strategy(self._k, idx_rest,
+            selected_samples = self._deepfool_strategy(self._k, ixds_rest,
                                                        data_rest)
         elif self._selection_strategy == "dfal+k-center":
-            dfal_top_idx = self._deepfool_strategy(self._budget, idx_rest,
-                                                   data_rest)
-            y_dfal_top = data_rest.dataset.targets[dfal_top_idx]
+            idxs_dfal_top = self._deepfool_strategy(self._budget, ixds_rest,
+                                                    data_rest)
+            y_dfal_top = data_rest.dataset.targets[idxs_dfal_top]
             # Get initial centers
             init_centers = self._get_predictions(self._substitute_model,
                                                  query_sets)
-            selected_samples = self._kcenter_strategy(self._k, dfal_top_idx,
+            selected_samples = self._kcenter_strategy(self._k, idxs_dfal_top,
                                                       y_dfal_top, init_centers)
         else:
             self._logger.warning("Selection strategy must be one of {entropy, "
@@ -174,13 +170,13 @@ class ActiveThief(Base):
         self._logger.info(
                 "ActiveThief's attack budget: {}".format(self._budget))
 
-        idx_rest = np.arange(len(self._thief_dataset))
+        ixds_rest = np.arange(len(self._thief_dataset))
 
         # Prepare validation set
         self._logger.info("Preparing validation dataset")
-        idx_val = np.random.permutation(idx_rest)[:self._val_size]
-        idx_rest = np.setdiff1d(idx_rest, idx_val)
-        val_set = Subset(self._thief_dataset, idx_val)
+        idxs_val = np.random.permutation(ixds_rest)[:self._val_size]
+        ixds_rest = np.setdiff1d(ixds_rest, idxs_val)
+        val_set = Subset(self._thief_dataset, idxs_val)
         y_val = self._get_predictions(self._victim_model, val_set,
                                       self._output_type)
         val_set = CustomLabelDataset(val_set, y_val)
@@ -196,9 +192,9 @@ class ActiveThief(Base):
         self._logger.info("Preparing initial random query set")
         query_sets = []
 
-        idx_query = np.random.permutation(idx_rest)[:self._init_seed_size]
-        idx_rest = np.setdiff1d(idx_rest, idx_query)
-        query_set = Subset(self._thief_dataset, idx_query)
+        idxs_query = np.random.permutation(ixds_rest)[:self._init_seed_size]
+        ixds_rest = np.setdiff1d(ixds_rest, idxs_query)
+        query_set = Subset(self._thief_dataset, idxs_query)
         y_query = self._get_predictions(self._victim_model, query_set,
                                         self._output_type)
         query_sets.append(CustomLabelDataset(query_set, y_query))
@@ -250,7 +246,7 @@ class ActiveThief(Base):
             # Step 4: Approximate labels are obtained for remaining samples
             # using the substitute
 
-            data_rest = Subset(self._thief_dataset, idx_rest)
+            data_rest = Subset(self._thief_dataset, ixds_rest)
             y_rest = None
             if self._selection_strategy not in {"random", "dfal"}:
                 self._logger.info("Getting substitute's predictions for the "
@@ -268,10 +264,10 @@ class ActiveThief(Base):
                               " the remaining thief dataset"
                               .format(self._k, self._selection_strategy))
 
-            idx_query = self._select_samples(idx_rest, data_rest,
-                                             ConcatDataset(query_sets))
-            idx_rest = np.setdiff1d(idx_rest, idx_query)
-            query_set = Subset(self._thief_dataset, idx_query)
+            idxs_query = self._select_samples(ixds_rest, data_rest,
+                                              ConcatDataset(query_sets))
+            ixds_rest = np.setdiff1d(ixds_rest, idxs_query)
+            query_set = Subset(self._thief_dataset, idxs_query)
 
             # Step 2: Attacker queries current picked samples to secret
             # model for labeling
