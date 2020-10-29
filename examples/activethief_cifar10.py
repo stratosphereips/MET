@@ -42,8 +42,9 @@ def activethief_parse_args():
 def set_up(args):
     seed_everything(args.seed)
 
-    victim_model = SimpleNet(input_dimensions=DIMS, num_classes=10)
-    substitute_model = SimpleNet(input_dimensions=DIMS, num_classes=10)
+    victim_model = SimpleNet(input_dimensions=DIMS, num_classes=NUM_CLASSES)
+    substitute_model = SimpleNet(input_dimensions=DIMS,
+                                 num_classes=NUM_CLASSES)
 
     if args.gpus:
         victim_model.cuda()
@@ -56,10 +57,10 @@ def set_up(args):
     transform = transforms.Compose([transforms.CenterCrop(DIMS[1]),
                                     transforms.ToTensor(),
                                     transforms.Normalize(mean, std)])
-    test_set = CIFAR10(root=args.cifar10_dir, download=True,
-                       transform=transform)
-    train_set = CIFAR10(root=args.cifar10_dir, train=False, download=True,
+    train_set = CIFAR10(root=args.cifar10_dir, download=True,
                         transform=transform)
+    test_set = CIFAR10(root=args.cifar10_dir, train=False, download=True,
+                       transform=transform)
 
     transform = transforms.Compose([transforms.CenterCrop(DIMS[1]),
                                     transforms.ToTensor(),
