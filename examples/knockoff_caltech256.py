@@ -19,6 +19,8 @@ from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.lighting.module import MefModule
 from mef.utils.pytorch.lighting.training import get_trainer
 
+NUM_CLASSES = 256
+
 
 def knockoff_parse_args():
     description = "Knockoff-nets model extraction attack - Caltech256 example"
@@ -40,8 +42,8 @@ def knockoff_parse_args():
 def set_up(args):
     seed_everything(args.seed)
 
-    victim_model = ResNet(resnet_type="resnet_34", num_classes=256)
-    substitute_model = ResNet(resnet_type="resnet_34", num_classes=256)
+    victim_model = ResNet(resnet_type="resnet_34", num_classes=NUM_CLASSES)
+    substitute_model = ResNet(resnet_type="resnet_34", num_classes=NUM_CLASSES)
 
     if args.gpus:
         victim_model.cuda()
@@ -83,7 +85,8 @@ def set_up(args):
         val_dataloader = DataLoader(dataset=val_set, pin_memory=True,
                                     num_workers=4, batch_size=args.batch_size)
 
-        mef_model = MefModule(victim_model, optimizer, loss, lr_scheduler)
+        mef_model = MefModule(victim_model, NUM_CLASSES, optimizer, loss,
+                              lr_scheduler)
         trainer = get_trainer(args.gpus, args.victim_train_epochs,
                               validation=False,
                               save_loc=args.save_loc + "/victim/",
@@ -102,8 +105,9 @@ if __name__ == "__main__":
     mkdir_if_missing(args.save_loc)
     victim_model, substitute_model, sub_dataset, test_set = set_up(args)
 
-    ko = KnockOff(victim_model, substitute_model, 256, args.sampling_strategy,
-                  args.reward_type, args.output_type, args.budget,
-                  args.training_epochs, args.batch_size, args.save_loc,
-                  args.gpus, args.seed, args.deterministic, args.debug)
+    ko = KnockOff(victim_model, substitute_model, NUM_CLASSES,
+                  args.sampling_strategy, args.reward_type,
+                  args.output_type, args.budget, args.training_epochs,
+                  args.batch_size, args.save_loc, args.gpus, args.seed,
+                  args.deterministic, args.debug)
     ko.run(sub_dataset, test_set)

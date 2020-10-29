@@ -20,6 +20,8 @@ from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.lighting.module import MefModule
 from mef.utils.pytorch.lighting.training import get_trainer
 
+NUM_CLASSES = 9
+
 
 class GOCData:
 
@@ -167,7 +169,7 @@ def set_up(args):
         val_dataloader = DataLoader(dataset=val_set, pin_memory=True,
                                     num_workers=4, batch_size=32)
 
-        mef_model = MefModule(victim_model, optimizer, loss)
+        mef_model = MefModule(victim_model, NUM_CLASSES, optimizer, loss)
         trainer = get_trainer(args.gpus, training_epochs=20,
                               validation=False,
                               save_loc=args.save_loc + "/victim/",
@@ -186,7 +188,7 @@ if __name__ == "__main__":
     mkdir_if_missing(args.save_loc)
     victim_model, substitute_model, thief_dataset, test_set = set_up(args)
 
-    copycat = CopyCat(victim_model, substitute_model,
+    copycat = CopyCat(victim_model, substitute_model, NUM_CLASSES,
                       args.substitute_train_epochs, args.early_stop_tolerance,
                       args.evaluation_frequency, args.val_size,
                       args.batch_size, args.save_loc, args.gpus,

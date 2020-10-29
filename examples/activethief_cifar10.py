@@ -92,7 +92,7 @@ def set_up(args):
         val_dataloader = DataLoader(dataset=val_set, pin_memory=True,
                                     num_workers=4, batch_size=args.batch_size)
 
-        mef_model = MefModule(victim_model, optimizer, loss)
+        mef_model = MefModule(victim_model, NUM_CLASSES, optimizer, loss)
         trainer = get_trainer(args.gpus, training_epochs=1000,
                               evaluation_frequency=args.evaluation_frequency,
                               early_stop_tolerance=args.early_stop_tolerance,

@@ -19,6 +19,7 @@ from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.lighting.module import MefModule
 from mef.utils.pytorch.lighting.training import get_trainer
 
+NUM_CLASSES = 10
 DIMS = (1, 28, 28)
 
 
@@ -41,8 +42,9 @@ def blackbox_parse_args():
 def set_up(args):
     seed_everything(args.seed)
 
-    victim_model = SimpleNet(input_dimensions=DIMS, num_classes=10)
-    substitute_model = SimpleNet(input_dimensions=DIMS, num_classes=10)
+    victim_model = SimpleNet(input_dimensions=DIMS, num_classes=NUM_CLASSES)
+    substitute_model = SimpleNet(input_dimensions=DIMS,
+                                 num_classes=NUM_CLASSES)
 
     if args.gpus:
         victim_model.cuda()
@@ -85,7 +87,7 @@ def set_up(args):
         val_dataloader = DataLoader(dataset=val_set, pin_memory=True,
                                     num_workers=4, batch_size=args.batch_size)
 
-        mef_model = MefModule(victim_model, optimizer, loss)
+        mef_model = MefModule(victim_model, NUM_CLASSES, optimizer, loss)
         trainer = get_trainer(args.gpus, validation=False,
                               save_loc=args.save_loc + "/victim/",
                               precision=args.precision)
@@ -103,7 +105,7 @@ if __name__ == "__main__":
     mkdir_if_missing(args.save_loc)
     victim_model, substitute_model, thief_dataset, test_set = set_up(args)
 
-    bb = BlackBox(victim_model, substitute_model, 10, args.iterations,
+    bb = BlackBox(victim_model, substitute_model, NUM_CLASSES, args.iterations,
                   args.lmbda, args.substitute_train_epochs, args.batch_size,
                   args.save_loc, args.gpus, args.seed, args.deterministic,
                   args.debug)

@@ -78,7 +78,8 @@ class Base:
             trainer_kwargs["training_epochs"] = training_epochs
         trainer = get_trainer(**trainer_kwargs, iteration=iteration)
 
-        mef_model = MefModule(model, optimizer, self._loss, lr_scheduler)
+        mef_model = MefModule(model, self._num_classes, optimizer, self._loss,
+                              lr_scheduler)
         trainer.fit(mef_model, train_dataloader, val_dataloader)
 
         # For some reason the model after fit is on CPU and not GPU
@@ -91,7 +92,7 @@ class Base:
         test_dataloader = DataLoader(dataset=test_set, pin_memory=True,
                                      num_workers=4,
                                      batch_size=self._batch_size)
-        mef_model = MefModule(model, loss=self._loss)
+        mef_model = MefModule(model, self._num_classes, loss=self._loss)
         trainer = get_trainer(**self._trainer_kwargs)
         metrics = trainer.test(mef_model, test_dataloader)
 
