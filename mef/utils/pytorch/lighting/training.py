@@ -13,7 +13,7 @@ def get_trainer(gpus=0, training_epochs=10, early_stop_tolerance=3,
         callbacks = [EarlyStopping(monitor="val_f1", verbose=True, mode="max",
                                    patience=early_stop_tolerance)]
 
-        checkpoint_name = "{epoch}-{val_loss:.2f}-{val_acc:.2f}"
+        checkpoint_name = "{epoch}-{val_f1:.2f}"
         if iteration is not None:
             checkpoint_name = "iteration={}-".format(iteration) + \
                               checkpoint_name
