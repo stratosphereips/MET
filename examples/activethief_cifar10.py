@@ -8,12 +8,11 @@ from torch.utils.data import ConcatDataset, DataLoader
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import transforms
 
-from mef.models.vision.at_cnn import AtCnn
-
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.activethief import ActiveThief
 from mef.datasets.vision.imagenet1000 import ImageNet1000
+from mef.models.vision.at_cnn import AtCnn
 from mef.utils.config import get_attack_parser
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import split_dataset
