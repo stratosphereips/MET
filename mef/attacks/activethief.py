@@ -124,7 +124,7 @@ class ActiveThief(Base):
             for adv, orig in zip(x_adv, x):
                 scores.append(torch.dist(adv, orig))
 
-        best = torch.topk(torch.cat(scores), k)
+        best = torch.topk(torch.stack(scores), k)
         return ixds_rest[best.indices]
 
     def _select_samples(self, ixds_rest, data_rest, query_sets):
