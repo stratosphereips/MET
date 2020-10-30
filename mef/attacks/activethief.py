@@ -80,7 +80,6 @@ class ActiveThief(Base):
                                       num_workers=4, pin_memory=True)
 
         curr_centers = init_centers
-
         selected_points = []
         for _ in tqdm(range(k), desc="Selecting best points"):
             min_max_vals = []
