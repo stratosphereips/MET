@@ -81,6 +81,11 @@ class ActiveThief(Base):
 
         curr_centers = init_centers
 
+        if isinstance(data_rest, Subset):
+            targets = data_rest.dataset.dataset.target
+        else:
+            targets = data_rest.dataset.targets
+
         selected_points = []
         for _ in tqdm(range(k), desc="Selecting best points"):
             min_max_vals = []
@@ -104,8 +109,7 @@ class ActiveThief(Base):
             sample_id = batch_id * self._batch_size + \
                         idxs_min_max[batch_id.item()]
             curr_centers = torch.cat([curr_centers.cpu(),
-                                      data_rest.dataset.targets[sample_id]
-                                      [None, :]])
+                                      targets[sample_id][None, :]])
             selected_points.append(sample_id)
 
         return ixds_rest[selected_points]

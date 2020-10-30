@@ -20,7 +20,7 @@ from mef.utils.pytorch.lighting.module import MefModule
 from mef.utils.pytorch.lighting.training import get_trainer
 
 IMAGENET_TRAIN_SIZE = 100000
-IMAGENET_VAL_SIZE = 20000
+IMAGENET_VAL_SIZE = 50000
 DIMS = (3, 32, 32)
 NUM_CLASSES = 10
 
@@ -42,8 +42,10 @@ def activethief_parse_args():
 def set_up(args):
     seed_everything(args.seed)
 
-    victim_model = AtCnn(dims=DIMS, num_classes=NUM_CLASSES)
-    substitute_model = AtCnn(dims=DIMS, num_classes=NUM_CLASSES)
+    victim_model = AtCnn(dims=DIMS, num_classes=NUM_CLASSES,
+                         dropout_keep_prob=0.2)
+    substitute_model = AtCnn(dims=DIMS, num_classes=NUM_CLASSES,
+                             dropout_keep_prob=0.2)
 
     if args.gpus:
         victim_model.cuda()
