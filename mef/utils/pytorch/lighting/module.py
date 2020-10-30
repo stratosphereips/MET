@@ -4,7 +4,7 @@ import torch
 
 class MefModule(pl.LightningModule):
     def __init__(self, model, num_classes, optimizer=None, loss=None,
-                 lr_scheduler=None, metric="accuracy"):
+                 lr_scheduler=None):
         super().__init__()
         self._model = model
         self._optimizer = optimizer

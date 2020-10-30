@@ -42,9 +42,8 @@ def blackbox_parse_args():
 def set_up(args):
     seed_everything(args.seed)
 
-    victim_model = SimpleNet(input_dimensions=DIMS, num_classes=NUM_CLASSES)
-    substitute_model = SimpleNet(input_dimensions=DIMS,
-                                 num_classes=NUM_CLASSES)
+    victim_model = SimpleNet(dims=DIMS, num_classes=NUM_CLASSES)
+    substitute_model = SimpleNet(dims=DIMS, num_classes=NUM_CLASSES)
 
     if args.gpus:
         victim_model.cuda()

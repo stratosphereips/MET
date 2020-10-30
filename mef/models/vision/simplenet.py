@@ -10,10 +10,10 @@ from mef.utils.pytorch.blocks import ConvBlock
 class SimpleNet(Base):
     """https://paperswithcode.com/paper/lets-keep-it-simple-using-simple"""
 
-    def __init__(self, input_dimensions, num_classes, pool=False, drop=False):
+    def __init__(self, dims, num_classes, pool=False, drop=False):
         super().__init__(num_classes)
 
-        self._layers = self._make_layers(input_dimensions[0])
+        self._layers = self._make_layers(dims[0])
 
         self._pool = lambda a: a
         if pool:
@@ -24,13 +24,12 @@ class SimpleNet(Base):
             drop = nn.Dropout(p=0.1)
             self._drop = lambda a: drop(a)
 
-        test_input = torch.zeros(1, input_dimensions[0], input_dimensions[1],
-                                 input_dimensions[2])
+        test_input = torch.zeros(1, dims[0], dims[1], dims[2])
         # nn.BatchNorm expects more than 1 value
         self.eval()
         test_out = self._layers(test_input)
-        n_features = test_out.size(1) * test_out.size(2) * test_out.size(3)
-        self._fc_final = nn.Linear(n_features, num_classes)
+        num_features = test_out.size(1) * test_out.size(2) * test_out.size(3)
+        self._fc_final = nn.Linear(num_features, num_classes)
 
     @auto_move_data
     def forward(self, x):
@@ -49,15 +48,14 @@ class SimpleNet(Base):
         # Conv1/64 (3x3/1/1)
         layers = [
             ConvBlock(in_channels=channels, out_channels=64, kernel_size=3,
-                      padding=1,
-                      use_batch_norm=True)]
+                      padding=1, use_batch_norm=True)]
 
         # 3x Conv2/128 (3x3/1/1)
         for i in range(3):
             in_channels = 128 if i != 0 else 64
             layers.append(ConvBlock(in_channels=in_channels, out_channels=128,
-                                    kernel_size=3,
-                                    padding=1, use_batch_norm=True))
+                                    kernel_size=3, padding=1,
+                                    use_batch_norm=True))
 
         # Max-pooling 2/2
         layers.extend(
@@ -67,8 +65,8 @@ class SimpleNet(Base):
         for i in range(3):
             out_channels = 128 if i != 2 else 256
             layers.append(ConvBlock(in_channels=128, out_channels=out_channels,
-                                    kernel_size=3,
-                                    padding=1, use_batch_norm=True))
+                                    kernel_size=3, padding=1,
+                                    use_batch_norm=True))
 
         # Max-pooling 2/2
         layers.extend(
@@ -78,8 +76,7 @@ class SimpleNet(Base):
         for i in range(2):
             layers.append(
                     ConvBlock(in_channels=256, out_channels=256, kernel_size=3,
-                              padding=1,
-                              use_batch_norm=True))
+                              padding=1, use_batch_norm=True))
 
         # Max-pooling 2/2
         layers.extend([nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=True),
@@ -88,8 +85,7 @@ class SimpleNet(Base):
         # Conv10 (3x3/1/1)
         layers.append(
                 ConvBlock(in_channels=256, out_channels=512, kernel_size=3,
-                          padding=1,
-                          use_batch_norm=True))
+                          padding=1, use_batch_norm=True))
 
         # Max-pooling 2/2
         layers.extend(
@@ -112,8 +108,7 @@ class SimpleNet(Base):
         # Conv13 (3x3/1/1)
         layers.append(
                 ConvBlock(in_channels=256, out_channels=256, kernel_size=3,
-                          padding=1,
-                          use_batch_norm=True))
+                          padding=1, use_batch_norm=True))
 
         model = nn.Sequential(*layers)
 

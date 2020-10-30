@@ -8,11 +8,12 @@ from torch.utils.data import ConcatDataset, DataLoader
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import transforms
 
+from mef.models.vision.at_cnn import AtCnn
+
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.activethief import ActiveThief
 from mef.datasets.vision.imagenet1000 import ImageNet1000
-from mef.models.vision.simplenet import SimpleNet
 from mef.utils.config import get_attack_parser
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import split_dataset
@@ -42,9 +43,8 @@ def activethief_parse_args():
 def set_up(args):
     seed_everything(args.seed)
 
-    victim_model = SimpleNet(input_dimensions=DIMS, num_classes=NUM_CLASSES)
-    substitute_model = SimpleNet(input_dimensions=DIMS,
-                                 num_classes=NUM_CLASSES)
+    victim_model = AtCnn(dims=DIMS, num_classes=NUM_CLASSES)
+    substitute_model = AtCnn(dims=DIMS, num_classes=NUM_CLASSES)
 
     if args.gpus:
         victim_model.cuda()
