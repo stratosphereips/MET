@@ -35,8 +35,8 @@ class KnockOff(Base):
         # KnockOff's specific attributes
         self._online_optimizer = torch.optim.SGD(
                 self._substitute_model.parameters(), lr=0.0005, momentum=0.5)
-        self._sampling_strategy = sampling_strategy
-        self._reward_type = reward_type
+        self._sampling_strategy = sampling_strategy.lower()
+        self._reward_type = reward_type.lower()
         self._output_type = output_type
         self._budget = budget
         self._k = 4
@@ -55,6 +55,12 @@ class KnockOff(Base):
             self._logger.error(
                     "Knockoff's sampling strategy must be one of {random, "
                     "adaptive}")
+            raise ValueError()
+
+        if self._reward_type not in ["cert", "div", "loss", "all"]:
+            self._logger.error(
+                    "Knockoff's reward type must be one of {cert, div, loss, "
+                    "all}")
             raise ValueError()
 
     def _random_strategy(self):

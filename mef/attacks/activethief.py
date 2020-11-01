@@ -35,7 +35,7 @@ class ActiveThief(Base):
 
         # ActiveThief's specific attributes
         self._iterations = iterations
-        self._selection_strategy = selection_strategy
+        self._selection_strategy = selection_strategy.lower()
         self._output_type = output_type
         self._budget = budget
         # Values from paper
@@ -54,7 +54,7 @@ class ActiveThief(Base):
                                             "dfal", "dfal+k-center"]:
             self._logger.error(
                     "ActiveThief's selection strategy must be one of " +
-                    "{random, entropy, k-center, dfal, dfal+kcenter}")
+                    "{random, entropy, k-center, dfal, dfal+k-center}")
             raise ValueError()
 
     def _random_strategy(self, k, idxs_rest):
