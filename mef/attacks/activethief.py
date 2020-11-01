@@ -144,14 +144,17 @@ class ActiveThief(Base):
             selected_samples = self._deepfool_strategy(self._k, idxs_rest,
                                                        data_rest)
         elif self._selection_strategy == "dfal+k-center":
-            idxs_dfal_top = self._deepfool_strategy(self._budget, idxs_rest,
-                                                    data_rest)
-            y_dfal_top = data_rest.targets[idxs_dfal_top]
+            idxs = np.arange(len(data_rest))
+            idxs_dfal_best = self._deepfool_strategy(self._budget, idxs,
+                                                     data_rest)
+            y_dfal_best = data_rest.targets[idxs_dfal_best]
             # Get initial centers
             init_centers = self._get_predictions(self._substitute_model,
                                                  query_sets)
-            selected_samples = self._kcenter_strategy(self._k, idxs_dfal_top,
-                                                      y_dfal_top, init_centers)
+            idxs_kcenter_best = self._kcenter_strategy(self._k, idxs_dfal_best,
+                                                       y_dfal_best,
+                                                       init_centers)
+            selected_samples = idxs_rest[idxs_kcenter_best]
         else:
             self._logger.warning("Selection strategy must be one of {entropy, "
                                  "random, k-center, dfal, dfal+k-center}")
