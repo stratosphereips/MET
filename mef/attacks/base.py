@@ -63,7 +63,7 @@ class Base:
                      iteration=None, worker_init_fn=None,
                      training_epochs=None, lr_scheduler=None):
         train_dataloader = DataLoader(dataset=train_set, pin_memory=True,
-                                      num_workers=4,
+                                      num_workers=4, shuffle=True,
                                       batch_size=self._batch_size,
                                       worker_init_fn=worker_init_fn)
         val_dataloader = None
