@@ -135,14 +135,14 @@ class AtlasThief(Base):
                                       torch.cat(train_labels))
             data_rest = Subset(self._thief_dataset, idxs_rest)
             correct_model = self._train_new_output_layer(train_set)
-            idxs_best, new_train_data = self._get_atl_sample(1, correct_model,
+            idxs_best, new_train_data = self._get_atl_sample(10, correct_model,
                                                              idxs_rest,
                                                              data_rest)
             idxs_rest = np.setdiff1d(idxs_rest, idxs_best)
             selected_points.append(idxs_best)
 
             train_data.append(new_train_data)
-            train_labels.append(torch.ones(1, 1).long())
+            train_labels.append(torch.ones(10).long())
 
         return np.concatenate(selected_points)
 
