@@ -90,10 +90,12 @@ class AtlasThief(Base):
         self._logger.info("Training a new model to predict whether "
                           "validation items were correct or incorrect")
 
+        gpus = self._trainer_kwargs["gpus"]
         deterministic = self._trainer_kwargs["deterministic"]
-        debug = False
+        debug = self._trainer_kwargs["debug"]
         precision = self._trainer_kwargs["precision"]
-        trainer = get_trainer(save_loc=self._save_loc + "/correct-model",
+        trainer = get_trainer(gpus=gpus,
+                              save_loc=self._save_loc + "/correct-model",
                               deterministic=deterministic, debug=debug,
                               validation=False, precision=precision)
 
@@ -130,7 +132,7 @@ class AtlasThief(Base):
         train_data = [new_train_data]
         train_labels = [new_train_labels]
         selected_points = []
-        for _ in tqdm(range(self._k), desc="Selecting best points"):
+        for _ in tqdm(range(self._k // 10), desc="Selecting best points"):
             train_set = CustomDataset(torch.cat(train_data),
                                       torch.cat(train_labels))
             data_rest = Subset(self._thief_dataset, idxs_rest)
