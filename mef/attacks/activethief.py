@@ -33,7 +33,7 @@ class ActiveThief(Base):
                          deterministic=deterministic, debug=debug,
                          precision=precision)
 
-        # BlackBox's specific attributes
+        # ActiveThief's specific attributes
         self._iterations = iterations
         self._selection_strategy = selection_strategy
         self._output_type = output_type
@@ -256,8 +256,7 @@ class ActiveThief(Base):
                 data_rest = CustomLabelDataset(data_rest, y_rest)
 
             # Step 5: An active learning subset selection strategy is used
-            # to select set of k
-            # samples
+            # to select set of k samples
             self._logger.info("Selecting {} samples using the {} strategy from"
                               " the remaining thief dataset"
                               .format(self._k, self._selection_strategy))
