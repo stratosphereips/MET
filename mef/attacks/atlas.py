@@ -1,10 +1,29 @@
 import numpy as np
+import pytorch_lightning as pl
 import torch
-from torch.utils.data import ConcatDataset, Subset
+import torch.nn as nn
+from pytorch_lightning.core.decorators import auto_move_data
+from torch.utils.data import ConcatDataset, DataLoader, Subset
+from tqdm import tqdm
 
 from mef.attacks.base import Base
-from mef.utils.pytorch.datasets import CustomLabelDataset
+from mef.utils.pytorch.datasets import CustomDataset, CustomLabelDataset, \
+    NoYDataset
 from mef.utils.pytorch.functional import soft_cross_entropy
+from mef.utils.pytorch.lighting.module import MefModule
+from mef.utils.pytorch.lighting.training import get_trainer
+
+
+class SimpleUncertaintyPredictor(pl.LightningModule):
+
+    def __init__(self, feature_vec_size):
+        super().__init__()
+        self._model = nn.Sequential(nn.Linear(feature_vec_size, 2),
+                                    nn.ReLU(inplace=True))
+
+    @auto_move_data
+    def forward(self, feature_vec):
+        return self._model(feature_vec)
 
 
 class AtlasThief(Base):
@@ -43,8 +62,89 @@ class AtlasThief(Base):
                                "be bigger than 0!")
             raise ValueError()
 
-    def _atlas_strategy(self, ixds_rest, data_rest, val_set):
-        return np.array(0)
+    def _get_train_set(self, val_set):
+        self._logger.info(
+                "Getting correct/incorrect labels and hidden layer output "
+                "for validation set from substitute model")
+        self._substitute_model.eval()
+
+        val_loader = DataLoader(val_set, batch_size=self._batch_size,
+                                pin_memory=True, num_workers=4)
+
+        hidden_layer_output = []
+        corr_incorr_labels = []  # 0-incorrect, 1-correct
+        for x, y in tqdm(val_loader,
+                         desc="Getting validation set labels and hidden "
+                              "layer output"):
+            logits, hidden_layer = self._substitute_model(x, True)
+
+            preds = logits.argmax(dim=1).cpu()
+            targets = torch.argmax(y, dim=1)
+
+            corr_incorr_labels.append((preds == targets).long())
+            hidden_layer_output.append(hidden_layer.detach().cpu())
+
+        return torch.cat(hidden_layer_output), torch.cat(corr_incorr_labels)
+
+    def _train_new_output_layer(self, train_set):
+        self._logger.info("Training a new model to predict whether "
+                          "validation items were correct or incorrect")
+
+        deterministic = self._trainer_kwargs["deterministic"]
+        debug = False
+        precision = self._trainer_kwargs["precision"]
+        trainer = get_trainer(save_loc=self._save_loc + "/correct-model",
+                              deterministic=deterministic, debug=debug,
+                              validation=False, precision=precision)
+
+        correct_model = SimpleUncertaintyPredictor(train_set[0][0].shape[0])
+        loss = nn.CrossEntropyLoss()
+        optimizer = torch.optim.SGD(correct_model.parameters(), lr=0.01)
+        mef_model = MefModule(correct_model, 2, optimizer, loss)
+
+        train_loader = DataLoader(train_set, batch_size=self._batch_size,
+                                  shuffle=True, num_workers=4)
+        trainer.fit(mef_model, train_loader)
+
+        return correct_model
+
+    def _get_atl_sample(self, k, correct_model, idxs_rest, data_rest):
+        self._logger.info(
+                "Predict whether unlabeled data is correct/incorrect")
+        _, hidden_layer_outputs = self._get_predictions(self._substitute_model,
+                                                        data_rest,
+                                                        return_all_layers=True)
+
+        hidden_layer_data = NoYDataset(hidden_layer_outputs)
+        y_preds = self._get_predictions(correct_model, hidden_layer_data)
+
+        probs_incorrect = y_preds.data[:, 1]
+        best = torch.topk(probs_incorrect, k)
+
+        return idxs_rest[best.indices], hidden_layer_outputs[best.indices]
+
+    def _atlas_strategy(self, idxs_rest, val_set):
+        idxs_rest_orig = idxs_rest.copy()
+
+        new_train_data, new_train_labels = self._get_train_set(val_set)
+        train_data = [new_train_data]
+        train_labels = [new_train_labels]
+        selected_points = []
+        for _ in tqdm(range(self._k), desc="Selecting best points"):
+            train_set = CustomDataset(torch.cat(train_data),
+                                      torch.cat(train_labels))
+            data_rest = Subset(self._thief_dataset, idxs_rest)
+            correct_model = self._train_new_output_layer(train_set)
+            idxs_best, new_train_data = self._get_atl_sample(1, correct_model,
+                                                             idxs_rest,
+                                                             data_rest)
+            idxs_rest = np.setdiff1d(idxs_rest, idxs_best)
+            selected_points.append(idxs_best)
+
+            train_data.append(new_train_data)
+            train_labels.append(torch.ones(1, 1).long())
+
+        return np.concatenate(selected_points)
 
     def run(self, *args, **kwargs):
         self._parse_args(args, kwargs)
@@ -55,12 +155,12 @@ class AtlasThief(Base):
         self._logger.info(
                 "AtlasThief's attack budget: {}".format(self._budget))
 
-        ixds_rest = np.arange(len(self._thief_dataset))
+        idxs_rest = np.arange(len(self._thief_dataset))
 
         # Prepare validation set
         self._logger.info("Preparing validation dataset")
-        idxs_val = np.random.permutation(ixds_rest)[:self._val_size]
-        ixds_rest = np.setdiff1d(ixds_rest, idxs_val)
+        idxs_val = np.random.permutation(idxs_rest)[:self._val_size]
+        idxs_rest = np.setdiff1d(idxs_rest, idxs_val)
         val_set = Subset(self._thief_dataset, idxs_val)
         y_val = self._get_predictions(self._victim_model, val_set,
                                       self._output_type)
@@ -77,8 +177,8 @@ class AtlasThief(Base):
         self._logger.info("Preparing initial random query set")
         query_sets = []
 
-        idxs_query = np.random.permutation(ixds_rest)[:self._init_seed_size]
-        ixds_rest = np.setdiff1d(ixds_rest, idxs_query)
+        idxs_query = np.random.permutation(idxs_rest)[:self._init_seed_size]
+        ixds_rest = np.setdiff1d(idxs_rest, idxs_query)
         query_set = Subset(self._thief_dataset, idxs_query)
         y_query = self._get_predictions(self._victim_model, query_set,
                                         self._output_type)
@@ -133,10 +233,8 @@ class AtlasThief(Base):
             self._logger.info(
                     "Selecting {} samples from the remaining thief dataset"
                         .format(self._k))
-
-            data_rest = Subset(self._thief_dataset, ixds_rest)
-            idxs_query = self._atlas_strategy(ixds_rest, data_rest, val_set)
-            ixds_rest = np.setdiff1d(ixds_rest, idxs_query)
+            idxs_query = self._atlas_strategy(ixds_rest, val_set)
+            idxs_rest = np.setdiff1d(idxs_rest, idxs_query)
             query_set = Subset(self._thief_dataset, idxs_query)
 
             # Step 2: Attacker queries current picked samples to secret

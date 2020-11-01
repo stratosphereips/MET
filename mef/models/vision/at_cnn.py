@@ -32,11 +32,15 @@ class AtCnn(Base):
         num_features = test_out.size(1) * test_out.size(2) * test_out.size(3)
         self._fcs = self._build_fcs(num_features)
 
+
     @auto_move_data
-    def forward(self, x):
+    def forward(self, x, return_all_layers=False):
         features = self._convs(x)
         features = features.view(features.size(0), -1)
         y = self._fcs(features)
+
+        if return_all_layers:
+            return y, features
 
         return y
 

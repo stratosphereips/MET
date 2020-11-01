@@ -139,18 +139,26 @@ class Base:
 
         return
 
-    def _get_predictions(self, model, data, output_type="softmax"):
+    def _get_predictions(self, model, data, output_type="softmax",
+                         return_all_layers=False):
         model.eval()
         loader = DataLoader(data, pin_memory=True, num_workers=4,
                             batch_size=self._batch_size)
+        hidden_layer_outputs = []
         y_preds = []
         with torch.no_grad():
             for x, _ in tqdm(loader, desc="Getting predictions", total=len(
                     loader)):
-                y_pred = model(x)
+                if return_all_layers:
+                    y_pred, feature_vec = model(x, return_all_layers=True)
+                    hidden_layer_outputs.append(feature_vec.cpu())
+                else:
+                    y_pred = model(x)
                 y_preds.append(y_pred.cpu())
 
         y_preds = torch.cat(y_preds)
+        if return_all_layers:
+            hidden_layer_outputs = torch.cat(hidden_layer_outputs)
 
         if output_type == "one_hot":
             y_hat = F.one_hot(torch.argmax(y_preds, dim=1),
@@ -166,6 +174,9 @@ class Base:
                     "Model output type must be one of {one_hot, softmax, "
                     "labels, logits}")
             raise ValueError()
+
+        if return_all_layers:
+            return y_hat, hidden_layer_outputs
 
         return y_hat
 
