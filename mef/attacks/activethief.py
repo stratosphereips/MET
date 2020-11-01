@@ -264,7 +264,7 @@ class ActiveThief(Base):
             idxs_query = self._select_samples(idxs_rest, data_rest,
                                               ConcatDataset(query_sets))
             idxs_rest = np.setdiff1d(idxs_rest, idxs_query)
-            query_set = Subset(self._thief_dataset, idxs_rest)
+            query_set = Subset(self._thief_dataset, idxs_query)
 
             # Step 2: Attacker queries current picked samples to secret
             # model for labeling
