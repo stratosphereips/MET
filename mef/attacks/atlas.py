@@ -81,14 +81,15 @@ class AtlasThief(Base):
         deterministic = self._trainer_kwargs["deterministic"]
         debug = self._trainer_kwargs["debug"]
         precision = self._trainer_kwargs["precision"]
-        trainer = get_trainer(gpus=gpus,
+        trainer = get_trainer(gpus=gpus, training_epochs=50,
                               save_loc=self._save_loc + "/correct-model",
                               deterministic=deterministic, debug=debug,
                               validation=False, precision=precision)
 
         correct_model = UncertaintyPredictor(train_set[0][0].shape[0])
         loss = nn.CrossEntropyLoss()
-        optimizer = torch.optim.SGD(correct_model.parameters(), lr=0.01)
+        optimizer = torch.optim.SGD(correct_model.parameters(), lr=0.01,
+                                    momentum=0.5)
         mef_model = MefModule(correct_model, 2, optimizer, loss)
 
         train_loader = DataLoader(train_set, batch_size=self._batch_size,
