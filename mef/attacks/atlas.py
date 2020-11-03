@@ -14,12 +14,13 @@ from mef.utils.pytorch.lighting.module import MefModule
 from mef.utils.pytorch.lighting.training import get_trainer
 
 
-class SimpleUncertaintyPredictor(pl.LightningModule):
+class UncertaintyPredictor(pl.LightningModule):
 
     def __init__(self, feature_vec_size):
         super().__init__()
-        self._model = nn.Sequential(nn.Linear(feature_vec_size, 2),
-                                    nn.ReLU(inplace=True))
+        self._model = nn.Sequential(nn.Linear(feature_vec_size, 128),
+                                    nn.ReLU(inplace=True),
+                                    nn.Linear(128, 2))
 
     @auto_move_data
     def forward(self, feature_vec):
@@ -85,7 +86,7 @@ class AtlasThief(Base):
                               deterministic=deterministic, debug=debug,
                               validation=False, precision=precision)
 
-        correct_model = SimpleUncertaintyPredictor(train_set[0][0].shape[0])
+        correct_model = UncertaintyPredictor(train_set[0][0].shape[0])
         loss = nn.CrossEntropyLoss()
         optimizer = torch.optim.SGD(correct_model.parameters(), lr=0.01)
         mef_model = MefModule(correct_model, 2, optimizer, loss)
