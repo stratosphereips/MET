@@ -57,10 +57,10 @@ class ActiveThief(Base):
                     "{random, entropy, k-center, dfal, dfal+k-center}")
             raise ValueError()
 
-    def _random_strategy(self, k, idxs_rest):
-        return np.random.permutation(idxs_rest)[:k]
+    def _random_strategy(self, k, data_rest):
+        return np.random.permutation(len(data_rest))[:k]
 
-    def _entropy_strategy(self, k, idxs_rest, data_rest):
+    def _entropy_strategy(self, k, data_rest):
         scores = []
         loader = DataLoader(data_rest, batch_size=self._batch_size,
                             num_workers=4)
@@ -72,10 +72,9 @@ class ActiveThief(Base):
 
             scores.append(normalized_entropy)
 
-        best = torch.topk(torch.cat(scores), k)
-        return idxs_rest[best.indices]
+        return torch.stack(scores).topk(k).indices.numpy()
 
-    def _kcenter_strategy(self, k, idxs_rest, data_rest, init_centers):
+    def _kcenter_strategy(self, k, data_rest, init_centers):
         data_rest_loader = DataLoader(data_rest, batch_size=self._batch_size,
                                       num_workers=4, pin_memory=True)
 
@@ -106,9 +105,9 @@ class ActiveThief(Base):
                                       data_rest.targets[sample_id][None, :]])
             selected_points.append(sample_id)
 
-        return idxs_rest[selected_points]
+        return np.array(selected_points)
 
-    def _deepfool_strategy(self, k, idxs_rest, data_rest):
+    def _deepfool_strategy(self, k, data_rest):
         self._substitute_model.eval()
 
         data_rest_loader = DataLoader(data_rest, batch_size=self._batch_size,
@@ -124,43 +123,36 @@ class ActiveThief(Base):
             for adv, orig in zip(x_adv, x):
                 scores.append(torch.dist(adv, orig))
 
-        best = torch.topk(torch.stack(scores), k)
-        return idxs_rest[best.indices]
+        return torch.stack(scores).topk(k).indices.numpy()
 
-    def _select_samples(self, idxs_rest, data_rest, query_sets):
+    def _select_samples(self, data_rest, query_sets):
         if self._selection_strategy == "entropy":
-            selected_samples = self._entropy_strategy(self._k, idxs_rest,
-                                                      data_rest)
+            selected_points = self._entropy_strategy(self._k, data_rest)
         elif self._selection_strategy == "random":
-            selected_samples = self._random_strategy(self._k, idxs_rest)
+            selected_points = self._random_strategy(self._k, data_rest)
         elif self._selection_strategy == "k-center":
             # Get initial centers
             init_centers = self._get_predictions(self._substitute_model,
                                                  query_sets)
-            selected_samples = self._kcenter_strategy(self._k, idxs_rest,
-                                                      data_rest,
-                                                      init_centers)
+            selected_points = self._kcenter_strategy(self._k, data_rest,
+                                                     init_centers)
         elif self._selection_strategy == "dfal":
-            selected_samples = self._deepfool_strategy(self._k, idxs_rest,
-                                                       data_rest)
+            selected_points = self._deepfool_strategy(self._k, data_rest)
         elif self._selection_strategy == "dfal+k-center":
-            idxs = np.arange(len(data_rest))
-            idxs_dfal_best = self._deepfool_strategy(self._budget, idxs,
-                                                     data_rest)
+            idxs_dfal_best = self._deepfool_strategy(self._budget, data_rest)
             y_dfal_best = data_rest.targets[idxs_dfal_best]
             # Get initial centers
             init_centers = self._get_predictions(self._substitute_model,
                                                  query_sets)
-            idxs_kcenter_best = self._kcenter_strategy(self._k, idxs_dfal_best,
-                                                       y_dfal_best,
+            idxs_kcenter_best = self._kcenter_strategy(self._k, y_dfal_best,
                                                        init_centers)
-            selected_samples = idxs_rest[idxs_kcenter_best]
+            selected_points = idxs_dfal_best[idxs_kcenter_best]
         else:
             self._logger.warning("Selection strategy must be one of {entropy, "
                                  "random, k-center, dfal, dfal+k-center}")
             raise ValueError
 
-        return selected_samples
+        return selected_points
 
     def run(self, *args, **kwargs):
         self._parse_args(args, kwargs)
@@ -263,9 +255,9 @@ class ActiveThief(Base):
             self._logger.info("Selecting {} samples using the {} strategy from"
                               " the remaining thief dataset"
                               .format(self._k, self._selection_strategy))
-
-            idxs_query = self._select_samples(idxs_rest, data_rest,
+            idxs_query = self._select_samples(data_rest,
                                               ConcatDataset(query_sets))
+            idxs_query = idxs_rest[idxs_query]
             idxs_rest = np.setdiff1d(idxs_rest, idxs_query)
             query_set = Subset(self._thief_dataset, idxs_query)
 
