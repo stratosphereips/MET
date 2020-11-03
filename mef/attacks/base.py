@@ -151,7 +151,7 @@ class Base:
                     loader)):
                 if return_all_layers:
                     y_pred, feature_vec = model(x, return_all_layers=True)
-                    hidden_layer_outputs.append(feature_vec.cpu())
+                    hidden_layer_outputs.append(feature_vec.detach().cpu())
                 else:
                     y_pred = model(x)
                 y_preds.append(y_pred.cpu())
