@@ -100,11 +100,9 @@ class AtlasThief(Base):
 
     def _get_atl_sample(self, k, correct_model, hidden_layer_data_rest):
         y_preds = self._get_predictions(correct_model, hidden_layer_data_rest)
+        probs_incorrect = y_preds.data[:, 0]
 
-        probs_incorrect = y_preds.data[:, 1]
-        best = torch.topk(probs_incorrect, k)
-
-        return best.indices
+        return probs_incorrect.topk(k).indices.numpy()
 
     def _atlas_strategy(self, data_rest, val_set):
         new_train_labels, new_train_data = self._get_train_set(val_set)
