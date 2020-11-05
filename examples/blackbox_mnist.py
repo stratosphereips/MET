@@ -107,5 +107,5 @@ if __name__ == "__main__":
     bb = BlackBox(victim_model, substitute_model, NUM_CLASSES, args.iterations,
                   args.lmbda, args.substitute_train_epochs, args.batch_size,
                   args.save_loc, args.gpus, args.seed, args.deterministic,
-                  args.debug)
+                  args.debug, args.precision, args.accuracy)
     bb.run(thief_dataset, test_set)

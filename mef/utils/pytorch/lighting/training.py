@@ -5,7 +5,7 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 def get_trainer(gpus=0, training_epochs=10, early_stop_tolerance=3,
                 evaluation_frequency=2, save_loc="./cache", debug=False,
                 iteration=None, deterministic=True, validation=True,
-                precision=32, accuracy=True):
+                precision=32, accuracy=False):
     # Prepare callbacks
     callbacks = None
     checkpoint_cb = False
@@ -30,9 +30,6 @@ def get_trainer(gpus=0, training_epochs=10, early_stop_tolerance=3,
                       deterministic=deterministic,
                       checkpoint_callback=checkpoint_cb,
                       callbacks=callbacks, fast_dev_run=debug,
-                      weights_summary=None,
-                      num_sanity_val_steps=2 if validation else 0,
-                      limit_val_batches=1 if validation else 0,
-                      precision=precision)
+                      weights_summary=None, precision=precision)
 
     return trainer

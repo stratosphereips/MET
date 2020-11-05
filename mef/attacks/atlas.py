@@ -34,7 +34,8 @@ class AtlasThief(Base):
                  training_epochs=1000, early_stop_tolerance=100,
                  evaluation_frequency=2, batch_size=64,
                  save_loc="./cache/AtlasThief", gpus=0, seed=None,
-                 deterministic=True, debug=False, precision=32):
+                 deterministic=True, debug=False, precision=32,
+                 accuracy=False):
         optimizer = torch.optim.Adam(substitute_model.parameters(),
                                      weight_decay=1e-3)
         loss = soft_cross_entropy
@@ -46,7 +47,7 @@ class AtlasThief(Base):
                          batch_size=batch_size, num_classes=num_classes,
                          save_loc=save_loc, gpus=gpus, seed=seed,
                          deterministic=deterministic, debug=debug,
-                         precision=precision)
+                         precision=precision, accuracy=accuracy)
 
         # AtlasThief's specific attributes
         self._iterations = iterations

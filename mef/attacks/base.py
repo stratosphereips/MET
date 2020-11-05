@@ -18,7 +18,8 @@ class Base:
                  early_stop_tolerance=10, evaluation_frequency=2,
                  val_size=0.2, batch_size=64, num_classes=None,
                  save_loc="./cache", validation=True, gpus=0, seed=None,
-                 deterministic=True, debug=False, precision=32):
+                 deterministic=True, debug=False, precision=32,
+                 accuracy=False):
         # Mef set up
         self._gpus = gpus
         self._save_loc = save_loc
@@ -56,7 +57,8 @@ class Base:
                 debug=debug,
                 deterministic=deterministic,
                 validation=validation,
-                precision=precision
+                precision=precision,
+                accuracy=accuracy
         )
 
     def _train_model(self, model, optimizer, train_set, val_set=None,
@@ -76,8 +78,7 @@ class Base:
         trainer_kwargs = self._trainer_kwargs.copy()
         if training_epochs is not None:
             trainer_kwargs["training_epochs"] = training_epochs
-        trainer = get_trainer(**trainer_kwargs, iteration=iteration,
-                              accuracy=False)
+        trainer = get_trainer(**trainer_kwargs, iteration=iteration)
 
         mef_model = MefModule(model, self._num_classes, optimizer, self._loss,
                               lr_scheduler)

@@ -18,7 +18,8 @@ class KnockOff(Base):
                  sampling_strategy="adaptive", reward_type="cert",
                  output_type="softmax", budget=10000, training_epochs=100,
                  batch_size=64, save_loc="./cache/knockoff", gpus=0, seed=None,
-                 deterministic=True, debug=False, precision=32):
+                 deterministic=True, debug=False, precision=32,
+                 accuracy=False):
         optimizer = torch.optim.SGD(substitute_model.parameters(), lr=0.01,
                                     momentum=0.5)
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
@@ -30,7 +31,7 @@ class KnockOff(Base):
                          batch_size=batch_size, num_classes=num_classes,
                          save_loc=save_loc, validation=False, gpus=gpus,
                          seed=seed, deterministic=deterministic, debug=debug,
-                         precision=precision)
+                         precision=precision, accuracy=accuracy)
 
         # KnockOff's specific attributes
         self._online_optimizer = torch.optim.SGD(

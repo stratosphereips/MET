@@ -106,8 +106,8 @@ if __name__ == "__main__":
     victim_model, substitute_model, sub_dataset, test_set = set_up(args)
 
     ko = KnockOff(victim_model, substitute_model, NUM_CLASSES,
-                  args.sampling_strategy, args.reward_type,
-                  args.output_type, args.budget, args.training_epochs,
-                  args.batch_size, args.save_loc, args.gpus, args.seed,
-                  args.deterministic, args.debug)
+                  args.sampling_strategy, args.reward_type, args.output_type,
+                  args.budget, args.training_epochs, args.batch_size,
+                  args.save_loc, args.gpus, args.seed, args.deterministic,
+                  args.debug)
     ko.run(sub_dataset, test_set)

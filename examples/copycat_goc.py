@@ -191,6 +191,7 @@ if __name__ == "__main__":
     copycat = CopyCat(victim_model, substitute_model, NUM_CLASSES,
                       args.substitute_train_epochs, args.early_stop_tolerance,
                       args.evaluation_frequency, args.val_size,
-                      args.batch_size, args.save_loc, args.gpus,
-                      args.seed, args.deterministic, args.debug)
+                      args.batch_size, args.save_loc, args.gpus, args.seed,
+                      args.deterministic, args.debug, args.precision,
+                      args.accuracy)
     copycat.run(thief_dataset, test_set)

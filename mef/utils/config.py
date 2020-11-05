@@ -28,6 +28,28 @@ def add_activethief_arguments(parser):
     return
 
 
+def add_atlasthief_arguments(parser):
+    parser.add_argument("--iterations", default=10, type=int,
+                        help="Number of iterations of the attacks (Default: "
+                             "10)")
+    parser.add_argument("--output_type", default="softmax", type=str,
+                        help="Type of output from victim model {softmax, "
+                             "logits, one_hot} (Default: softmax)")
+    parser.add_argument("--budget", default=20000, type=int,
+                        help="Size of the budget (Default: 20000)")
+    parser.add_argument("--seed", default=0, type=int,
+                        help="Random seed to be used (Default: 0)")
+    parser.add_argument("--substitute_train_epochs", default=1000, type=int,
+                        help="Number of training epochs for substitute model "
+                             "(Default: 100)")
+    parser.add_argument("--early_stop_tolerance", default=100, type=int,
+                        help="Number of epochs without improvement for early "
+                             "stop (Default: 10)")
+    parser.add_argument("--evaluation_frequency", default=1, type=int,
+                        help="Epochs interval of validation (Default: 1)")
+    return
+
+
 def add_knockoff_arguments(parser):
     parser.add_argument("--sampling_strategy", default="adaptive",
                         type=str, help="KnockOff-Nets sampling strategy can "
@@ -69,6 +91,7 @@ def add_copycat_arguments(parser):
 
     return
 
+
 def add_blackbox_arguments(parser):
     parser.add_argument("--iterations", default=6, type=int,
                         help="Number of iterations of the attacks (Default: "
@@ -91,6 +114,8 @@ def get_attack_parser(description, attack_type):
     attack_type = attack_type.lower()
     if attack_type == "activethief":
         add_activethief_arguments(parser)
+    elif attack_type == "atlasthief":
+        add_atlasthief_arguments(parser)
     elif attack_type == "knockoff":
         add_knockoff_arguments(parser)
     elif attack_type == "copycat":
@@ -115,5 +140,9 @@ def get_attack_parser(description, attack_type):
     parser.add_argument("--precision", default=32, type=int,
                         help="Precision of caluclation in bits must be one "
                              "of {16, 32} (Default: 32)")
+    parser.add_argument("--accuracy", action="store_true",
+                        help="If accuracy should be used as metric for early "
+                             "stopping. If False F1-macro is used instead. ("
+                             "Default: False)")
 
     return parser

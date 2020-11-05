@@ -69,10 +69,10 @@ def set_up(args):
     imagenet_train = ImageNet1000(root=args.imagenet_dir,
                                   size=IMAGENET_TRAIN_SIZE,
                                   transform=transform, seed=args.seed)
-    imagenet_test = ImageNet1000(root=args.imagenet_dir, train=False,
-                                 size=IMAGENET_VAL_SIZE, transform=transform,
-                                 seed=args.seed)
-    thief_dataset = ConcatDataset([imagenet_train, imagenet_test])
+    imagenet_val = ImageNet1000(root=args.imagenet_dir, train=False,
+                                size=IMAGENET_VAL_SIZE, transform=transform,
+                                seed=args.seed)
+    thief_dataset = ConcatDataset([imagenet_train, imagenet_val])
 
     try:
         saved_model = torch.load(args.save_loc +
@@ -118,6 +118,7 @@ if __name__ == "__main__":
                      args.output_type, args.budget,
                      args.substitute_train_epochs, args.early_stop_tolerance,
                      args.evaluation_frequency, args.batch_size, args.save_loc,
-                     args.gpus, args.seed, args.deterministic, args.debug)
+                     args.gpus, args.seed, args.deterministic, args.debug,
+                     args.precision, args.accuracy)
 
     af.run(thief_dataset, test_set)
