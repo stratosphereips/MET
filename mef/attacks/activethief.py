@@ -43,12 +43,7 @@ class ActiveThief(Base):
         self._init_seed_size = int(self._budget * 0.1)
         self._val_size = int(self._budget * 0.2)
         self._k = (self._budget - self._val_size - self._init_seed_size) // \
-                  self._iterations
-
-        if self._k <= 0:
-            self._logger.error("ActiveThief's per iteration selection must "
-                               "be bigger than 0!")
-            raise ValueError()
+                  (self._iterations + 1)
 
         # Check configuration
         if self._selection_strategy not in ["random", "entropy", "k-center",
