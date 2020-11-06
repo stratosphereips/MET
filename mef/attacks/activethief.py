@@ -233,9 +233,11 @@ class ActiveThief(Base):
 
             self._get_aggreement_score()
 
+            if (it + 1) == (self._iterations + 1):
+                break
+
             # Step 4: Approximate labels are obtained for remaining samples
             # using the substitute
-
             data_rest = Subset(self._thief_dataset, idxs_rest)
             y_rest = None
             if self._selection_strategy not in {"random", "dfal"}:
