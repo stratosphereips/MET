@@ -43,7 +43,7 @@ class ActiveThief(Base):
         self._init_seed_size = int(self._budget * 0.1)
         self._val_size = int(self._budget * 0.2)
         self._k = (self._budget - self._val_size - self._init_seed_size) // \
-                  (self._iterations + 1)
+                  self._iterations
 
         # Check configuration
         if self._selection_strategy not in ["random", "entropy", "k-center",
