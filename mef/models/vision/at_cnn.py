@@ -30,14 +30,17 @@ class AtCnn(Base):
         self.eval()
         test_out = self._convs(test_input)
         num_features = test_out.size(1) * test_out.size(2) * test_out.size(3)
-        self._fcs = self._build_fcs(num_features)
-
+        self._fcs, self._fc_final = self._build_fcs(num_features)
 
     @auto_move_data
     def forward(self, x, return_all_layers=False):
         features = self._convs(x)
         features = features.view(features.size(0), -1)
-        y = self._fcs(features)
+
+        if len(self._fc_layers) != 0:
+            features = self._fcs(features)
+
+        y = self._fc_final(features)
 
         if return_all_layers:
             return y, features
@@ -74,7 +77,6 @@ class AtCnn(Base):
 
         return convs
 
-
     def _build_fcs(self, num_features):
         fcs = []
         for idx, num_neurons in enumerate(self._fc_layers):
@@ -83,9 +85,8 @@ class AtCnn(Base):
             else:
                 fcs.append(nn.Linear(num_features, num_neurons))
 
+        fc_final = nn.Linear(num_features, self._num_classes)
         if len(self._fc_layers) != 0:
-            fcs.append(nn.Linear(self._fc_layers[-1], self._num_classes))
-        else:
-            fcs.append(nn.Linear(num_features, self._num_classes))
+            fc_final = nn.Linear(self._fc_layers[-1], self._num_classes)
 
-        return nn.Sequential(*fcs)
+        return nn.Sequential(*fcs), fc_final
