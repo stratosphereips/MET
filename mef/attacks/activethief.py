@@ -256,7 +256,7 @@ class ActiveThief(Base):
                               .format(self._k, self._selection_strategy))
             idxs_query = self._select_samples(data_rest,
                                               ConcatDataset(query_sets))
-            idxs_query = idxs_rest[idxs_query]
+            idxs_query = idxs_rest[np.unique(idxs_query)]
             idxs_rest = np.setdiff1d(idxs_rest, idxs_query)
             query_set = Subset(self._thief_dataset, idxs_query)
 
