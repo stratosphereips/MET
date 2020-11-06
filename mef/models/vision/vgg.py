@@ -15,10 +15,6 @@ VGG_TYPES = {"vgg_11": torchvision.models.vgg11,
 
 
 class Vgg(Base):
-    """
-    Vgg model architecture using pytorch pretrained models with modifiable
-    input size.
-    """
 
     def __init__(self, vgg_type, num_classes, feature_extraction=False):
         super().__init__(num_classes, feature_extraction)
@@ -29,16 +25,23 @@ class Vgg(Base):
         # Load convolutional part of vgg
         vgg_loader = VGG_TYPES[vgg_type]
         self._vgg = vgg_loader(pretrained=True)
+        self._set_parameter_requires_grad(self._vgg,
+                                          self._feature_extraction)
 
         if num_classes != 1000:
-            self._set_parameter_requires_grad(self._vgg,
-                                              self._feature_extraction)
-
             in_features = self._vgg.classifier[6].in_features
             self._vgg.classifier[6] = nn.Linear(in_features=in_features,
                                                 out_features=num_classes)
 
     @auto_move_data
-    def forward(self, x):
-        logits = self._vgg(x)
+    def forward(self, x, return_all_layers=False):
+        modulelist = list(self._vgg.features.modules())
+        for layer in modulelist[:-1]:
+            x = layer(x)
+        hidden = x
+        logits = modulelist[-1](x)
+
+        if return_all_layers:
+            return logits, hidden
+
         return logits

@@ -32,16 +32,20 @@ class SimpleNet(Base):
         self._fc_final = nn.Linear(num_features, num_classes)
 
     @auto_move_data
-    def forward(self, x):
+    def forward(self, x, return_all_layers=False):
         x = self._layers(x)
 
         # Global Max Pooling
         x = self._pool(x)
         x = self._drop(x)
 
-        x = x.view(x.size(0), -1)
-        x = self._fc_final(x)
-        return x
+        hidden = x.view(x.size(0), -1)
+        logits = self._fc_final(hidden)
+
+        if return_all_layers:
+            return logits, hidden
+
+        return logits
 
     def _make_layers(self, channels):
 

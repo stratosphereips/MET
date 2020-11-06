@@ -12,10 +12,6 @@ RESNET_TYPES = {"resnet_18": torchvision.models.resnet18,
 
 
 class ResNet(Base):
-    """
-    Vgg model architecture using pytorch pretrained models with modifiable
-    input size.
-    """
 
     def __init__(self, resnet_type, num_classes, feature_extraction=False):
         super().__init__(num_classes, feature_extraction)
@@ -33,6 +29,14 @@ class ResNet(Base):
                                     out_features=num_classes)
 
     @auto_move_data
-    def forward(self, x):
-        x = self._resnet(x)
-        return x
+    def forward(self, x, return_all_layers=False):
+        modulelist = list(self._resnet.features.modules())
+        for layer in modulelist[:-1]:
+            x = layer(x)
+        hidden = x
+        logits = modulelist[-1](x)
+
+        if return_all_layers:
+            return logits, hidden
+
+        return logits

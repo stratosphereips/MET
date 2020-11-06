@@ -34,18 +34,18 @@ class AtCnn(Base):
 
     @auto_move_data
     def forward(self, x, return_all_layers=False):
-        features = self._convs(x)
-        features = features.view(features.size(0), -1)
+        hidden = self._convs(x)
+        hidden = hidden.view(hidden.size(0), -1)
 
         if len(self._fc_layers) != 0:
-            features = self._fcs(features)
+            hidden = self._fcs(hidden)
 
-        y = self._fc_final(features)
+        logits = self._fc_final(hidden)
 
         if return_all_layers:
-            return y, features
+            return logits, hidden
 
-        return y
+        return logits
 
     def _build_convs(self):
         convs = []
