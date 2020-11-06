@@ -68,7 +68,7 @@ class ActiveThief(Base):
 
             scores.append(normalized_entropy)
 
-        return torch.stack(scores).topk(k).indices.numpy()
+        return torch.cat(scores).topk(k).indices.numpy()
 
     def _kcenter_strategy(self, k, data_rest, init_centers):
         data_rest_loader = DataLoader(data_rest, batch_size=self._batch_size,
