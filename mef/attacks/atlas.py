@@ -193,8 +193,9 @@ class AtlasThief(Base):
         sub_orig_state_dict = self._substitute_model.state_dict()
         optim_orig_state_dict = self._optimizer.state_dict()
 
-        for it in range(1, self._iterations + 1):
-            self._logger.info("---------- Iteration: {} ----------".format(it))
+        for it in range(self._iterations + 1):
+            self._logger.info("---------- Iteration: {} ----------".format(
+                    it + 1))
 
             # Get metrics from victim model and substitute model
             self._logger.info("Getting substitute model's metrics for test "
@@ -217,9 +218,12 @@ class AtlasThief(Base):
                     "Training substitute model with the query dataset")
             train_set = ConcatDataset(query_sets)
             self._train_model(self._substitute_model, self._optimizer,
-                              train_set, val_set, it)
+                              train_set, val_set, it + 1)
 
             self._get_aggreement_score()
+
+            if (it + 1) == (self._iterations + 1):
+                break
 
             # Step 4: An Atlas subset selection strategy is used
             # to select set of k samples

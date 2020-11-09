@@ -245,8 +245,6 @@ class ActiveThief(Base):
                                   "rest of the thief dataset")
                 y_rest = self._get_predictions(self._substitute_model,
                                                data_rest)
-
-            if y_rest is not None:
                 data_rest = CustomLabelDataset(data_rest, y_rest)
 
             # Step 5: An active learning subset selection strategy is used
