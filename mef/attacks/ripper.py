@@ -9,7 +9,6 @@ class Ripper(Base):
     def __init__(self, victim_model, substitute_model, generator,
                  latent_dim, greyscale=False, generated_data="random",
                  budget=20000, output_type="softmax", training_epochs=1000,
-                 early_stop_tolerance=100, evaluation_frequency=2,
                  batch_size=64, save_loc="./cache/ripper", gpus=0, seed=None,
                  deterministic=True, debug=False, precision=32,
                  accuracy=False):
@@ -18,8 +17,6 @@ class Ripper(Base):
 
         super().__init__(victim_model, substitute_model, optimizer, loss,
                          training_epochs=training_epochs,
-                         early_stop_tolerance=early_stop_tolerance,
-                         evaluation_frequency=evaluation_frequency,
                          batch_size=batch_size, save_loc=save_loc,
                          validation=False, gpus=gpus, seed=seed,
                          deterministic=deterministic, debug=debug,
