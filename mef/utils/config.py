@@ -15,8 +15,6 @@ def add_activethief_arguments(parser):
                              "logits, one_hot} (Default: softmax)")
     parser.add_argument("--budget", default=20000, type=int,
                         help="Size of the budget (Default: 20000)")
-    parser.add_argument("--seed", default=0, type=int,
-                        help="Random seed to be used (Default: 0)")
     parser.add_argument("--substitute_train_epochs", default=1000, type=int,
                         help="Number of training epochs for substitute model "
                              "(Default: 100)")
@@ -37,8 +35,6 @@ def add_atlasthief_arguments(parser):
                              "logits, one_hot} (Default: softmax)")
     parser.add_argument("--budget", default=20000, type=int,
                         help="Size of the budget (Default: 20000)")
-    parser.add_argument("--seed", default=0, type=int,
-                        help="Random seed to be used (Default: 0)")
     parser.add_argument("--substitute_train_epochs", default=1000, type=int,
                         help="Number of training epochs for substitute model "
                              "(Default: 100)")
@@ -60,11 +56,9 @@ def add_knockoff_arguments(parser):
                              "one of {cert, div, loss, all} (Default: all)")
     parser.add_argument("--output_type", default="softmax", type=str,
                         help="Type of output from victim model {softmax, "
-                             "logits, one_hot} (Default: softmax)")
+                             "logits, one_hot, labels} (Default: softmax)")
     parser.add_argument("--budget", default=20000, type=int,
                         help="Size of the budget (Default: 20000)")
-    parser.add_argument("--seed", default=0, type=int,
-                        help="Random seed to be used (Default: 0)")
     parser.add_argument("--substitute_train_epochs", default=100, type=int,
                         help="Number of training epochs for substitute model "
                              "(Default: 100)")
@@ -76,8 +70,6 @@ def add_knockoff_arguments(parser):
 
 
 def add_copycat_arguments(parser):
-    parser.add_argument("--seed", default=0, type=int,
-                        help="Random seed to be used (Default: 0)")
     parser.add_argument("--substitute_train_epochs", default=1000, type=int,
                         help="Number of training epochs for substitute model "
                              "(Default: 100)")
@@ -99,8 +91,19 @@ def add_blackbox_arguments(parser):
     parser.add_argument("--lmbda", default=0.1, type=float,
                         help="Value of lambda in Jacobian augmentation ("
                              "Default: 0.1)")
-    parser.add_argument("--seed", default=0, type=int,
-                        help="Random seed to be used (Default: 0)")
+    parser.add_argument("--substitute_train_epochs", default=10, type=int,
+                        help="Number of training epochs for substitute model "
+                             "(Default: 100)")
+
+    return
+
+def add_ripper_arguments(parser):
+    parser.add_argument("--generated_data", default="random", type=str,
+                        help="Type of generated data from generator. Can be "
+                             "one of {random, optimized} (Default: random)")
+    parser.add_argument("--output_type", default="label", type=str,
+                        help="Type of output from victim model {softmax, "
+                             "logits, one_hot, labels} (Default: label)")
     parser.add_argument("--substitute_train_epochs", default=10, type=int,
                         help="Number of training epochs for substitute model "
                              "(Default: 100)")
@@ -122,10 +125,14 @@ def get_attack_parser(description, attack_type):
         add_copycat_arguments(parser)
     elif attack_type == "blackbox":
         add_blackbox_arguments(parser)
+    elif attack_type == "ripper":
+        add_ripper_arguments(parser)
     else:
         raise ValueError("type must be one of {activethief, knockoff, "
-                         "copycat, blackbox}")
+                         "copycat, blackbox, ripper}")
 
+    parser.add_argument("--seed", default=0, type=int,
+                        help="Random seed to be used (Default: 0)")
     parser.add_argument("--batch_size", type=int, default=64,
                         help="Batch size to be used (Default: 64)")
     parser.add_argument("--save_loc", type=str, default="./cache/",

@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from pytorch_lightning import seed_everything
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, IterableDataset
 from tqdm import tqdm
 
 from mef.utils.logger import set_up_logger
@@ -71,6 +71,9 @@ class Base:
                                       num_workers=4, shuffle=True,
                                       batch_size=self._batch_size,
                                       worker_init_fn=worker_init_fn)
+        if isinstance(train_set, IterableDataset):
+            train_dataloader = DataLoader(dataset=train_set)
+
         val_dataloader = None
         if val_set is not None:
             val_dataloader = DataLoader(dataset=val_set, pin_memory=True,
@@ -295,6 +298,13 @@ class Base:
                     "x_sub, y_sub, x_test, y_test), (x_test, y_test) or "
                     "Pytorch datasets (sub_dataset, test_set), (test_set)")
             exit()
+        return
+
+    def _finalize_attack(self):
+        self._logger.info("########### Final attack metrics ###########")
+        self._get_test_set_metrics()
+        self._get_aggreement_score()
+        self._save_final_subsitute()
         return
 
     def run(self, *args, **kwargs):

@@ -93,11 +93,11 @@ class AugmentationDataset(Dataset):
 
 
 class GeneratorRandomDataset(IterableDataset):
-    def __init__(self, victim_model, generator, encoding_size, batch_size=64,
+    def __init__(self, victim_model, generator, latent_dim, batch_size=64,
                  output_type="softmax", greyscale="False"):
         self._victim_model = victim_model
         self._generator = generator
-        self._encoding_size = encoding_size
+        self._latent_dim = latent_dim
         self._output_type = output_type
         self._greyscale = greyscale
         self._batch_size = batch_size
