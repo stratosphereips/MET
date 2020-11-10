@@ -242,7 +242,8 @@ class ActiveThief(Base):
             # Step 4: Approximate labels are obtained for remaining samples
             # using the substitute
             data_rest = Subset(self._thief_dataset, idxs_rest)
-            y_rest = None
+            # Random and dfal strategies dont require predictions for the rest
+            # of thief dataset
             if self._selection_strategy not in {"random", "dfal"}:
                 self._logger.info("Getting substitute's predictions for the "
                                   "rest of the thief dataset")

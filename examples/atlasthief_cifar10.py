@@ -26,7 +26,7 @@ NUM_CLASSES = 10
 
 
 def activethief_parse_args():
-    description = "AtlasThief model extraction attack - Mnist example"
+    description = "AtlasThief model extraction attack - Cifar10 example"
     parser = get_attack_parser(description, "atlasthief")
 
     parser.add_argument("--cifar10_dir", default="./data/", type=str,
@@ -98,7 +98,7 @@ def set_up(args):
                               evaluation_frequency=args.evaluation_frequency,
                               early_stop_tolerance=args.early_stop_tolerance,
                               save_loc=args.save_loc + "/victim/",
-                              precision=args.precision, debug=True)
+                              precision=args.precision)
         trainer.fit(mef_model, train_dataloader, val_dataloader)
 
         torch.save(dict(state_dict=victim_model.state_dict()),

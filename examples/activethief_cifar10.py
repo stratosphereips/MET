@@ -19,14 +19,12 @@ from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.lighting.module import MefModule
 from mef.utils.pytorch.lighting.training import get_trainer
 
-IMAGENET_TRAIN_SIZE = 100000
-IMAGENET_VAL_SIZE = 50000
 DIMS = (3, 32, 32)
 NUM_CLASSES = 10
 
 
 def activethief_parse_args():
-    description = "Activethief model extraction attack - Mnist example"
+    description = "Activethief model extraction attack - Cifar10 example"
     parser = get_attack_parser(description, "activethief")
 
     parser.add_argument("--cifar10_dir", default="./data/", type=str,
