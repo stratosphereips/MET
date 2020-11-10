@@ -1,5 +1,7 @@
+import numpy as np
 import torch
-from torch.utils.data import Dataset, random_split
+import torch.nn.functional as F
+from torch.utils.data import Dataset, IterableDataset, random_split
 
 
 def split_dataset(dataset, split_size):
@@ -88,3 +90,45 @@ class AugmentationDataset(Dataset):
 
     def __len__(self):
         return len(self.data)
+
+
+class GeneratorRandomDataset(IterableDataset):
+    def __init__(self, victim_model, generator, encoding_size, batch_size=64,
+                 output_type="softmax", greyscale="False"):
+        self._victim_model = victim_model
+        self._generator = generator
+        self._encoding_size = encoding_size
+        self._output_type = output_type
+        self._greyscale = greyscale
+        self._batch_size = batch_size
+
+    def __iter__(self):
+        for _ in range(1000):
+            images = self._generator(torch.Tensor(
+                    np.random.uniform(-3.3, 3.3, size=(self._batch_size,
+                                                       self._encoding_size))))
+
+            if self._greyscale:
+                multipliers = [.2126, .7152, .0722]
+                multipliers = np.expand_dims(multipliers, 0)
+                multipliers = np.expand_dims(multipliers, -1)
+                multipliers = np.expand_dims(multipliers, -1)
+                multipliers = np.tile(multipliers, [1, 1, 32, 32])
+                multipliers = torch.Tensor(multipliers)
+                images = images * multipliers
+                images = images.sum(axis=1, keepdims=True)
+
+            with torch.no_grad():
+                y_preds = self._victim_model(images)
+                if self._output_type == "one_hot":
+                    labels = F.one_hot(torch.argmax(y_preds, dim=-1),
+                                       num_classes=y_preds.size()[1])
+                    # to_oneshot returns tensor with uint8 type
+                    labels = labels.float()
+                elif self._output_type == "softmax":
+                    labels = F.softmax(y_preds, dim=-1)
+                elif self._output_type == "labels":
+                    labels = torch.argmax(y_preds, dim=-1)
+                else:
+                    labels = y_preds
+            yield images, labels

@@ -38,7 +38,7 @@ class KnockOff(Base):
                 self._substitute_model.parameters(), lr=0.0005, momentum=0.5)
         self._sampling_strategy = sampling_strategy.lower()
         self._reward_type = reward_type.lower()
-        self._output_type = output_type
+        self._output_type = output_type.lower()
         self._budget = budget
         self._k = 4
         self._iterations = self._budget // self._k

@@ -23,7 +23,6 @@ class Base:
         # Mef set up
         self._gpus = gpus
         self._save_loc = save_loc
-        seed_everything(seed)
         self._logger = set_up_logger("Mef", "debug" if debug else "info",
                                      self._save_loc)
 
@@ -60,6 +59,10 @@ class Base:
                 precision=precision,
                 accuracy=accuracy
         )
+
+        # Set up random generators and pytorch to be deterministic
+        seed_everything(seed)
+        torch.set_deterministic(deterministic)
 
     def _train_model(self, model, optimizer, train_set, val_set=None,
                      iteration=None, worker_init_fn=None,
@@ -116,10 +119,10 @@ class Base:
         # Agreement score
         vict_test_labels = self._get_predictions(self._victim_model,
                                                  self._test_set)
-        vict_test_labels = torch.argmax(vict_test_labels, dim=1).numpy()
+        vict_test_labels = torch.argmax(vict_test_labels, dim=-1).numpy()
         sub_test_labels = self._get_predictions(self._substitute_model,
                                                 self._test_set)
-        sub_test_labels = torch.argmax(sub_test_labels, dim=1).numpy()
+        sub_test_labels = torch.argmax(sub_test_labels, dim=-1).numpy()
 
         agreement_count = np.sum(vict_test_labels == sub_test_labels)
         self._logger.info("Agreement count: {}".format(agreement_count))
@@ -142,6 +145,12 @@ class Base:
 
     def _get_predictions(self, model, data, output_type="softmax",
                          return_all_layers=False):
+        if output_type not in ["one_hot", "softmax", "logits", "label"]:
+            self._logger.error(
+                    "Output_type must be one of {one_hot, softmax, logits, "
+                    "label}")
+            raise ValueError()
+
         model.eval()
         loader = DataLoader(data, pin_memory=True, num_workers=4,
                             batch_size=self._batch_size)
@@ -162,19 +171,16 @@ class Base:
             hidden_layer_outputs = torch.cat(hidden_layer_outputs)
 
         if output_type == "one_hot":
-            y_hat = F.one_hot(torch.argmax(y_preds, dim=1),
-                              num_classes=y_preds.size()[1])
+            y_hat = F.one_hot(torch.argmax(y_preds, dim=-1),
+                              num_classes=y_preds.size()[-1])
             # to_oneshot returns tensor with uint8 type
             y_hat = y_hat.float()
         elif output_type == "softmax":
-            y_hat = F.softmax(y_preds, dim=1)
-        elif output_type == "logits":
-            y_hat = y_preds
+            y_hat = F.softmax(y_preds, dim=-1)
+        elif output_type == "labels":
+            y_hat = torch.argmax(y_preds, dim=-1)
         else:
-            self._logger.error(
-                    "Model output type must be one of {one_hot, softmax, "
-                    "labels, logits}")
-            raise ValueError()
+            y_hat = y_preds
 
         if return_all_layers:
             return y_hat, hidden_layer_outputs
@@ -191,6 +197,7 @@ class Base:
                 else:
                     self._thief_dataset = CustomDataset(args[0], args[1])
                     self._test_set = CustomDataset(args[2], args[3])
+                    return
             elif len(kwargs) == 4:
                 for _, value in kwargs.items():
                     if not isinstance(value, np.ndarray):
@@ -213,18 +220,29 @@ class Base:
                                                         kwargs["y_sub"])
                     self._test_set = CustomDataset(kwargs["x_test"],
                                                    kwargs["y_test"])
-            # Pytorch input (sub_dataset, test_set)
+                    return
             elif len(args) == 2:
+                # Pytorch input (sub_dataset, test_set)
                 for arg in args:
                     if not isinstance(arg, torch.utils.data.Dataset):
-                        raise TypeError()
+                        break
                 else:
                     self._thief_dataset = args[0]
                     self._test_set = args[1]
+                    return
+                # Pytorch input (x_test, y_test)
+                for arg in args:
+                    if not isinstance(arg, np.ndarray):
+                        break
+                else:
+                    self._thief_dataset = CustomDataset(args[0], args[1])
+                    return
+                TypeError()
             elif len(kwargs) == 2:
+                # Pytorch input (sub_dataset, test_set)
                 for _, value in kwargs.items():
                     if not isinstance(value, torch.utils.data.Dataset):
-                        raise TypeError()
+                        break
                 else:
                     if "sub_dataset" not in kwargs:
                         self._logger.error(
@@ -237,11 +255,45 @@ class Base:
 
                     self._thief_dataset = kwargs["sub_dataset"]
                     self._test_set = kwargs["test_set"]
+                    return
+                # Pytorch input (x_test, y_test)
+                for _, value in kwargs.items():
+                    if not isinstance(value, np.ndarray):
+                        break
+                else:
+                    if "x_test" not in kwargs:
+                        self._logger.error(
+                                "x_test input argument is missing")
+                        raise ValueError()
+                    if "y_test" not in kwargs:
+                        self._logger.error(
+                                "y_test input argument is missing")
+                        raise ValueError()
+
+                    self._test_set = CustomDataset(kwargs["x_test"],
+                                                   kwargs["y_test"])
+                    return
+                TypeError()
+            elif len(args) == 1:
+                if not isinstance(args[0], torch.utils.data.Dataset):
+                    TypeError()
+                self._test_set = args[0]
+            elif len(kwargs) == 1:
+                if not isinstance(kwargs["test_set"],
+                                  torch.utils.data.Dataset):
+                    TypeError()
+                if "test_set" not in kwargs:
+                    self._logger.error(
+                            "test_set input argument is missing")
+                    raise ValueError()
+                self._test_set = kwargs["test_set"]
+        # Pytorch input (test_set)
+
         except ValueError or TypeError:
             self._logger.error(
                     "Input arguments for attack must be either numpy arrays ("
-                    "x_sub, y_sub, x_test, y_test) or Pytorch datasets ("
-                    "sub_dataset, test_set)")
+                    "x_sub, y_sub, x_test, y_test), (x_test, y_test) or "
+                    "Pytorch datasets (sub_dataset, test_set), (test_set)")
             exit()
         return
 

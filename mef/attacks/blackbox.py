@@ -93,10 +93,10 @@ class BlackBox(Base):
                                                           self._lmbda)
 
                 self._logger.info("Labeling substitute training data")
-                y_query_set = self._get_predictions(self._victim_model,
-                                                    NoYDataset(x_query_set))
                 # Adversary has access only to labels
-                y_query_set = torch.argmax(y_query_set, dim=1)
+                y_query_set = self._get_predictions(self._victim_model,
+                                                    NoYDataset(x_query_set),
+                                                    "labels")
                 query_sets.append(CustomDataset(x_query_set, y_query_set))
 
         self._get_test_set_metrics()

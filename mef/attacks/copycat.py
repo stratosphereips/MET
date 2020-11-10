@@ -36,8 +36,8 @@ class CopyCat(Base):
         # Get stolen labels from victim model
         self._logger.info("Getting stolen labels")
         stolen_labels = self._get_predictions(self._victim_model,
-                                              self._thief_dataset)
-        stolen_labels = torch.argmax(stolen_labels, dim=1)
+                                              self._thief_dataset,
+                                              "labels")
 
         synthetic_dataset = CustomLabelDataset(self._thief_dataset,
                                                stolen_labels)

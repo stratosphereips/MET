@@ -51,7 +51,7 @@ class AtlasThief(Base):
 
         # AtlasThief's specific attributes
         self._iterations = iterations
-        self._output_type = output_type
+        self._output_type = output_type.lower()
         self._budget = budget
         # Values from paper
         self._init_seed_size = int(self._budget * 0.1)

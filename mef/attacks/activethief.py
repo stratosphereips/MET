@@ -37,7 +37,7 @@ class ActiveThief(Base):
         # ActiveThief's specific attributes
         self._iterations = iterations
         self._selection_strategy = selection_strategy.lower()
-        self._output_type = output_type
+        self._output_type = output_type.lower()
         self._budget = budget
         # Values from paper
         self._init_seed_size = int(self._budget * 0.1)
@@ -231,10 +231,13 @@ class ActiveThief(Base):
             self._train_model(self._substitute_model, self._optimizer,
                               train_set, val_set, it + 1)
 
-            self._get_aggreement_score()
-
             if (it + 1) == (self._iterations + 1):
+                self._get_aggreement_score()
+                self._get_test_set_metrics()
+                self._save_final_subsitute()
                 break
+
+            self._get_aggreement_score()
 
             # Step 4: Approximate labels are obtained for remaining samples
             # using the substitute
@@ -265,9 +268,5 @@ class ActiveThief(Base):
             y_query = self._get_predictions(self._victim_model, query_set,
                                             self._output_type)
             query_sets.append(CustomLabelDataset(query_set, y_query))
-
-        self._get_test_set_metrics()
-        self._get_aggreement_score()
-        self._save_final_subsitute()
 
         return
