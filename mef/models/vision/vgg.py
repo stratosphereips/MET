@@ -2,7 +2,7 @@ import torch.nn as nn
 import torchvision
 from pytorch_lightning.core.decorators import auto_move_data
 
-from mef.models.base import Base
+from mef.models.vision.base import Base
 
 VGG_TYPES = {"vgg_11": torchvision.models.vgg11,
              "vgg_11_bn": torchvision.models.vgg11_bn,
