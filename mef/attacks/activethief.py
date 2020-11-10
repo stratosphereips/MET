@@ -232,9 +232,7 @@ class ActiveThief(Base):
                               train_set, val_set, it + 1)
 
             if (it + 1) == (self._iterations + 1):
-                self._get_aggreement_score()
-                self._get_test_set_metrics()
-                self._save_final_subsitute()
+                self._finalize_attack()
                 break
 
             self._get_aggreement_score()

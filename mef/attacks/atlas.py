@@ -220,10 +220,11 @@ class AtlasThief(Base):
             self._train_model(self._substitute_model, self._optimizer,
                               train_set, val_set, it + 1)
 
-            self._get_aggreement_score()
-
             if (it + 1) == (self._iterations + 1):
+                self._finalize_attack()
                 break
+
+            self._get_aggreement_score()
 
             # Step 4: An Atlas subset selection strategy is used
             # to select set of k samples

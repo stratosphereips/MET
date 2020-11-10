@@ -99,8 +99,6 @@ class BlackBox(Base):
                                                     "labels")
                 query_sets.append(CustomDataset(x_query_set, y_query_set))
 
-        self._get_test_set_metrics()
-        self._get_aggreement_score()
-        self._save_final_subsitute()
+        self._finalize_attack()
 
         return

@@ -273,8 +273,6 @@ class KnockOff(Base):
         self._train_model(self._substitute_model, self._optimizer,
                           transfer_data)
 
-        self._get_test_set_metrics()
-        self._get_aggreement_score()
-        self._save_final_subsitute()
+        self._finalize_attack()
 
         return
