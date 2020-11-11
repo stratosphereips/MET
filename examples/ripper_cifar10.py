@@ -107,9 +107,9 @@ def set_up(args):
         saved_generator = torch.load(args.save_loc +
                                      "/generator/final_generator.pt")
         generator.load_state_dict(saved_generator["state_dict"])
-        print("Loaded victim model")
+        print("Loaded Generator")
     except FileNotFoundError:
-        print("Training victim model")
+        print("Training Generator")
 
         train_dataloader = DataLoader(dataset=imagenet_train, shuffle=True,
                                       num_workers=4, pin_memory=True,

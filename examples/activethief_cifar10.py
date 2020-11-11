@@ -19,6 +19,8 @@ from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.lighting.module import MefModule
 from mef.utils.pytorch.lighting.training import get_trainer
 
+IMAGENET_TRAIN_SIZE = 100000
+IMAGENET_VAL_SIZE = 50000
 DIMS = (3, 32, 32)
 NUM_CLASSES = 10
 
