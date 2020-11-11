@@ -94,8 +94,7 @@ def set_up(args):
 
         mef_model = MefModule(victim_model, NUM_CLASSES, optimizer, loss)
         trainer = get_trainer(args.gpus, training_epochs=1000,
-                              evaluation_frequency=args.evaluation_frequency,
-                              early_stop_tolerance=args.early_stop_tolerance,
+                              evaluation_frequency=1, early_stop_tolerance=100,
                               save_loc=args.save_loc + "/victim/",
                               precision=args.precision)
         trainer.fit(mef_model, train_dataloader, val_dataloader)
@@ -117,7 +116,7 @@ def set_up(args):
 
         trainer = get_trainer(args.gpus, training_epochs=1000,
                               save_loc=args.save_loc + "/generator/",
-                              precision=args.precision)
+                              precision=args.precision, validation=False)
         trainer.fit(generator, train_dataloader)
 
         torch.save(dict(state_dict=generator.state_dict()),
