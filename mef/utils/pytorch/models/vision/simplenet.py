@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from pytorch_lightning.core.decorators import auto_move_data
 
-from mef.models.vision.base import Base
+from mef.utils.pytorch.models.vision.base import Base
 from mef.utils.pytorch.blocks import ConvBlock
 
 

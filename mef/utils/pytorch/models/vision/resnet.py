@@ -2,7 +2,7 @@ import torch.nn as nn
 import torchvision
 from pytorch_lightning.core.decorators import auto_move_data
 
-from mef.models.vision.base import Base
+from mef.utils.pytorch.models.vision.base import Base
 
 RESNET_TYPES = {"resnet_18": torchvision.models.resnet18,
                 "resnet_34": torchvision.models.resnet34,

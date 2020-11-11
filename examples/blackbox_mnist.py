@@ -12,7 +12,7 @@ from torchvision.transforms import transforms
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.blackbox import BlackBox
-from mef.models.vision.simplenet import SimpleNet
+from mef.utils.pytorch.models.vision import SimpleNet
 from mef.utils.config import get_attack_parser
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import split_dataset

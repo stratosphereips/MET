@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torchvision
 
-from mef.models.vision.base import Base
+from mef.utils.pytorch.models.vision.base import Base
 
 
 class AlexNet(Base):
