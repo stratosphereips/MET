@@ -75,6 +75,9 @@ class ActiveThief(Base):
                                       num_workers=4, pin_memory=True)
 
         curr_centers = init_centers
+        if self._gpus:
+            curr_centers = curr_centers.cuda()
+
         selected_points = []
         for _ in tqdm(range(k), desc="Selecting best points"):
             min_max_vals = []
@@ -97,9 +100,12 @@ class ActiveThief(Base):
             batch_id = np.argmax(min_max_vals)
             sample_id = batch_id * self._batch_size + \
                         idxs_min_max[batch_id.item()]
-            curr_centers = torch.cat([curr_centers.cpu(),
-                                      data_rest.targets[sample_id][None, :]])
             selected_points.append(sample_id)
+
+            new_center = data_rest.targets[sample_id][None, :]
+            if self._gpus:
+                new_center = new_center.cuda()
+            curr_centers = torch.cat([curr_centers, new_center])
 
         return np.array(selected_points)
 
