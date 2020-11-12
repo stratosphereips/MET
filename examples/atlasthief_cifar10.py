@@ -8,11 +8,10 @@ from torch.utils.data import ConcatDataset, DataLoader
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import transforms
 
-from mef.attacks.base import BaseSettings, TrainerSettings
-
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.atlas import AtlasThief
+from mef.attacks.base import BaseSettings, TrainerSettings
 from mef.utils.pytorch.datasets.vision import ImageNet1000
 from mef.utils.pytorch.models.vision import AtCnn
 from mef.utils.config import get_attack_parser

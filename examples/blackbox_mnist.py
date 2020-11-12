@@ -9,11 +9,10 @@ from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import MNIST
 from torchvision.transforms import transforms
 
-from mef.attacks.base import BaseSettings, TrainerSettings
-
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.blackbox import BlackBox
+from mef.attacks.base import BaseSettings, TrainerSettings
 from mef.utils.pytorch.models.vision import SimpleNet
 from mef.utils.config import get_attack_parser
 from mef.utils.ios import mkdir_if_missing

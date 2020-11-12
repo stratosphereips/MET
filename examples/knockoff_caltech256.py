@@ -7,11 +7,10 @@ from pytorch_lightning import seed_everything
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 
-from mef.attacks.base import BaseSettings, TrainerSettings
-
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.knockoff import KnockOff
+from mef.attacks.base import BaseSettings, TrainerSettings
 from mef.utils.pytorch.datasets.vision import ImageNet1000, Caltech256
 from mef.utils.pytorch.models.vision import ResNet
 from mef.utils.config import get_attack_parser

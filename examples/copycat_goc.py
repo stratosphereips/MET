@@ -9,18 +9,17 @@ from torch.utils.data import ConcatDataset, DataLoader, Subset
 from torchvision.datasets import CIFAR10, STL10
 from torchvision.transforms import transforms
 
-from mef.attacks.base import BaseSettings, TrainerSettings
-from mef.utils.pytorch.lighting.training import get_trainer
-
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.copycat import CopyCat
+from mef.attacks.base import BaseSettings, TrainerSettings
 from mef.utils.pytorch.datasets.vision import ImageNet1000
 from mef.utils.pytorch.models.vision import Vgg
 from mef.utils.config import get_attack_parser
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.lighting.module import MefModule
+from mef.utils.pytorch.lighting.training import get_trainer
 
 NUM_CLASSES = 9
 
