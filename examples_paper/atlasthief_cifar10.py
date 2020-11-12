@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from pytorch_lightning import seed_everything
 from torch.utils.data import ConcatDataset, DataLoader
 from torchvision.datasets import CIFAR10
-from torchvision.transforms import transforms
+from torchvision.transforms import transforms as T
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
@@ -14,7 +14,6 @@ from mef.attacks.atlas import AtlasThief
 from mef.attacks.base import BaseSettings, TrainerSettings
 from mef.utils.pytorch.datasets.vision import ImageNet1000
 from mef.utils.pytorch.models.vision import AtCnn
-from mef.utils.config import get_attack_parser
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.lighting.module import MefModule
@@ -24,20 +23,6 @@ IMAGENET_TRAIN_SIZE = 100000
 IMAGENET_VAL_SIZE = 50000
 DIMS = (3, 32, 32)
 NUM_CLASSES = 10
-
-
-def activethief_parse_args():
-    description = "AtlasThief model extraction attack - Cifar10 example"
-    parser = get_attack_parser(description, "atlasthief")
-
-    parser.add_argument("--cifar10_dir", default="./data/", type=str,
-                        help="Path to CIFAR10 dataset (Default: ./data/)")
-    parser.add_argument("--imagenet_dir", type=str,
-                        help="Path to ImageNet dataset")
-
-    args = parser.parse_args()
-
-    return args
 
 
 def set_up(args):
@@ -56,17 +41,15 @@ def set_up(args):
     print("Preparing data")
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
-    transform = transforms.Compose([transforms.CenterCrop(DIMS[1]),
-                                    transforms.ToTensor(),
-                                    transforms.Normalize(mean, std)])
+    transform = T.Compose([T.CenterCrop(DIMS[1]), T.ToTensor(),
+                           T.Normalize(mean, std)])
     train_set = CIFAR10(root=args.cifar10_dir, download=True,
                         transform=transform)
     test_set = CIFAR10(root=args.cifar10_dir, train=False, download=True,
                        transform=transform)
 
-    transform = transforms.Compose([transforms.CenterCrop(DIMS[1]),
-                                    transforms.ToTensor(),
-                                    transforms.Normalize(mean, std)])
+    transform = T.Compose([T.CenterCrop(DIMS[1]), T.ToTensor(),
+                           T.Normalize(mean, std)])
     imagenet_train = ImageNet1000(root=args.imagenet_dir,
                                   size=IMAGENET_TRAIN_SIZE,
                                   transform=transform, seed=args.seed)
@@ -110,11 +93,15 @@ def set_up(args):
 
 
 if __name__ == "__main__":
-    args = activethief_parse_args()
-
+    parser = AtlasThief.get_attack_args()
+    parser.add_argument("--cifar10_dir", default="./data/", type=str,
+                        help="Path to CIFAR10 dataset (Default: ./data/)")
+    parser.add_argument("--imagenet_dir", type=str,
+                        help="Path to ImageNet dataset")
+    args = parser.parse_args()
     mkdir_if_missing(args.save_loc)
-    victim_model, substitute_model, thief_dataset, test_set = set_up(args)
 
+    victim_model, substitute_model, thief_dataset, test_set = set_up(args)
     af = AtlasThief(victim_model, substitute_model, NUM_CLASSES,
                     args.iterations, args.output_type, args.budget)
 

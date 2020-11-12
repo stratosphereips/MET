@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 from pytorch_lightning import seed_everything
 from torch.utils.data import DataLoader
-from torchvision.transforms import transforms
+from torchvision.transforms import transforms as T
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
@@ -13,30 +13,12 @@ from mef.attacks.knockoff import KnockOff
 from mef.attacks.base import BaseSettings, TrainerSettings
 from mef.utils.pytorch.datasets.vision import ImageNet1000, Caltech256
 from mef.utils.pytorch.models.vision import ResNet
-from mef.utils.config import get_attack_parser
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.lighting.module import MefModule
 from mef.utils.pytorch.lighting.training import get_trainer
 
 NUM_CLASSES = 256
-
-
-def knockoff_parse_args():
-    description = "Knockoff-nets model extraction attack - Caltech256 example"
-    parser = get_attack_parser(description, "knockoff")
-
-    parser.add_argument("--caltech256_dir", default="./data/", type=str,
-                        help="Path to Caltech256 dataset (Default: ./data/")
-    parser.add_argument("--imagenet_dir", type=str,
-                        help="Path to ImageNet dataset")
-    parser.add_argument("--victim_train_epochs", default=200, type=int,
-                        help="Number of epochs for which the victim should "
-                             "train for (Default: 200)")
-
-    args = parser.parse_args()
-
-    return args
 
 
 def set_up(args):
@@ -52,9 +34,8 @@ def set_up(args):
     # Prepare data
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
-    transform = transforms.Compose([transforms.CenterCrop(224),
-                                    transforms.ToTensor(),
-                                    transforms.Normalize(mean, std)])
+    transform = T.Compose([T.CenterCrop(224), T.ToTensor(),
+                           T.Normalize(mean, std)])
 
     train_set = Caltech256(args.caltech256_dir, transform=transform,
                            seed=args.seed)
@@ -101,11 +82,18 @@ def set_up(args):
 
 
 if __name__ == "__main__":
-    args = knockoff_parse_args()
-
+    parser = KnockOff.get_attack_args()
+    parser.add_argument("--caltech256_dir", default="./data/", type=str,
+                        help="Path to Caltech256 dataset (Default: ./data/")
+    parser.add_argument("--imagenet_dir", type=str,
+                        help="Path to ImageNet dataset")
+    parser.add_argument("--victim_train_epochs", default=200, type=int,
+                        help="Number of epochs for which the victim should "
+                             "train for (Default: 200)")
+    args = parser.parse_args()
     mkdir_if_missing(args.save_loc)
-    victim_model, substitute_model, sub_dataset, test_set = set_up(args)
 
+    victim_model, substitute_model, sub_dataset, test_set = set_up(args)
     ko = KnockOff(victim_model, substitute_model, NUM_CLASSES,
                   args.sampling_strategy, args.reward_type, args.output_type,
                   args.budget)

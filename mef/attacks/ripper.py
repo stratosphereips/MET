@@ -1,3 +1,4 @@
+import argparse
 from dataclasses import dataclass
 
 import torch
@@ -54,6 +55,24 @@ class Ripper(Base):
         # Ripper's specific attributes
         self._generator = generator
 
+    @classmethod
+    def get_attack_args(cls):
+        parser = argparse.ArgumentParser(description="Ripper attack")
+        parser.add_argument("--generated_data", default="random", type=str,
+                            help="Type of generated data from generator. Can "
+                                 "be one of {random, optimized} (Default: "
+                                 "random)")
+        parser.add_argument("--output_type", default="label", type=str,
+                            help="Type of output from victim model {softmax, "
+                                 "logits, one_hot, labels} (Default: label)")
+        parser.add_argument("--training_epochs", default=100, type=int,
+                            help="Number of training epochs for substitute "
+                                 "model (Default: 100)")
+
+        cls._add_base_args(parser)
+
+        return
+
     def _get_student_dataset(self):
         if self.attack_settings.generated_data == "random":
             return GeneratorRandomDataset(self._victim_model,
@@ -67,11 +86,10 @@ class Ripper(Base):
 
     def run(self, *args, **kwargs):
         self._parse_args(args, kwargs)
-        self._logger.info(
-                "########### Starting Ripper attack ###########")
+        self._logger.info("########### Starting Ripper attack ##########")
         # Get budget of the attack
-        self._logger.info(
-                "Ripper's attack budget: {}".format(self._budget))
+        self._logger.info("Ripper's attack budget: {}".format(
+                    self.attack_settings.budget))
 
         # For consistency between attacks the student dataset is called
         # thief dataset

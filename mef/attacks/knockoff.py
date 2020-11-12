@@ -1,5 +1,6 @@
 # Based on https://github.com/Trusted-AI/adversarial-robustness-toolbox/blob
 # /main/art/attacks/extraction/knockoff_nets.py
+import argparse
 from dataclasses import dataclass
 
 import numpy as np
@@ -80,6 +81,33 @@ class KnockOff(Base):
         self._y_avg = None
         self._reward_avg = None
         self._reward_var = None
+
+    @classmethod
+    def get_attack_args(cls):
+        parser = argparse.ArgumentParser(description="KnockOff attack")
+        parser.add_argument("--sampling_strategy", default="adaptive",
+                            type=str,
+                            help="KnockOff-Nets sampling strategy can "
+                                 "be one of {random, adaptive} ("
+                                 "Default: adaptive)")
+        parser.add_argument("--reward_type", default="all", type=str,
+                            help="Type of reward for adaptive strategy, "
+                                 "can be one of {cert, div, loss, all} "
+                                 "(Default: all)")
+        parser.add_argument("--output_type", default="softmax", type=str,
+                            help="Type of output from victim model {softmax, "
+                                 "logits, one_hot, labels} (Default: softmax)")
+        parser.add_argument("--budget", default=20000, type=int,
+                            help="Size of the budget (Default: 20000)")
+        parser.add_argument("--substitute_train_epochs", default=100, type=int,
+                            help="Number of training epochs for substitute "
+                                 "model (Default: 100)")
+        parser.add_argument("--patience", default=10, type=int,
+                            help="Number of epochs without improvement for "
+                                 "early stop (Default: 10)")
+        cls._add_base_args(parser)
+
+        return
 
     def _random_strategy(self):
         self._logger.info("Selecting random sample from thief dataset of "

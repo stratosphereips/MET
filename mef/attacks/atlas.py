@@ -1,3 +1,4 @@
+import argparse
 from dataclasses import dataclass
 
 import numpy as np
@@ -69,6 +70,32 @@ class AtlasThief(Base):
         self.attack_settings = ActiveThiefSettings(iterations, output_type,
                                                    budget)
         self.data_settings._num_classes = num_classes
+
+    @classmethod
+    def get_attack_args(self):
+        parser = argparse.ArgumentParser(description="Atlas attack")
+        parser.add_argument("--iterations", default=10, type=int,
+                            help="Number of iterations of the attacks ("
+                                 "Default: "
+                                 "10)")
+        parser.add_argument("--output_type", default="softmax", type=str,
+                            help="Type of output from victim model {softmax, "
+                                 "logits, one_hot} (Default: softmax)")
+        parser.add_argument("--budget", default=20000, type=int,
+                            help="Size of the budget (Default: 20000)")
+        parser.add_argument("--training_epochs", default=1000,
+                            type=int,
+                            help="Number of training epochs for substitute "
+                                 "model (Default: 100)")
+        parser.add_argument("--patience", default=100, type=int,
+                            help="Number of epochs without improvement for "
+                                 "early stop (Default: 100)")
+        parser.add_argument("--evaluation_frequency", default=1, type=int,
+                            help="Epochs interval of validation (Default: 1)")
+
+        self._add_base_args(parser)
+
+        return parser
 
     def _get_train_set(self,
                        val_set):

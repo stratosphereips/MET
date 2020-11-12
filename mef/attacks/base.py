@@ -80,6 +80,34 @@ class Base:
         seed_everything(self.base_settings.seed)
         # torch.set_deterministic(self.base_settings.deterministic)
 
+    @classmethod
+    def get_attack_args(cls):
+        raise NotImplementedError
+
+    @classmethod
+    def _add_base_args(cls, parser):
+        parser.add_argument("--seed", default=0, type=int,
+                            help="Random seed to be used (Default: 0)")
+        parser.add_argument("--batch_size", type=int, default=64,
+                            help="Batch size to be used (Default: 64)")
+        parser.add_argument("--save_loc", type=str, default="./cache/",
+                            help="Path where the attacks file should be "
+                                 "saved (Default: ./cache/)")
+        parser.add_argument("--gpus", type=int, default=0,
+                            help="Number of gpus to be used (Default: 0)")
+        parser.add_argument("--deterministic", action="store_false",
+                            help="Run in deterministic mode (Default: True)")
+        parser.add_argument("--debug", action="store_true",
+                            help="Run in debug mode (Default: False)")
+        parser.add_argument("--precision", default=32, type=int,
+                            help="Precision of caluclation in bits must be "
+                                 "one of {16, 32} (Default: 32)")
+        parser.add_argument("--accuracy", action="store_true",
+                            help="If accuracy should be used as metric for "
+                                 "early stopping. If False F1-macro is used "
+                                 "instead. (Default: False)")
+        return
+
     def _train_substitute_model(self,
                                 train_set,
                                 val_set=None,

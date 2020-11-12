@@ -1,7 +1,9 @@
+import argparse
+
 import torch
 import torch.nn.functional as F
 
-from mef.utils.pytorch.datasets import CustomLabelDataset, split_dataset
+from mef.utils.pytorch.datasets import CustomLabelDataset
 from .base import Base
 
 
@@ -14,6 +16,13 @@ class CopyCat(Base):
 
         super().__init__(victim_model, substitute_model, optimizer, loss)
         self.trainer_settings.validation = False
+
+    @classmethod
+    def get_attack_args(cls):
+        parser = argparse.ArgumentParser(description="CopyCat attack")
+        cls._add_base_args(parser)
+
+        return parser
 
     def run(self, *args, **kwargs):
         self._parse_args(args, kwargs)

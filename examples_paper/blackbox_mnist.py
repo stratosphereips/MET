@@ -7,14 +7,13 @@ import torch.nn.functional as F
 from pytorch_lightning import seed_everything
 from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import MNIST
-from torchvision.transforms import transforms
+from torchvision.transforms import transforms as T
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.blackbox import BlackBox
 from mef.attacks.base import BaseSettings, TrainerSettings
 from mef.utils.pytorch.models.vision import SimpleNet
-from mef.utils.config import get_attack_parser
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.lighting.module import MefModule
@@ -22,22 +21,6 @@ from mef.utils.pytorch.lighting.training import get_trainer
 
 NUM_CLASSES = 10
 DIMS = (1, 28, 28)
-
-
-def blackbox_parse_args():
-    description = "Blackbox model extraction attack - Mnist example"
-    parser = get_attack_parser(description, "blackbox")
-
-    parser.add_argument("--mnist_dir", default="./data/", type=str,
-                        help="Path to MNIST dataset (Default: ./data/")
-    parser.add_argument("--imagenet_dir", type=str,
-                        help="Path to ImageNet dataset")
-    parser.add_argument("--holdout_size", default=150, type=int,
-                        help="Hold out size from MNIST test (Default: 150)")
-
-    args = parser.parse_args()
-
-    return args
 
 
 def set_up(args):
@@ -52,8 +35,7 @@ def set_up(args):
 
     # Prepare data
     print("Preparing data")
-    transform = transforms.Compose([transforms.CenterCrop(DIMS[1:]),
-                                    transforms.ToTensor()])
+    transform = T.Compose([T.CenterCrop(DIMS[1:]), T.ToTensor()])
     mnist = dict()
     mnist["train"] = MNIST(root=args.mnist_dir, download=True,
                            transform=transform)
@@ -102,11 +84,17 @@ def set_up(args):
 
 
 if __name__ == "__main__":
-    args = blackbox_parse_args()
-
+    parser = BlackBox.get_attack_args()
+    parser.add_argument("--mnist_dir", default="./data/", type=str,
+                        help="Path to MNIST dataset (Default: ./data/")
+    parser.add_argument("--imagenet_dir", type=str,
+                        help="Path to ImageNet dataset")
+    parser.add_argument("--holdout_size", default=150, type=int,
+                        help="Hold out size from MNIST test (Default: 150)")
+    args = parser.parse_args()
     mkdir_if_missing(args.save_loc)
-    victim_model, substitute_model, thief_dataset, test_set = set_up(args)
 
+    victim_model, substitute_model, thief_dataset, test_set = set_up(args)
     bb = BlackBox(victim_model, substitute_model, NUM_CLASSES, args.iterations,
                   args.lmbda)
 

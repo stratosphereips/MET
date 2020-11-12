@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from pytorch_lightning import seed_everything
 from torch.utils.data import ConcatDataset, DataLoader, Subset
 from torchvision.datasets import CIFAR10, STL10
-from torchvision.transforms import transforms
+from torchvision.transforms import transforms as T
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
@@ -15,7 +15,6 @@ from mef.attacks.copycat import CopyCat
 from mef.attacks.base import BaseSettings, TrainerSettings
 from mef.utils.pytorch.datasets.vision import ImageNet1000
 from mef.utils.pytorch.models.vision import Vgg
-from mef.utils.config import get_attack_parser
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.lighting.module import MefModule
@@ -36,10 +35,8 @@ class GOCData:
         # Imagenet values
         mean = [0.485, 0.456, 0.406]
         std = [0.229, 0.224, 0.225]
-        transforms_list = [transforms.CenterCrop(self.dims[2]),
-                           transforms.ToTensor(),
-                           transforms.Normalize(mean, std)]
-        self.transform = transforms.Compose(transforms_list)
+        self.transform = T.Compose([T.CenterCrop(self.dims[2]), T.ToTensor(),
+                                    T.Normalize(mean, std)])
 
         self.test_set = None
         self.od_dataset = None
@@ -123,12 +120,7 @@ def parse_args():
                   "Classification (GOC) example"
     parser = get_attack_parser(description, "copycat")
 
-    parser.add_argument("--stl10_dir", default="./data", type=str,
-                        help="Path to Stl10 dataset")
-    parser.add_argument("--cifar10_dir", default="./data", type=str,
-                        help="Path to Cifar10 dataset")
-    parser.add_argument("--imagenet_dir", type=str,
-                        help="Path to ImageNet dataset")
+
 
     args = parser.parse_args()
 
@@ -185,11 +177,17 @@ def set_up(args):
 
 
 if __name__ == "__main__":
-    args = parse_args()
-
+    parser = CopyCat.get_attack_args()
+    parser.add_argument("--stl10_dir", default="./data", type=str,
+                        help="Path to Stl10 dataset")
+    parser.add_argument("--cifar10_dir", default="./data", type=str,
+                        help="Path to Cifar10 dataset")
+    parser.add_argument("--imagenet_dir", type=str,
+                        help="Path to ImageNet dataset")
+    args = parser.parse_args()
     mkdir_if_missing(args.save_loc)
-    victim_model, substitute_model, thief_dataset, test_set = set_up(args)
 
+    victim_model, substitute_model, thief_dataset, test_set = set_up(args)
     copycat = CopyCat(victim_model, substitute_model)
 
     # Baset settings

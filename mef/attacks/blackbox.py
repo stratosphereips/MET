@@ -1,3 +1,4 @@
+import argparse
 from dataclasses import dataclass
 
 import torch
@@ -37,6 +38,23 @@ class BlackBox(Base):
         self.attack_settings = BlackBoxSettings(iterations, lmbda)
         self.trainer_settings.validation = False
         self.data_settings._num_classes = num_classes
+
+    @classmethod
+    def get_attack_args(cls):
+        parser = argparse.ArgumentParser(description="BlackBox attack")
+        parser.add_argument("--iterations", default=6, type=int,
+                            help="Number of iterations of the attacks ("
+                                 "Default: 6)")
+        parser.add_argument("--lmbda", default=0.1, type=float,
+                            help="Value of lambda in Jacobian augmentation ("
+                                 "Default: 0.1)")
+        parser.add_argument("--training_epochs", default=10, type=int,
+                            help="Number of training epochs for substitute "
+                                 "model (Default: 10)")
+
+        cls._add_base_args(parser)
+
+        return parser
 
     def _jacobian(self, x):
         list_derivatives = []
