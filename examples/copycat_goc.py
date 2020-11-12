@@ -9,6 +9,9 @@ from torch.utils.data import ConcatDataset, DataLoader, Subset
 from torchvision.datasets import CIFAR10, STL10
 from torchvision.transforms import transforms
 
+from mef.attacks.base import BaseSettings, TrainerSettings
+from mef.utils.pytorch.lighting.training import get_trainer
+
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.copycat import CopyCat
@@ -18,7 +21,6 @@ from mef.utils.config import get_attack_parser
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.lighting.module import MefModule
-from mef.utils.pytorch.lighting.training import get_trainer
 
 NUM_CLASSES = 9
 
@@ -170,10 +172,11 @@ def set_up(args):
                                     num_workers=4, batch_size=32)
 
         mef_model = MefModule(victim_model, NUM_CLASSES, optimizer, loss)
-        trainer = get_trainer(args.gpus, training_epochs=20,
-                              validation=False,
-                              save_loc=args.save_loc + "/victim/",
-                              precision=args.precision)
+        base_settings = BaseSettings(gpus=args.gpus, save_loc=args.save_loc)
+        trainer_settings = TrainerSettings(training_epochs=20,
+                                           _validation=False,
+                                           precision=args.precision)
+        trainer = get_trainer(base_settings, trainer_settings, "victim")
         trainer.fit(mef_model, train_dataloader, val_dataloader)
 
         torch.save(dict(state_dict=victim_model.state_dict()),
@@ -188,10 +191,22 @@ if __name__ == "__main__":
     mkdir_if_missing(args.save_loc)
     victim_model, substitute_model, thief_dataset, test_set = set_up(args)
 
-    copycat = CopyCat(victim_model, substitute_model, NUM_CLASSES,
-                      args.substitute_train_epochs, args.early_stop_tolerance,
-                      args.evaluation_frequency, args.val_size,
-                      args.batch_size, args.save_loc, args.gpus, args.seed,
-                      args.deterministic, args.debug, args.precision,
-                      args.accuracy)
+    copycat = CopyCat(victim_model, substitute_model)
+
+    # Baset settings
+    copycat.base_settings.save_loc = args.save_loc
+    copycat.base_settings.gpus = args.gpus
+    copycat.base_settings.seed = args.seed
+    copycat.base_settings.deterministic = args.deterministic
+    copycat.base_settings.debug = args.debug
+
+    # Trainer settings
+    copycat.trainer_settings.training_epochs = args.substitute_train_epochs
+    copycat.trainer_settings.patience = args.patience
+    copycat.trainer_settings.precision = args.precision
+    copycat.trainer_settings.accuracy = args.accuracy
+
+    # Data settings
+    copycat.data_settings.batch_size = args.batch_size
+
     copycat.run(thief_dataset, test_set)

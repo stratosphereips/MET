@@ -1,107 +1,119 @@
+from dataclasses import dataclass
+
 import numpy as np
 import torch
 import torch.nn.functional as F
 from pytorch_lightning import seed_everything
-from torch.utils.data import DataLoader, IterableDataset
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from mef.utils.logger import set_up_logger
-from mef.utils.pytorch.datasets import CustomDataset
+from mef.utils.pytorch.datasets import CustomDataset, MefDataset
 from mef.utils.pytorch.lighting.module import MefModule
 from mef.utils.pytorch.lighting.training import get_trainer
 
 
-class Base:
+@dataclass
+class AttackSettings:
+    pass
 
-    def __init__(self, victim_model, substitute_model, optimizer,
-                 loss, lr_scheduler=None, training_epochs=100,
-                 early_stop_tolerance=10, evaluation_frequency=2,
-                 val_size=0.2, batch_size=64, num_classes=None,
-                 save_loc="./cache", validation=True, gpus=0, seed=None,
-                 deterministic=True, debug=False, precision=32,
-                 accuracy=False):
-        # Mef set up
-        self._gpus = gpus
-        self._save_loc = save_loc
-        self._logger = set_up_logger("Mef", "debug" if debug else "info",
-                                     self._save_loc)
+
+@dataclass
+class DataSettings:
+    batch_size: int = 32
+    _num_classes: int = None
+
+
+@dataclass
+class TrainerSettings:
+    training_epochs: int = 1000
+    patience: int = 100
+    evaluation_frequency: int = 1
+    _validation: bool = True
+    precision: int = 32
+    accuracy: bool = False
+
+
+@dataclass
+class BaseSettings:
+    save_loc: str = "./cache/"
+    gpus: int = None
+    seed: int = None
+    deterministic: bool = True
+    debug: bool = False
+
+
+class Base:
+    base_settings = BaseSettings()
+    attack_settings = None
+    data_settings = DataSettings()
+    trainer_settings = TrainerSettings()
+
+    def __init__(self,
+                 victim_model,
+                 substitute_model,
+                 optimizer,
+                 loss,
+                 lr_scheduler=None):
+        self._logger = set_up_logger("Mef",
+                                     "debug" if self.base_settings.debug else
+                                     "info", self.base_settings.save_loc)
 
         # Datasets
         self._test_set = None
         self._thief_dataset = None
-        self._val_size = val_size
-        self._batch_size = batch_size
-        self._num_classes = num_classes
 
         # Models
         self._victim_model = victim_model
         self._substitute_model = substitute_model
 
-        if self._gpus:
+        if self.base_settings.gpus is not None:
             self._victim_model.cuda()
             self._substitute_model.cuda()
 
-        # Optimizer, loss_functions
+        # Optimizer, loss_functions and lr_scheduler for substitute model
         self._optimizer = optimizer
         self._lr_scheduler = lr_scheduler
         self._loss = loss
 
-        # Pytorch-lighting trainer
-        self._trainer_kwargs = dict(
-                gpus=self._gpus,
-                training_epochs=training_epochs,
-                early_stop_tolerance=early_stop_tolerance,
-                evaluation_frequency=evaluation_frequency,
-                save_loc=self._save_loc,
-                debug=debug,
-                deterministic=deterministic,
-                validation=validation,
-                precision=precision,
-                accuracy=accuracy
-        )
+        # Set up random generators and pytorch for reproducibility
+        seed_everything(self.base_settings.seed)
+        # torch.set_deterministic(self.base_settings.deterministic)
 
-        # Set up random generators and pytorch to be deterministic
-        seed_everything(seed)
-        torch.set_deterministic(deterministic)
-
-    def _train_model(self, model, optimizer, train_set, val_set=None,
-                     iteration=None, worker_init_fn=None,
-                     training_epochs=None, lr_scheduler=None):
-        train_dataloader = DataLoader(dataset=train_set, pin_memory=True,
-                                      num_workers=4, shuffle=True,
-                                      batch_size=self._batch_size,
-                                      worker_init_fn=worker_init_fn)
-        if isinstance(train_set, IterableDataset):
-            train_dataloader = DataLoader(dataset=train_set)
+    def _train_substitute_model(self,
+                                train_set,
+                                val_set=None,
+                                iteration=None):
+        train_set = MefDataset(train_set, self.data_settings.batch_size)
+        train_dataloader = train_set.train_dataloader()
 
         val_dataloader = None
         if val_set is not None:
-            val_dataloader = DataLoader(dataset=val_set, pin_memory=True,
-                                        num_workers=4,
-                                        batch_size=self._batch_size,
-                                        worker_init_fn=worker_init_fn)
+            val_set = MefDataset(val_set, self.data_settings.batch_size)
+            val_dataloader = val_set.val_dataloader()
 
-        trainer_kwargs = self._trainer_kwargs.copy()
-        if training_epochs is not None:
-            trainer_kwargs["training_epochs"] = training_epochs
-        trainer = get_trainer(**trainer_kwargs, iteration=iteration)
+        trainer = get_trainer(self.base_settings, self.trainer_settings,
+                              iteration=iteration)
 
-        mef_model = MefModule(model, self._num_classes, optimizer, self._loss,
-                              lr_scheduler)
+        mef_model = MefModule(self._substitute_model,
+                              self.data_settings._num_classes,
+                              self._optimizer, self._loss, self._lr_scheduler)
         trainer.fit(mef_model, train_dataloader, val_dataloader)
 
         # For some reason the model after fit is on CPU and not GPU
-        if self._gpus:
-            model.cuda()
+        if self.base_settings.gpus is not None:
+            self._substitute_model.cuda()
 
         return
 
-    def _test_model(self, model, test_set):
-        test_dataloader = DataLoader(dataset=test_set, pin_memory=True,
-                                     num_workers=4,
-                                     batch_size=self._batch_size)
-        mef_model = MefModule(model, self._num_classes, loss=self._loss)
-        trainer = get_trainer(**self._trainer_kwargs)
+    def _test_model(self,
+                    model,
+                    test_set):
+        test_set = MefDataset(test_set, self.data_settings.batch_size)
+        test_dataloader = test_set.test_dataloader()
+        mef_model = MefModule(model, self.data_settings._num_classes,
+                              loss=self._loss)
+        trainer = get_trainer(self.base_settings, self.trainer_settings)
         metrics = trainer.test(mef_model, test_dataloader)
 
         return 100 * metrics[0]["test_acc"]
@@ -137,7 +149,8 @@ class Base:
         return
 
     def _save_final_subsitute(self):
-        final_model_loc = self._save_loc + "/final_substitute_model.pt"
+        final_model_loc = self.base_settings.save_loc + \
+                          "/final_substitute_model.pt"
         self._logger.info(
                 "Saving final substitute model state dictionary to: {}".format(
                         final_model_loc))
@@ -146,7 +159,10 @@ class Base:
 
         return
 
-    def _get_predictions(self, model, data, output_type="softmax",
+    def _get_predictions(self,
+                         model,
+                         data,
+                         output_type="softmax",
                          return_all_layers=False):
         if output_type not in ["one_hot", "softmax", "logits", "label"]:
             self._logger.error(
@@ -155,13 +171,12 @@ class Base:
             raise ValueError()
 
         model.eval()
-        loader = DataLoader(data, pin_memory=True, num_workers=4,
-                            batch_size=self._batch_size)
+        data = MefDataset(data, self.data_settings.batch_size)
+        loader = data.val_dataloader()
         hidden_layer_outputs = []
         y_preds = []
         with torch.no_grad():
-            for x, _ in tqdm(loader, desc="Getting predictions", total=len(
-                    loader)):
+            for x, _ in tqdm(loader, desc="Getting predictions"):
                 if return_all_layers:
                     y_pred, feature_vec = model(x, return_all_layers=True)
                     hidden_layer_outputs.append(feature_vec.detach().cpu())

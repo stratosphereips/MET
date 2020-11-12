@@ -8,6 +8,8 @@ from torch.utils.data import ConcatDataset, DataLoader
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import transforms
 
+from mef.attacks.base import BaseSettings, TrainerSettings
+
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.activethief import ActiveThief
@@ -94,11 +96,11 @@ def set_up(args):
                                     num_workers=4, batch_size=args.batch_size)
 
         mef_model = MefModule(victim_model, NUM_CLASSES, optimizer, loss)
-        trainer = get_trainer(args.gpus, training_epochs=1000,
-                              evaluation_frequency=args.evaluation_frequency,
-                              early_stop_tolerance=args.early_stop_tolerance,
-                              save_loc=args.save_loc + "/victim/",
-                              precision=args.precision)
+        base_settings = BaseSettings(gpus=args.gpus, save_loc=args.save_loc)
+        trainer_settings = TrainerSettings(
+                training_epochs=args.substitute_train_epochs,
+                patience=args.patience, precision=args.precision)
+        trainer = get_trainer(base_settings, trainer_settings, "victim")
         trainer.fit(mef_model, train_dataloader, val_dataloader)
 
         torch.save(dict(state_dict=victim_model.state_dict()),
@@ -115,10 +117,23 @@ if __name__ == "__main__":
 
     af = ActiveThief(victim_model, substitute_model, NUM_CLASSES,
                      args.iterations, args.selection_strategy,
-                     args.output_type, args.budget,
-                     args.substitute_train_epochs, args.early_stop_tolerance,
-                     args.evaluation_frequency, args.batch_size, args.save_loc,
-                     args.gpus, args.seed, args.deterministic, args.debug,
-                     args.precision, args.accuracy)
+                     args.output_type, args.budget)
+
+    # Baset settings
+    af.base_settings.save_loc = args.save_loc
+    af.base_settings.gpus = args.gpus
+    af.base_settings.seed = args.seed
+    af.base_settings.deterministic = args.deterministic
+    af.base_settings.debug = args.debug
+
+    # Trainer settings
+    af.trainer_settings.training_epochs = args.substitute_train_epochs
+    af.trainer_settings.patience = args.patience
+    af.trainer_settings.evaluation_frequency = args.evaluation_frequency
+    af.trainer_settings.precision = args.precision
+    af.trainer_settings.accuracy = args.accuracy
+
+    # Data settings
+    af.data_settings.batch_size = args.batch_size
 
     af.run(thief_dataset, test_set)

@@ -9,6 +9,8 @@ from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import MNIST
 from torchvision.transforms import transforms
 
+from mef.attacks.base import BaseSettings, TrainerSettings
+
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.blackbox import BlackBox
@@ -87,9 +89,11 @@ def set_up(args):
                                     num_workers=4, batch_size=args.batch_size)
 
         mef_model = MefModule(victim_model, NUM_CLASSES, optimizer, loss)
-        trainer = get_trainer(args.gpus, validation=False,
-                              save_loc=args.save_loc + "/victim/",
-                              precision=args.precision)
+        base_settings = BaseSettings(gpus=args.gpus, save_loc=args.save_loc)
+        trainer_settings = TrainerSettings(
+                training_epochs=args.substitute_train_epochs,
+                _validation=False, precision=args.precision)
+        trainer = get_trainer(base_settings, trainer_settings, "victim")
         trainer.fit(mef_model, train_dataloader, val_dataloader)
 
         torch.save(dict(state_dict=victim_model.state_dict()),
@@ -105,7 +109,23 @@ if __name__ == "__main__":
     victim_model, substitute_model, thief_dataset, test_set = set_up(args)
 
     bb = BlackBox(victim_model, substitute_model, NUM_CLASSES, args.iterations,
-                  args.lmbda, args.substitute_train_epochs, args.batch_size,
-                  args.save_loc, args.gpus, args.seed, args.deterministic,
-                  args.debug, args.precision, args.accuracy)
+                  args.lmbda)
+
+    # Baset settings
+    bb.base_settings.save_loc = args.save_loc
+    bb.base_settings.gpus = args.gpus
+    bb.base_settings.seed = args.seed
+    bb.base_settings.deterministic = args.deterministic
+    bb.base_settings.debug = args.debug
+
+    # Trainer settings
+    bb.trainer_settings.training_epochs = args.substitute_train_epochs
+    bb.trainer_settings.patience = args.patience
+    bb.trainer_settings.evaluation_frequency = args.evaluation_frequency
+    bb.trainer_settings.precision = args.precision
+    bb.trainer_settings.accuracy = args.accuracy
+
+    # Data settings
+    bb.data_settings.batch_size = args.batch_size
+
     bb.run(thief_dataset, test_set)

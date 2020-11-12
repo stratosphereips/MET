@@ -7,6 +7,8 @@ from pytorch_lightning import seed_everything
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 
+from mef.attacks.base import BaseSettings, TrainerSettings
+
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.knockoff import KnockOff
@@ -86,10 +88,12 @@ def set_up(args):
 
         mef_model = MefModule(victim_model, NUM_CLASSES, optimizer, loss,
                               lr_scheduler)
-        trainer = get_trainer(args.gpus, args.victim_train_epochs,
-                              validation=False,
-                              save_loc=args.save_loc + "/victim/",
-                              precision=args.precision)
+        base_settings = BaseSettings(gpus=args.gpus, save_loc=args.save_loc,
+                                     debug=True)
+        trainer_settings = TrainerSettings(
+                training_epochs=args.substitute_train_epochs,
+                _validation=False, precision=args.precision)
+        trainer = get_trainer(base_settings, trainer_settings, "victim")
         trainer.fit(mef_model, train_dataloader, val_dataloader)
 
         torch.save(dict(state_dict=victim_model.state_dict()),
@@ -106,7 +110,22 @@ if __name__ == "__main__":
 
     ko = KnockOff(victim_model, substitute_model, NUM_CLASSES,
                   args.sampling_strategy, args.reward_type, args.output_type,
-                  args.budget, args.training_epochs, args.batch_size,
-                  args.save_loc, args.gpus, args.seed, args.deterministic,
-                  args.debug)
+                  args.budget)
+
+    # Baset settings
+    ko.base_settings.save_loc = args.save_loc
+    ko.base_settings.gpus = args.gpus
+    ko.base_settings.seed = args.seed
+    ko.base_settings.deterministic = args.deterministic
+    ko.base_settings.debug = args.debug
+
+    # Trainer settings
+    ko.trainer_settings.training_epochs = args.substitute_train_epochs
+    ko.trainer_settings.patience = args.patience
+    ko.trainer_settings.precision = args.precision
+    ko.trainer_settings.accuracy = args.accuracy
+
+    # Data settings
+    ko.data_settings.batch_size = args.batch_size
+
     ko.run(sub_dataset, test_set)

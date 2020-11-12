@@ -9,6 +9,8 @@ from torch.utils.data import DataLoader
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import transforms
 
+from mef.attacks.base import BaseSettings, TrainerSettings
+
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.ripper import Ripper
@@ -93,10 +95,12 @@ def set_up(args):
                                     num_workers=4, batch_size=args.batch_size)
 
         mef_model = MefModule(victim_model, NUM_CLASSES, optimizer, loss)
-        trainer = get_trainer(args.gpus, training_epochs=1000,
-                              evaluation_frequency=1, early_stop_tolerance=100,
-                              save_loc=args.save_loc + "/victim/",
-                              precision=args.precision)
+        base_settings = BaseSettings(gpus=args.gpus, save_loc=args.save_loc)
+        trainer_settings = TrainerSettings(training_epochs=1000,
+                                           evaluation_frequency=1,
+                                           patience=args.patience,
+                                           precision=args.precision)
+        trainer = get_trainer(base_settings, trainer_settings, "victim")
         trainer.fit(mef_model, train_dataloader, val_dataloader)
 
         torch.save(dict(state_dict=victim_model.state_dict()),

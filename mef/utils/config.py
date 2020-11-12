@@ -18,9 +18,9 @@ def add_activethief_arguments(parser):
     parser.add_argument("--substitute_train_epochs", default=1000, type=int,
                         help="Number of training epochs for substitute model "
                              "(Default: 100)")
-    parser.add_argument("--early_stop_tolerance", default=100, type=int,
+    parser.add_argument("--patience", default=100, type=int,
                         help="Number of epochs without improvement for early "
-                             "stop (Default: 10)")
+                             "stop (Default: 100)")
     parser.add_argument("--evaluation_frequency", default=1, type=int,
                         help="Epochs interval of validation (Default: 1)")
     return
@@ -38,7 +38,7 @@ def add_atlasthief_arguments(parser):
     parser.add_argument("--substitute_train_epochs", default=1000, type=int,
                         help="Number of training epochs for substitute model "
                              "(Default: 100)")
-    parser.add_argument("--early_stop_tolerance", default=100, type=int,
+    parser.add_argument("--patience", default=100, type=int,
                         help="Number of epochs without improvement for early "
                              "stop (Default: 10)")
     parser.add_argument("--evaluation_frequency", default=1, type=int,
@@ -62,7 +62,7 @@ def add_knockoff_arguments(parser):
     parser.add_argument("--substitute_train_epochs", default=100, type=int,
                         help="Number of training epochs for substitute model "
                              "(Default: 100)")
-    parser.add_argument("--early_stop_tolerance", default=10, type=int,
+    parser.add_argument("--patience", default=10, type=int,
                         help="Number of epochs without improvement for early "
                              "stop (Default: 10)")
 
@@ -73,7 +73,7 @@ def add_copycat_arguments(parser):
     parser.add_argument("--substitute_train_epochs", default=1000, type=int,
                         help="Number of training epochs for substitute model "
                              "(Default: 100)")
-    parser.add_argument("--early_stop_tolerance", default=100, type=int,
+    parser.add_argument("--patience", default=100, type=int,
                         help="Number of epochs without improvement for early "
                              "stop (Default: 10)")
     parser.add_argument("--evaluation_frequency", default=2, type=int,

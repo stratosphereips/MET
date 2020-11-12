@@ -1,25 +1,61 @@
 # Based on https://github.com/Trusted-AI/adversarial-robustness-toolbox/blob
 # /main/art/attacks/extraction/knockoff_nets.py
+from dataclasses import dataclass
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import ConcatDataset, DataLoader, Subset
+from torch.utils.data import ConcatDataset, Subset
 from tqdm import tqdm
 
-from mef.attacks.base import Base
-from mef.utils.pytorch.datasets import CustomLabelDataset
+from mef.attacks.base import AttackSettings, Base
+from mef.utils.pytorch.datasets import CustomLabelDataset, MefDataset
 from mef.utils.pytorch.functional import soft_cross_entropy
+
+
+@dataclass
+class KnockOffSettings(AttackSettings):
+    iterations: int
+    output_type: str
+    budget: int
+    init_seed_size: int
+    val_size: int
+    k: int
+
+    def __init__(self,
+                 sampling_strategy: str,
+                 reward_type: str,
+                 output_type: str,
+                 budget: int):
+        self.sampling_strategy = sampling_strategy.lower()
+        self.reward_type = reward_type.lower()
+        self.output_type = output_type.lower()
+        self.budget = budget
+        self.k = 4
+        self.iterations = self.budget // self.k
+
+        self.init_seed_size = int(self.budget * 0.1)
+        self.val_size = int(self.budget * 0.2)
+        self.k = (self.budget - self.val_size - self.init_seed_size) // \
+                 self.iterations
+
+        # Check configuration
+        if self.sampling_strategy not in ["random", "adaptive"]:
+            raise ValueError(
+                    "Knockoff's sampling strategy must be one of {random, "
+                    "adaptive}")
+
+        if self.reward_type not in ["cert", "div", "loss", "all"]:
+            raise ValueError(
+                    "Knockoff's reward type must be one of {cert, div, loss, "
+                    "all}")
 
 
 class KnockOff(Base):
 
     def __init__(self, victim_model, substitute_model, num_classes,
                  sampling_strategy="adaptive", reward_type="cert",
-                 output_type="softmax", budget=10000, training_epochs=100,
-                 batch_size=64, save_loc="./cache/knockoff", gpus=0, seed=None,
-                 deterministic=True, debug=False, precision=32,
-                 accuracy=False):
+                 output_type="softmax", budget=10000):
         optimizer = torch.optim.SGD(substitute_model.parameters(), lr=0.01,
                                     momentum=0.5)
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
@@ -27,53 +63,35 @@ class KnockOff(Base):
         loss = soft_cross_entropy
 
         super().__init__(victim_model, substitute_model, optimizer,
-                         loss, lr_scheduler, training_epochs,
-                         batch_size=batch_size, num_classes=num_classes,
-                         save_loc=save_loc, validation=False, gpus=gpus,
-                         seed=seed, deterministic=deterministic, debug=debug,
-                         precision=precision, accuracy=accuracy)
+                         loss, lr_scheduler)
+        self.attack_settings = KnockOffSettings(sampling_strategy,
+                                                reward_type, output_type,
+                                                budget)
+        self.trainer_settings.validation = False
+        self.data_settings._num_classes = num_classes
 
         # KnockOff's specific attributes
         self._online_optimizer = torch.optim.SGD(
                 self._substitute_model.parameters(), lr=0.0005, momentum=0.5)
-        self._sampling_strategy = sampling_strategy.lower()
-        self._reward_type = reward_type.lower()
-        self._output_type = output_type.lower()
-        self._budget = budget
-        self._k = 4
-        self._iterations = self._budget // self._k
+
         self._selected_action = []
         self._selected_idxs = []
-
         self._num_actions = None
-
         self._y_avg = None
         self._reward_avg = None
         self._reward_var = None
 
-        # Check configuration
-        if self._sampling_strategy not in ["random", "adaptive"]:
-            self._logger.error(
-                    "Knockoff's sampling strategy must be one of {random, "
-                    "adaptive}")
-            raise ValueError()
-
-        if self._reward_type not in ["cert", "div", "loss", "all"]:
-            self._logger.error(
-                    "Knockoff's reward type must be one of {cert, div, loss, "
-                    "all}")
-            raise ValueError()
-
     def _random_strategy(self):
         self._logger.info("Selecting random sample from thief dataset of "
-                          "size {}".format(self._budget))
+                          "size {}".format(self.attack_settings.budget))
         idx_x = np.arange(len(self._thief_dataset))
-        idx_selected = np.random.permutation(idx_x)[:self._budget]
+        idx_selected = np.random.permutation(idx_x)[
+                       :self.attack_settings.budget]
         selected_data = Subset(self._thief_dataset, idx_selected)
 
         self._logger.info("Getting fake labels from victim model")
         y_output = self._get_predictions(self._victim_model, selected_data,
-                                         self._output_type)
+                                         self.attack_settings.output_type)
 
         return CustomLabelDataset(selected_data, y_output)
 
@@ -86,26 +104,26 @@ class KnockOff(Base):
             y = np.array(self._thief_dataset.targets)
 
         idx_action = np.where(y == action)[0]
-        idx_sampled = np.random.permutation(idx_action)[:self._k]
+        idx_sampled = np.random.permutation(idx_action)[
+                      :self.attack_settings.k]
         self._selected_idxs.append(idx_sampled)
 
         return Subset(self._thief_dataset, idx_sampled)
 
     def _online_train(self, data):
         self._substitute_model.train()
-        loader = DataLoader(data, pin_memory=True, num_workers=4,
-                            batch_size=self._batch_size)
+        data = MefDataset(data, self.data_settings.batch_size)
+        loader = data.generic_dataloader()
 
-        for x, y_output in tqdm(loader, desc="Online training",
-                                total=len(loader)):
-            if self._gpus:
+        for x, y_output in tqdm(loader, desc="Online training"):
+            if self.base_settings.gpus is not None:
                 x = x.cuda()
                 y_output = y_output.cuda()
 
             self._online_optimizer.zero_grad()
 
             y_hat = self._substitute_model(x)
-            loss = self._train_loss(y_hat, y_output)
+            loss = self._loss(y_hat, y_output)
             loss.backward()
             self._online_optimizer.step()
 
@@ -126,7 +144,8 @@ class KnockOff(Base):
         """
         # First update y_avg
         self._y_avg = self._y_avg + (1.0 / n) * \
-                      ((y_output.sum(dim=0) / self._k) - self._y_avg)
+                      ((y_output.sum(dim=0) / self.attack_settings.k) -
+                       self._y_avg)
 
         # Then compute reward
         reward = torch.mean(torch.sum(np.maximum(0, y_output - self._y_avg),
@@ -168,11 +187,12 @@ class KnockOff(Base):
         return np.mean(reward)
 
     def _reward(self, y_output, y_hat, iteration):
-        if self._reward_type == "cert":
+        reward_type = self.attack_settings.reward_type
+        if reward_type == "cert":
             return self._reward_cert(y_output)
-        elif self._reward_type == "div":
+        elif reward_type == "div":
             return self._reward_div(y_output, iteration)
-        elif self._reward_type == "loss":
+        elif reward_type == "loss":
             return self._reward_loss(y_output, y_hat)
         else:
             return self._reward_all(y_output, y_hat, iteration)
@@ -187,11 +207,12 @@ class KnockOff(Base):
                     np.unique(self._thief_dataset.targets))
 
         # We need to keep an average version of the victim output
-        if self._reward_type == "div" or self._reward_type == "all":
-            self._y_avg = torch.zeros(self._num_classes)
+        if self.attack_settings.reward_type == "div" or \
+                self.attack_settings.reward_type == "all":
+            self._y_avg = torch.zeros(self.data_settings._num_classes)
 
         # We need to keep an average and variance version of rewards
-        if self._reward_type == "all":
+        if self.attack_settings.reward_type == "all":
             self._reward_avg = np.zeros(3)
             self._reward_var = np.zeros(3)
 
@@ -202,7 +223,7 @@ class KnockOff(Base):
         query_sets = []
 
         avg_reward = np.array(0.0)
-        for it in range(1, self._iterations + 1):
+        for it in range(1, self.attack_settings.iterations + 1):
             self._logger.info("---------- Iteration: {} ----------".format(it))
             # Sample an action
             action = np.random.choice(np.arange(0, self._num_actions), p=probs)
@@ -216,7 +237,7 @@ class KnockOff(Base):
             # Query the victim model
             self._logger.info("Getting victim predictions on sampled data")
             y_output = self._get_predictions(self._victim_model, sampled_data,
-                                             self._output_type)
+                                             self.attack_settings.output_type)
 
             # Train the thieved classifier
             query_set = CustomLabelDataset(sampled_data, y_output)
@@ -257,21 +278,23 @@ class KnockOff(Base):
         self._logger.info(
                 "########### Starting KnockOff attack ###########")
         self._logger.info(
-                "KnockOff's attack budget: {}".format(self._budget))
+                "KnockOff's attack budget: {}".format(
+                        self.attack_settings.budget))
 
-        if self._sampling_strategy == "random":
+        if self.attack_settings.sampling_strategy == "random":
             self._logger.info("Starting random sampling strategy")
             transfer_data = self._random_strategy()
         else:
             original_state_dict = self._substitute_model.state_dict()
-            self._logger.info("Starting adaptive sampling strategy with {} "
-                              "reward type".format(self._reward_type))
+            self._logger.info(
+                    "Starting adaptive sampling strategy with {} reward type"
+                        .format(self.attack_settings.reward_type))
             transfer_data = self._adaptive_strategy()
             self._substitute_model.load_state_dict(original_state_dict)
 
         self._logger.info("Offline training of substitute model")
-        self._train_model(self._substitute_model, self._optimizer,
-                          transfer_data)
+        self._train_substitute_model(self._substitute_model, self._optimizer,
+                                     transfer_data)
 
         self._finalize_attack()
 

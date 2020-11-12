@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import Dataset, IterableDataset, random_split
+from torch.utils.data import DataLoader, Dataset, IterableDataset, random_split
 
 
 def split_dataset(dataset, split_size):
@@ -11,15 +11,39 @@ def split_dataset(dataset, split_size):
     return random_split(dataset, [rest_set_size, split_set_size])
 
 
-class ListDataset(Dataset):
-    def __init__(self, list_object):
-        self.list_object = list_object
+class MefDataset:
+    def __init__(self, dataset, batch_size):
+        self.dataset = dataset
+        self.batch_size = batch_size
 
-    def __getitem__(self, index):
-        return self.list_object[index]
+    def generic_dataloader(self):
+        if isinstance(self.dataset, IterableDataset):
+            return DataLoader(dataset=self.dataset, pin_memory=True,
+                              batch_size=self.batch_size)
+        return DataLoader(dataset=self.dataset, pin_memory=True,
+                          num_workers=4, batch_size=self.batch_size)
 
-    def __len__(self):
-        return len(self.list_object)
+    def train_dataloader(self):
+        if isinstance(self.dataset, IterableDataset):
+            return DataLoader(dataset=self.dataset, pin_memory=True,
+                              shuffle=True, batch_size=self.batch_size)
+        return DataLoader(dataset=self.dataset, pin_memory=True,
+                          num_workers=4, shuffle=True,
+                          batch_size=self.batch_size)
+
+    def val_dataloader(self):
+        if isinstance(self.dataset, IterableDataset):
+            return DataLoader(dataset=self.dataset, pin_memory=True,
+                              batch_size=self.batch_size)
+        return DataLoader(dataset=self.dataset, pin_memory=True,
+                          num_workers=4, batch_size=self.batch_size)
+
+    def test_dataloader(self):
+        if isinstance(self.dataset, IterableDataset):
+            return DataLoader(dataset=self.dataset, pin_memory=True,
+                              batch_size=self.batch_size)
+        return DataLoader(dataset=self.dataset, pin_memory=True,
+                          num_workers=4, batch_size=self.batch_size)
 
 
 class CustomLabelDataset(Dataset):
@@ -30,6 +54,7 @@ class CustomLabelDataset(Dataset):
     def __init__(self, dataset, targets):
         self.dataset = dataset
         self.targets = targets
+        super().__init__()
 
     def __getitem__(self, index):
         return self.dataset[index][0], self.targets[index]
@@ -93,8 +118,8 @@ class AugmentationDataset(Dataset):
 
 
 class GeneratorRandomDataset(IterableDataset):
-    def __init__(self, victim_model, generator, latent_dim, batch_size=64,
-                 output_type="softmax", greyscale="False"):
+    def __init__(self, victim_model, generator, latent_dim, batch_size,
+                 output_type, greyscale="False"):
         self._victim_model = victim_model
         self._generator = generator
         self._latent_dim = latent_dim
