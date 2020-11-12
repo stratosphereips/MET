@@ -29,14 +29,5 @@ class ResNet(Base):
                                     out_features=num_classes)
 
     @auto_move_data
-    def forward(self, x, return_all_layers=False):
-        modulelist = list(self._resnet.features.modules())
-        for layer in modulelist[:-1]:
-            x = layer(x)
-        hidden = x
-        logits = modulelist[-1](x)
-
-        if return_all_layers:
-            return logits, hidden
-
-        return logits
+    def forward(self, x):
+        return self._resnet(x)
