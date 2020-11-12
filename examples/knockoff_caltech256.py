@@ -88,8 +88,7 @@ def set_up(args):
 
         mef_model = MefModule(victim_model, NUM_CLASSES, optimizer, loss,
                               lr_scheduler)
-        base_settings = BaseSettings(gpus=args.gpus, save_loc=args.save_loc,
-                                     debug=True)
+        base_settings = BaseSettings(gpus=args.gpus, save_loc=args.save_loc)
         trainer_settings = TrainerSettings(
                 training_epochs=args.substitute_train_epochs,
                 _validation=False, precision=args.precision)
