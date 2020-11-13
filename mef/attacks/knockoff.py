@@ -321,8 +321,7 @@ class KnockOff(Base):
             self._substitute_model.load_state_dict(original_state_dict)
 
         self._logger.info("Offline training of substitute model")
-        self._train_substitute_model(self._substitute_model, self._optimizer,
-                                     transfer_data)
+        self._train_substitute_model(transfer_data)
 
         self._finalize_attack()
 

@@ -95,7 +95,6 @@ class Ripper(Base):
         # thief dataset
         self._thief_dataset = self._get_student_dataset()
 
-        self._train_substitute_model(self._substitute_model, self._optimizer,
-                                     self._thief_dataset)
+        self._train_substitute_model(self._thief_dataset)
 
         self._finalize_attack()
