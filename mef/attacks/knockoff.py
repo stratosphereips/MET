@@ -107,7 +107,7 @@ class KnockOff(Base):
                                  "early stop (Default: 10)")
         cls._add_base_args(parser)
 
-        return
+        return parser
 
     def _random_strategy(self):
         self._logger.info("Selecting random sample from thief dataset of "

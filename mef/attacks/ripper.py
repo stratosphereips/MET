@@ -71,7 +71,7 @@ class Ripper(Base):
 
         cls._add_base_args(parser)
 
-        return
+        return parser
 
     def _get_student_dataset(self):
         if self.attack_settings.generated_data == "random":
