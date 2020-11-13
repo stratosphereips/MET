@@ -36,7 +36,7 @@ class BlackBox(Base):
         super().__init__(victim_model, substitute_model, optimizer,
                          loss)
         self.attack_settings = BlackBoxSettings(iterations, lmbda)
-        self.trainer_settings.validation = False
+        self.trainer_settings._validation = False
         self.data_settings._num_classes = num_classes
 
     @classmethod

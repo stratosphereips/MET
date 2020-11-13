@@ -15,7 +15,7 @@ class CopyCat(Base):
         loss = F.cross_entropy
 
         super().__init__(victim_model, substitute_model, optimizer, loss)
-        self.trainer_settings.validation = False
+        self.trainer_settings._validation = False
 
     @classmethod
     def get_attack_args(cls):

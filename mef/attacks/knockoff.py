@@ -68,7 +68,7 @@ class KnockOff(Base):
         self.attack_settings = KnockOffSettings(sampling_strategy,
                                                 reward_type, output_type,
                                                 budget)
-        self.trainer_settings.validation = False
+        self.trainer_settings._validation = False
         self.data_settings._num_classes = num_classes
 
         # KnockOff's specific attributes
