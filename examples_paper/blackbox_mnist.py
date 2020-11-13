@@ -107,8 +107,6 @@ if __name__ == "__main__":
 
     # Trainer settings
     bb.trainer_settings.training_epochs = args.substitute_train_epochs
-    bb.trainer_settings.patience = args.patience
-    bb.trainer_settings.evaluation_frequency = args.evaluation_frequency
     bb.trainer_settings.precision = args.precision
     bb.trainer_settings.accuracy = args.accuracy
 

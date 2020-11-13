@@ -102,9 +102,6 @@ class KnockOff(Base):
         parser.add_argument("--training_epochs", default=100, type=int,
                             help="Number of training epochs for substitute "
                                  "model (Default: 100)")
-        parser.add_argument("--patience", default=10, type=int,
-                            help="Number of epochs without improvement for "
-                                 "early stop (Default: 10)")
         cls._add_base_args(parser)
 
         return parser

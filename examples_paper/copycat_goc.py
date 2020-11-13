@@ -115,18 +115,6 @@ class GOCData:
         self.thief_dataset = ConcatDataset([pd_dataset, npd_dataset])
 
 
-def parse_args():
-    description = "CopyCat model extraction attack - General Object " \
-                  "Classification (GOC) example"
-    parser = get_attack_parser(description, "copycat")
-
-
-
-    args = parser.parse_args()
-
-    return args
-
-
 def set_up(args):
     seed_everything(args.seed)
 
@@ -198,8 +186,7 @@ if __name__ == "__main__":
     copycat.base_settings.debug = args.debug
 
     # Trainer settings
-    copycat.trainer_settings.training_epochs = args.substitute_train_epochs
-    copycat.trainer_settings.patience = args.patience
+    copycat.trainer_settings.training_epochs = args.training_epochs
     copycat.trainer_settings.precision = args.precision
     copycat.trainer_settings.accuracy = args.accuracy
 

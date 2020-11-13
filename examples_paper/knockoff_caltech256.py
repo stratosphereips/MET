@@ -106,8 +106,7 @@ if __name__ == "__main__":
     ko.base_settings.debug = args.debug
 
     # Trainer settings
-    ko.trainer_settings.training_epochs = args.substitute_train_epochs
-    ko.trainer_settings.patience = args.patience
+    ko.trainer_settings.training_epochs = args.training_epochs
     ko.trainer_settings.precision = args.precision
     ko.trainer_settings.accuracy = args.accuracy
 
