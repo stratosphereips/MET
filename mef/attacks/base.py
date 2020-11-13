@@ -121,7 +121,7 @@ class Base:
             val_dataloader = val_set.val_dataloader()
 
         trainer = get_trainer(self.base_settings, self.trainer_settings,
-                              iteration=iteration)
+                              "substitute", iteration)
 
         mef_model = MefModule(self._substitute_model,
                               self.data_settings._num_classes,
