@@ -20,6 +20,10 @@ class CopyCat(Base):
     @classmethod
     def get_attack_args(cls):
         parser = argparse.ArgumentParser(description="CopyCat attack")
+        parser.add_argument("--training_epochs", default=5, type=int,
+                            help="Number of training epochs for substitute "
+                                 "model (Default: 5)")
+
         cls._add_base_args(parser)
 
         return parser

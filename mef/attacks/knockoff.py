@@ -99,7 +99,7 @@ class KnockOff(Base):
                                  "logits, one_hot, labels} (Default: softmax)")
         parser.add_argument("--budget", default=20000, type=int,
                             help="Size of the budget (Default: 20000)")
-        parser.add_argument("--substitute_train_epochs", default=100, type=int,
+        parser.add_argument("--training_epochs", default=100, type=int,
                             help="Number of training epochs for substitute "
                                  "model (Default: 100)")
         parser.add_argument("--patience", default=10, type=int,
