@@ -74,11 +74,6 @@ class Base(ABC):
         self._lr_scheduler = lr_scheduler
         self._loss = loss
 
-        # Set up random generators and pytorch for reproducibility
-        seed_everything(self.base_settings.seed)
-        # In 1.7.0 still in BETA
-        # torch.set_deterministic(self.base_settings.deterministic)
-
     @classmethod
     @abstractmethod
     def get_attack_args(cls):
@@ -351,6 +346,11 @@ class Base(ABC):
         return
 
     def __call__(self, *args, **kwargs):
+        # Seed random generators for reproducibility
+        seed_everything(self.base_settings.seed)
+        # In 1.7.0 still in BETA
+        # torch.set_deterministic(self.base_settings.deterministic)
+
         self._logger = set_up_logger("Mef",
                                      "debug" if self.base_settings.debug else
                                      "info", self.base_settings.save_loc)
