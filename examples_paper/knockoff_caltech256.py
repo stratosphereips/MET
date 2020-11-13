@@ -113,4 +113,4 @@ if __name__ == "__main__":
     # Data settings
     ko.data_settings.batch_size = args.batch_size
 
-    ko.run(sub_dataset, test_set)
+    ko(sub_dataset, test_set)

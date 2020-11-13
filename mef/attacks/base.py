@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 import numpy as np
@@ -43,7 +44,7 @@ class BaseSettings:
     debug: bool = False
 
 
-class Base:
+class Base(ABC):
     base_settings = BaseSettings()
     attack_settings = None
     data_settings = DataSettings()
@@ -55,10 +56,7 @@ class Base:
                  optimizer,
                  loss,
                  lr_scheduler=None):
-        self._logger = set_up_logger("Mef",
-                                     "debug" if self.base_settings.debug else
-                                     "info", self.base_settings.save_loc)
-
+        self._logger = None
         # Datasets
         self._test_set = None
         self._thief_dataset = None
@@ -78,11 +76,13 @@ class Base:
 
         # Set up random generators and pytorch for reproducibility
         seed_everything(self.base_settings.seed)
+        # In 1.7.0 still in BETA
         # torch.set_deterministic(self.base_settings.deterministic)
 
     @classmethod
+    @abstractmethod
     def get_attack_args(cls):
-        raise NotImplementedError
+        pass
 
     @classmethod
     def _add_base_args(cls, parser):
@@ -350,5 +350,16 @@ class Base:
         self._save_final_subsitute()
         return
 
-    def run(self, *args, **kwargs):
-        raise NotImplementedError("Attacks must implement run method!")
+    def __call__(self, *args, **kwargs):
+        self._logger = set_up_logger("Mef",
+                                     "debug" if self.base_settings.debug else
+                                     "info", self.base_settings.save_loc)
+        self._parse_args(args, kwargs)
+        self._run()
+        self._finalize_attack()
+
+        return
+
+    @abstractmethod
+    def _run(self):
+        pass

@@ -297,9 +297,7 @@ class KnockOff(Base):
 
         return ConcatDataset(query_sets)
 
-    def run(self, *args, **kwargs):
-        self._parse_args(args, kwargs)
-
+    def _run(self):
         self._logger.info(
                 "########### Starting KnockOff attack ###########")
         self._logger.info(
@@ -319,7 +317,5 @@ class KnockOff(Base):
 
         self._logger.info("Offline training of substitute model")
         self._train_substitute_model(transfer_data)
-
-        self._finalize_attack()
 
         return

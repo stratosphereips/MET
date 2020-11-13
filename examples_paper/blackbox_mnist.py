@@ -113,4 +113,4 @@ if __name__ == "__main__":
     # Data settings
     bb.data_settings.batch_size = args.batch_size
 
-    bb.run(thief_dataset, test_set)
+    bb(thief_dataset, test_set)

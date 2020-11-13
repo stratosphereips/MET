@@ -193,4 +193,4 @@ if __name__ == "__main__":
     # Data settings
     copycat.data_settings.batch_size = args.batch_size
 
-    copycat.run(thief_dataset, test_set)
+    copycat(thief_dataset, test_set)

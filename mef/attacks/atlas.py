@@ -172,7 +172,7 @@ class AtlasThief(Base):
 
         return np.concatenate(selected_points)
 
-    def run(self, *args, **kwargs):
+    def _run(self, *args, **kwargs):
         self._parse_args(args, kwargs)
 
         self._logger.info(

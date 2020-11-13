@@ -157,4 +157,4 @@ if __name__ == "__main__":
     # Data settings
     af.data_settings.batch_size = args.batch_size
 
-    af.run(test_set)
+    af(test_set)

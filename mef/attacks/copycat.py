@@ -28,9 +28,7 @@ class CopyCat(Base):
 
         return parser
 
-    def run(self, *args, **kwargs):
-        self._parse_args(args, kwargs)
-
+    def _run(self):
         self._logger.info("########### Starting CopyCat attack ###########")
         self._logger.info(
                 "CopyCat's attack budget: {}".format(len(self._thief_dataset)))
@@ -46,7 +44,5 @@ class CopyCat(Base):
 
         self._logger.info("Training substitute model with synthetic dataset")
         self._train_substitute_model(synthetic_dataset)
-
-        self._finalize_attack()
 
         return

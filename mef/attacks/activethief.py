@@ -221,9 +221,7 @@ class ActiveThief(Base):
 
         return selected_points
 
-    def run(self, *args, **kwargs):
-        self._parse_args(args, kwargs)
-
+    def _run(self):
         self._logger.info(
                 "########### Starting ActiveThief attack ###########")
         # Get budget of the attack
@@ -305,7 +303,6 @@ class ActiveThief(Base):
             self._train_substitute_model(train_set, val_set, it + 1)
 
             if (it + 1) == (self.attack_settings.iterations + 1):
-                self._finalize_attack()
                 break
 
             self._get_aggreement_score()

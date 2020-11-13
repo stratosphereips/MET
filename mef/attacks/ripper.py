@@ -84,8 +84,7 @@ class Ripper(Base):
         else:
             raise NotImplementedError()
 
-    def run(self, *args, **kwargs):
-        self._parse_args(args, kwargs)
+    def _run(self, *args, **kwargs):
         self._logger.info("########### Starting Ripper attack ##########")
         # Get budget of the attack
         self._logger.info("Ripper's attack budget: {}".format(
@@ -97,4 +96,4 @@ class Ripper(Base):
 
         self._train_substitute_model(self._thief_dataset)
 
-        self._finalize_attack()
+        return

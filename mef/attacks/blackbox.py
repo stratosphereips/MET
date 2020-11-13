@@ -96,9 +96,7 @@ class BlackBox(Base):
 
         return torch.stack(x_query_set)
 
-    def run(self, *args, **kwargs):
-        self._parse_args(args, kwargs)
-
+    def _run(self):
         self._logger.info("########### Starting BlackBox attack ###########")
         # Get attack's budget
         budget = len(self._thief_dataset) * \
@@ -126,7 +124,5 @@ class BlackBox(Base):
                                                     NoYDataset(x_query_set),
                                                     "labels")
                 query_sets.append(CustomDataset(x_query_set, y_query_set))
-
-        self._finalize_attack()
 
         return
