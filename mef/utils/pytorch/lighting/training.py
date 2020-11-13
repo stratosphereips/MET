@@ -3,6 +3,7 @@ from pathlib import Path
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
+
 def get_trainer(base_settings,
                 trainer_settings,
                 model_name: str = "",
@@ -38,6 +39,10 @@ def get_trainer(base_settings,
                       callbacks=callbacks,
                       fast_dev_run=base_settings.debug,
                       weights_summary=None,
+                      num_sanity_val_steps=2 if trainer_settings._validation
+                      else 0,
+                      limit_val_batches=1 if trainer_settings._validation
+                      else 0,
                       precision=trainer_settings.precision)
 
     return trainer
