@@ -75,8 +75,8 @@ class KnockOff(Base):
         self._online_optimizer = torch.optim.SGD(
                 self._substitute_model.parameters(), lr=0.0005, momentum=0.5)
 
-        self._selected_action = []
-        self._selected_idxs = []
+        self._selected_actions = np.array([])
+        self._selected_idxs = np.array([])
         self._num_actions = None
         self._y_avg = None
         self._reward_avg = None
@@ -129,9 +129,15 @@ class KnockOff(Base):
             y = np.array(self._thief_dataset.targets)
 
         idx_action = np.where(y == action)[0]
+        idx_action = np.setdiff1d(idx_action, self._selected_idxs)
+        if len(idx_action) == 0:
+            self._logger.error("No more samples for action {}".format(action))
+            raise ValueError()
+
         idx_sampled = np.random.permutation(idx_action)[
                       :self.attack_settings.k]
-        self._selected_idxs.append(idx_sampled)
+        self._selected_idxs = np.append(self._selected_idxs,
+                                        idx_sampled)
 
         return Subset(self._thief_dataset, idx_sampled)
 
@@ -252,7 +258,7 @@ class KnockOff(Base):
             self._logger.info("---------- Iteration: {} ----------".format(it))
             # Sample an action
             action = np.random.choice(np.arange(0, self._num_actions), p=probs)
-            self._selected_action.append(action)
+            self._selected_actions = np.append(self._selected_idxs, action)
             self._logger.info("Action {} selected".format(action))
 
             # Select sample to attack
