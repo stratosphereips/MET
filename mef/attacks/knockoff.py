@@ -1,7 +1,9 @@
 # Based on https://github.com/Trusted-AI/adversarial-robustness-toolbox/blob
 # /main/art/attacks/extraction/knockoff_nets.py
 import argparse
+import pickle
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -318,6 +320,13 @@ class KnockOff(Base):
                         .format(self.attack_settings.reward_type))
             transfer_data = self._adaptive_strategy()
             self._substitute_model.load_state_dict(original_state_dict)
+
+        base_path = Path(self.base_settings.save_loc)
+        with open(base_path.joinpath("selected_idx.pl"), 'w') as f:
+            pickle.dump(self._selected_idxs, f)
+        if self.attack_settings.sampling_strategy == "adaptive":
+            with open(base_path.joinpath("selected_actions.pl"), 'w') as f:
+                pickle.dump(self._selected_actions, f)
 
         self._logger.info("Offline training of substitute model")
         self._train_substitute_model(transfer_data)
