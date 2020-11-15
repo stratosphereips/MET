@@ -112,9 +112,9 @@ class KnockOff(Base):
         self._logger.info("Selecting random sample from thief dataset of "
                           "size {}".format(self.attack_settings.budget))
         idx_x = np.arange(len(self._thief_dataset))
-        idx_selected = np.random.permutation(idx_x)[
-                       :self.attack_settings.budget]
-        selected_data = Subset(self._thief_dataset, idx_selected)
+        self._selected_idxs = np.random.permutation(idx_x)[
+                              :self.attack_settings.budget]
+        selected_data = Subset(self._thief_dataset, self._selected_idxs)
 
         self._logger.info("Getting fake labels from victim model")
         y_output = self._get_predictions(self._victim_model, selected_data,
