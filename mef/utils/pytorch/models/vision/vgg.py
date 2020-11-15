@@ -27,6 +27,7 @@ class Vgg(Base):
         self._vgg = vgg_loader(pretrained=True)
         self._set_parameter_requires_grad(self._vgg,
                                           self._feature_extraction)
+        self._vgg.classifier[6].requires_grad_()
 
         if num_classes != 1000:
             in_features = self._vgg.classifier[6].in_features

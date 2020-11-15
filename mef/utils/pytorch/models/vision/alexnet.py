@@ -14,6 +14,7 @@ class AlexNet(Base):
         self._alexnet = torchvision.models.alexnet(pretrained=True)
         self._set_parameter_requires_grad(self._alexnet,
                                           self._feature_extraction)
+        self._alexnet.classifier[6].requires_grad_()
 
         if num_classes != 1000:
             in_features = self._alexnet.classifier[6].in_features

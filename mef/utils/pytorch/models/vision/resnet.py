@@ -23,10 +23,12 @@ class ResNet(Base):
         self._resnet = resnet_loader(pretrained=True)
         self._set_parameter_requires_grad(self._resnet,
                                           self._feature_extraction)
+        self._resnet.fc.requires_grad_()
 
-        in_features = self._resnet.fc.in_features
-        self._resnet.fc = nn.Linear(in_features=in_features,
-                                    out_features=num_classes)
+        if num_classes != 1000:
+            in_features = self._resnet.fc.in_features
+            self._resnet.fc = nn.Linear(in_features=in_features,
+                                        out_features=num_classes)
 
     @auto_move_data
     def forward(self, x):
