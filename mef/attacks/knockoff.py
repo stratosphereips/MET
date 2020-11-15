@@ -175,8 +175,7 @@ class KnockOff(Base):
         """
         # First update y_avg
         self._y_avg = self._y_avg + (1.0 / n) * \
-                      ((y_output.sum(dim=0) / self.attack_settings.k) -
-                       self._y_avg)
+                      (y_output.mean(dim=0) - self._y_avg)
 
         # Then compute reward
         reward = torch.mean(torch.sum(np.maximum(0, y_output - self._y_avg),
@@ -190,8 +189,7 @@ class KnockOff(Base):
         """
 
         # Compute reward
-        reward = torch.mean(torch.sum(-y_output * F.log_softmax(y_hat, dim=1),
-                                      dim=1))
+        reward = soft_cross_entropy(y_hat, y_output)
 
         return reward.numpy()
 
