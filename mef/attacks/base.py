@@ -38,7 +38,7 @@ class TrainerSettings:
 @dataclass
 class BaseSettings:
     save_loc: str = "./cache/"
-    gpus: int = None
+    gpus: int = 0
     seed: int = None
     deterministic: bool = True
     debug: bool = False

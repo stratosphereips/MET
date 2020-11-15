@@ -129,7 +129,7 @@ class ActiveThief(Base):
         loader = data_rest.generic_dataloader()
 
         curr_centers = init_centers
-        if self.base_settings.gpus is not None:
+        if self.base_settings.gpus:
             curr_centers = curr_centers.cuda()
 
         selected_points = []
@@ -139,7 +139,7 @@ class ActiveThief(Base):
             with torch.no_grad():
                 for _, y_rest_batch in loader:
 
-                    if self.base_settings.gpus is not None:
+                    if self.base_settings.gpus:
                         y_rest_batch = y_rest_batch.cuda()
                         curr_centers = curr_centers.cuda()
 

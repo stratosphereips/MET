@@ -149,7 +149,7 @@ class KnockOff(Base):
         loader = data.generic_dataloader()
 
         for x, y_output in tqdm(loader, desc="Online training"):
-            if self.base_settings.gpus is not None:
+            if self.base_settings.gpus:
                 x = x.cuda()
                 y_output = y_output.cuda()
 
