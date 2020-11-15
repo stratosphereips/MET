@@ -322,10 +322,10 @@ class KnockOff(Base):
             self._substitute_model.load_state_dict(original_state_dict)
 
         base_path = Path(self.base_settings.save_loc)
-        with open(base_path.joinpath("selected_idx.pl"), 'w') as f:
+        with open(base_path.joinpath("selected_idxs.pl"), 'wb') as f:
             pickle.dump(self._selected_idxs, f)
         if self.attack_settings.sampling_strategy == "adaptive":
-            with open(base_path.joinpath("selected_actions.pl"), 'w') as f:
+            with open(base_path.joinpath("selected_actions.pl"), 'wb') as f:
                 pickle.dump(self._selected_actions, f)
 
         self._logger.info("Offline training of substitute model")
