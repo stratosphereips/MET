@@ -106,7 +106,7 @@ if __name__ == "__main__":
     bb.base_settings.debug = args.debug
 
     # Trainer settings
-    bb.trainer_settings.training_epochs = args.substitute_train_epochs
+    bb.trainer_settings.training_epochs = args.training_epochs
     bb.trainer_settings.precision = args.precision
     bb.trainer_settings.accuracy = args.accuracy
 
