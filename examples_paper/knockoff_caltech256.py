@@ -7,14 +7,13 @@ import torch.nn.functional as F
 from pytorch_lightning import seed_everything
 from torchvision.transforms import transforms as T
 
-from mef.utils.experiment import train_victim_model
-
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.knockoff import KnockOff
+from mef.utils.experiment import train_victim_model
+from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets.vision import ImageNet1000, Caltech256
 from mef.utils.pytorch.models.vision import ResNet
-from mef.utils.ios import mkdir_if_missing
 
 NUM_CLASSES = 256
 
