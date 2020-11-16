@@ -14,7 +14,7 @@ from mef.utils.pytorch.datasets import CustomDataset, CustomLabelDataset, \
     MefDataset, NoYDataset
 from mef.utils.pytorch.functional import soft_cross_entropy
 from mef.utils.pytorch.lighting.module import MefModule
-from mef.utils.pytorch.lighting.trainer import get_trainer
+from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
 from mef.utils.settings import AttackSettings
 
 
@@ -114,7 +114,8 @@ class AtlasThief(Base):
         trainer_settings = self.trainer_settings.copy()
         trainer_settings.training_epochs = 25
         trainer_settings.validation = False
-        trainer = get_trainer(base_settings, trainer_settings, "correct_model")
+        trainer = get_trainer_with_settings(base_settings, trainer_settings,
+                                            "correct_model")
 
         correct_model = UncertaintyPredictor(train_set[0][0].shape[0])
         loss = nn.CrossEntropyLoss()

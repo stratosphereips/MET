@@ -89,7 +89,7 @@ class Base(ABC):
         trainer = get_trainer_with_settings(self.base_settings,
                                             self.trainer_settings,
                                             "substitute", iteration,
-                                            dataset.val_set is None)
+                                            dataset.val_set is not None)
 
         mef_model = MefModule(self._substitute_model, self._num_classes,
                               self._optimizer, self._loss, self._lr_scheduler)

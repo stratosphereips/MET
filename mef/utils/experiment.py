@@ -47,8 +47,8 @@ def train_victim_model(victim_model: Module,
         mef_model = MefModule(victim_model, num_classes, optimizer, loss,
                               lr_scheduler)
         trainer = get_trainer(Path(save_loc).joinpath("victim"), None,
-                              training_epochs, gpus, dataset.val_set is None,
-                              evaluation_frequency, patience, accuracy,
+                              training_epochs, gpus, dataset.val_set is not
+                              None, evaluation_frequency, patience, accuracy,
                               debug, deterministic, precision)
         trainer.fit(mef_model, train_dataloader, val_dataloader)
 
