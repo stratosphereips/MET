@@ -72,7 +72,7 @@ def set_up(args):
         mef_model = MefModule(victim_model, NUM_CLASSES, optimizer, loss)
         base_settings = BaseSettings(gpus=args.gpus, save_loc=args.save_loc)
         trainer_settings = TrainerSettings(
-                training_epochs=args.substitute_train_epochs,
+                training_epochs=args.training_epochs,
                 _validation=False, precision=args.precision)
         trainer = get_trainer(base_settings, trainer_settings, "victim")
         trainer.fit(mef_model, train_dataloader, val_dataloader)
