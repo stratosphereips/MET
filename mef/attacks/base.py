@@ -187,10 +187,10 @@ class Base(ABC):
                          data,
                          output_type="softmax",
                          return_all_layers=False):
-        if output_type not in ["one_hot", "softmax", "logits", "label"]:
+        if output_type not in ["one_hot", "softmax", "logits", "labels"]:
             self._logger.error(
                     "Output_type must be one of {one_hot, softmax, logits, "
-                    "label}")
+                    "labels}")
             raise ValueError()
 
         model.eval()
