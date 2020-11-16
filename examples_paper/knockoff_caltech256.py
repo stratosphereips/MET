@@ -1,22 +1,20 @@
 import os
 import sys
+from pathlib import Path
 
 import torch
 import torch.nn.functional as F
 from pytorch_lightning import seed_everything
-from torch.utils.data import DataLoader
 from torchvision.transforms import transforms as T
+
+from mef.utils.experiment import train_victim_model
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.knockoff import KnockOff
-from mef.attacks.base import BaseSettings, TrainerSettings
 from mef.utils.pytorch.datasets.vision import ImageNet1000, Caltech256
 from mef.utils.pytorch.models.vision import ResNet
 from mef.utils.ios import mkdir_if_missing
-from mef.utils.pytorch.datasets import split_dataset
-from mef.utils.pytorch.lighting.module import MefModule
-from mef.utils.pytorch.lighting.training import get_trainer
 
 NUM_CLASSES = 256
 
@@ -44,39 +42,16 @@ def set_up(args):
     sub_dataset = ImageNet1000(args.imagenet_dir, transform=transform,
                                seed=args.seed)
 
-    # Train secret model
-    try:
-        saved_model = torch.load(args.save_loc +
-                                 "/victim/final_victim_model.pt")
-        victim_model.load_state_dict(saved_model["state_dict"])
-        print("Loaded victim model")
-    except FileNotFoundError:
-        # Prepare secret model
-        print("Training victim model")
-        optimizer = torch.optim.SGD(victim_model.parameters(), lr=0.1,
-                                    momentum=0.5)
-        loss = F.cross_entropy
-        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=60)
+    optimizer = torch.optim.SGD(victim_model.parameters(), lr=0.1,
+                                momentum=0.5)
+    loss = F.cross_entropy
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=60)
 
-        train_set, val_set = split_dataset(train_set, 0.2)
-        train_dataloader = DataLoader(dataset=train_set, shuffle=True,
-                                      num_workers=4, pin_memory=True,
-                                      batch_size=args.batch_size)
-
-        val_dataloader = DataLoader(dataset=val_set, pin_memory=True,
-                                    num_workers=4, batch_size=args.batch_size)
-
-        mef_model = MefModule(victim_model, NUM_CLASSES, optimizer, loss,
-                              lr_scheduler)
-        base_settings = BaseSettings(gpus=args.gpus, save_loc=args.save_loc)
-        trainer_settings = TrainerSettings(
-                training_epochs=args.training_epochs,
-                _validation=False, precision=args.precision)
-        trainer = get_trainer(base_settings, trainer_settings, "victim")
-        trainer.fit(mef_model, train_dataloader, val_dataloader)
-
-        torch.save(dict(state_dict=victim_model.state_dict()),
-                   args.save_loc + "/victim/final_victim_model.pt")
+    train_victim_model(victim_model, optimizer, loss, train_set,
+                       NUM_CLASSES, args.precision, args.batch_size,
+                       lr_scheduler=lr_scheduler, save_loc=args.save_loc,
+                       gpus=args.gpus, deterministic=args.deterministic,
+                       debug=args.debug, precision=args.precision)
 
     return victim_model, substitute_model, sub_dataset, test_set
 
@@ -99,7 +74,7 @@ if __name__ == "__main__":
                   args.budget)
 
     # Baset settings
-    ko.base_settings.save_loc = args.save_loc
+    ko.base_settings.save_loc = Path(args.save_loc)
     ko.base_settings.gpus = args.gpus
     ko.base_settings.seed = args.seed
     ko.base_settings.deterministic = args.deterministic

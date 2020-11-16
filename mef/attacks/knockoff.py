@@ -11,9 +11,10 @@ import torch.nn.functional as F
 from torch.utils.data import ConcatDataset, Subset
 from tqdm import tqdm
 
-from mef.attacks.base import AttackSettings, Base
+from mef.attacks.base import Base
 from mef.utils.pytorch.datasets import CustomLabelDataset, MefDataset
 from mef.utils.pytorch.functional import soft_cross_entropy
+from mef.utils.settings import AttackSettings
 
 
 @dataclass
@@ -145,7 +146,7 @@ class KnockOff(Base):
 
     def _online_train(self, data):
         self._substitute_model.train()
-        data = MefDataset(data, self.data_settings.batch_size)
+        data = MefDataset(self.data_settings.batch_size, data)
         loader = data.generic_dataloader()
 
         for x, y_output in tqdm(loader, desc="Online training"):

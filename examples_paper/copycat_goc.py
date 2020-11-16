@@ -1,24 +1,22 @@
 import os
 import sys
+from pathlib import Path
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 from pytorch_lightning import seed_everything
-from torch.utils.data import ConcatDataset, DataLoader, Subset
+from torch.utils.data import ConcatDataset, Subset
 from torchvision.datasets import CIFAR10, STL10
 from torchvision.transforms import transforms as T
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.copycat import CopyCat
-from mef.attacks.base import BaseSettings, TrainerSettings
+from mef.utils.experiment import train_victim_model
+from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets.vision import ImageNet1000
 from mef.utils.pytorch.models.vision import Vgg
-from mef.utils.ios import mkdir_if_missing
-from mef.utils.pytorch.datasets import split_dataset
-from mef.utils.pytorch.lighting.module import MefModule
-from mef.utils.pytorch.lighting.training import get_trainer
 
 NUM_CLASSES = 9
 
@@ -40,7 +38,8 @@ class GOCData:
 
         self.test_set = None
         self.od_dataset = None
-        self.thief_dataset = None
+        self.pd_dataset = None
+        self.npd_dataset = None
 
     def prepare_data(self):
         # download
@@ -107,12 +106,11 @@ class GOCData:
 
         self.test_set = cifar10["test"]
         self.od_dataset = cifar10["train"]
-        pd_dataset = ConcatDataset([stl10["train"], stl10["test"]])
+        self.pd_dataset = ConcatDataset([stl10["train"], stl10["test"]])
 
         imagenet = ImageNet1000(self.imagenet_dir, transform=self.transform)
         idxs = np.random.permutation(len(imagenet))[:self.npd_size]
-        npd_dataset = Subset(imagenet, idxs)
-        self.thief_dataset = ConcatDataset([pd_dataset, npd_dataset])
+        self.npd_dataset = Subset(imagenet, idxs)
 
 
 def set_up(args):
@@ -130,38 +128,19 @@ def set_up(args):
     goc.prepare_data()
     goc.setup()
 
-    # Prepare target model
-    try:
-        saved_model = torch.load(args.save_loc +
-                                 "/victim/final_victim_model.pt")
-        victim_model.load_state_dict(saved_model["state_dict"])
-        print("Loaded victim model")
-    except FileNotFoundError:
-        print("Training victim model")
-        optimizer = torch.optim.SGD(victim_model.parameters(), lr=0.1,
-                                    momentum=0.5)
-        loss = F.cross_entropy
+    optimizer = torch.optim.SGD(victim_model.parameters(), lr=0.1,
+                                momentum=0.5)
+    loss = F.cross_entropy
 
-        train_set, val_set = split_dataset(goc.od_dataset, 0.2)
-        train_dataloader = DataLoader(dataset=train_set, shuffle=True,
-                                      num_workers=4, pin_memory=True,
-                                      batch_size=32)
+    victim_training_epochs = 20
+    train_victim_model(victim_model, optimizer, loss, goc.od_dataset,
+                       NUM_CLASSES, victim_training_epochs, args.batch_size,
+                       save_loc=args.save_loc, gpus=args.gpus,
+                       deterministic=args.deterministic, debug=args.debug,
+                       precision=args.precision)
 
-        val_dataloader = DataLoader(dataset=val_set, pin_memory=True,
-                                    num_workers=4, batch_size=32)
-
-        mef_model = MefModule(victim_model, NUM_CLASSES, optimizer, loss)
-        base_settings = BaseSettings(gpus=args.gpus, save_loc=args.save_loc)
-        trainer_settings = TrainerSettings(training_epochs=20,
-                                           _validation=False,
-                                           precision=args.precision)
-        trainer = get_trainer(base_settings, trainer_settings, "victim")
-        trainer.fit(mef_model, train_dataloader, val_dataloader)
-
-        torch.save(dict(state_dict=victim_model.state_dict()),
-                   args.save_loc + "/victim/final_victim_model.pt")
-
-    return victim_model, substitute_model, goc.thief_dataset, goc.test_set
+    return victim_model, substitute_model, [goc.npd_dataset, goc.pd_dataset], \
+           goc.test_set
 
 
 if __name__ == "__main__":
@@ -176,10 +155,10 @@ if __name__ == "__main__":
     mkdir_if_missing(args.save_loc)
 
     victim_model, substitute_model, thief_dataset, test_set = set_up(args)
-    copycat = CopyCat(victim_model, substitute_model)
+    copycat = CopyCat(victim_model, substitute_model, NUM_CLASSES)
 
     # Baset settings
-    copycat.base_settings.save_loc = args.save_loc
+    copycat.base_settings.save_loc = Path(args.save_loc)
     copycat.base_settings.gpus = args.gpus
     copycat.base_settings.seed = args.seed
     copycat.base_settings.deterministic = args.deterministic
@@ -193,4 +172,8 @@ if __name__ == "__main__":
     # Data settings
     copycat.data_settings.batch_size = args.batch_size
 
-    copycat(thief_dataset, test_set)
+    print("CopyCat attack with NPD dataset")
+    copycat(thief_dataset[0], test_set)
+
+    print("CopyCat attack with PD dataset")
+    copycat(thief_dataset[1], test_set)

@@ -1,5 +1,6 @@
 import os
 import sys
+from pathlib import Path
 
 import torch
 import torch.nn.functional as F
@@ -18,7 +19,7 @@ from mef.utils.pytorch.models.vision import AtCnn
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.lighting.module import MefModule
-from mef.utils.pytorch.lighting.training import get_trainer
+from mef.utils.pytorch.lighting.trainer import get_trainer
 
 IMAGENET_TRAIN_SIZE = 100000
 LATENT_DIM = 128
@@ -58,8 +59,8 @@ def set_up(args):
                                   transform=transform, seed=args.seed)
 
     try:
-        saved_model = torch.load(args.save_loc +
-                                 "/victim/final_victim_model.pt")
+        saved_model = torch.load(Path(args.save_loc).joinpath("victim",
+                                                              "final_victim_model.pt"))
         victim_model.load_state_dict(saved_model["state_dict"])
         print("Loaded victim model")
     except FileNotFoundError:
@@ -86,11 +87,12 @@ def set_up(args):
         trainer.fit(mef_model, train_dataloader, val_dataloader)
 
         torch.save(dict(state_dict=victim_model.state_dict()),
-                   args.save_loc + "/victim/final_victim_model.pt")
+                   Path(args.save_loc).joinpath("victim",
+                                                "final_victim_model.pt"))
 
     try:
-        saved_generator = torch.load(args.save_loc +
-                                     "/generator/final_generator.pt")
+        saved_generator = torch.load(Path(args.save_loc).joinpath("generator",
+                                                                  "final_generator.pt"))
         generator.load_state_dict(saved_generator["state_dict"])
         print("Loaded Generator")
     except FileNotFoundError:
@@ -100,15 +102,18 @@ def set_up(args):
                                       num_workers=4, pin_memory=True,
                                       batch_size=args.batch_size)
 
-        base_settings = BaseSettings(gpus=args.gpus, save_loc=args.save_loc)
+        base_settings = BaseSettings(gpus=args.gpus, save_loc=args.save_loc,
+                                     deterministic=args.deterministic,
+                                     debug=args.debug)
         trainer_settings = TrainerSettings(
                 training_epochs=args.substitute_train_epochs,
                 patience=args.patience, precision=args.precision)
-        trainer = get_trainer(base_settings, trainer_settings, "victim")
+        trainer = get_trainer(base_settings, trainer_settings, "generator")
         trainer.fit(generator, train_dataloader)
 
-        torch.save(dict(state_dict=generator.state_dict()),
-                   args.save_loc + "/generator/final_victim_model.pt")
+        torch.save(dict(state_dict=victim_model.state_dict()),
+                   Path(args.save_loc).joinpath("generator",
+                                                "final_generator.pt"))
 
     def visualize():
         import numpy as np

@@ -9,12 +9,13 @@ from .base import Base
 
 class CopyCat(Base):
 
-    def __init__(self, victim_model, substitute_model):
+    def __init__(self, victim_model, substitute_model, num_classes):
         optimizer = torch.optim.SGD(substitute_model.parameters(), lr=0.01,
                                     momentum=0.8)
         loss = F.cross_entropy
 
-        super().__init__(victim_model, substitute_model, optimizer, loss)
+        super().__init__(victim_model, substitute_model, optimizer, loss,
+                         num_classes)
         self.trainer_settings._validation = False
 
     @classmethod

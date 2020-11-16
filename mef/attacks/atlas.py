@@ -9,12 +9,13 @@ from pytorch_lightning.core.decorators import auto_move_data
 from torch.utils.data import ConcatDataset, Subset
 from tqdm import tqdm
 
-from mef.attacks.base import AttackSettings, Base
+from mef.attacks.base import Base
 from mef.utils.pytorch.datasets import CustomDataset, CustomLabelDataset, \
     MefDataset, NoYDataset
 from mef.utils.pytorch.functional import soft_cross_entropy
 from mef.utils.pytorch.lighting.module import MefModule
-from mef.utils.pytorch.lighting.training import get_trainer
+from mef.utils.pytorch.lighting.trainer import get_trainer
+from mef.utils.settings import AttackSettings
 
 
 class UncertaintyPredictor(pl.LightningModule):
@@ -66,10 +67,10 @@ class AtlasThief(Base):
                                      weight_decay=1e-3)
         loss = soft_cross_entropy
 
-        super().__init__(victim_model, substitute_model, optimizer, loss)
+        super().__init__(victim_model, substitute_model, optimizer, loss,
+                         num_classes)
         self.attack_settings = ActiveThiefSettings(iterations, output_type,
                                                    budget)
-        self.data_settings._num_classes = num_classes
 
     @classmethod
     def get_attack_args(self):
@@ -121,7 +122,7 @@ class AtlasThief(Base):
                                     momentum=0.5)
         mef_model = MefModule(correct_model, 2, optimizer, loss)
 
-        train_set = MefDataset(train_set, self.data_settings.batch_size)
+        train_set = MefDataset(self.data_settings.batch_size, train_set)
         train_loader = train_set.train_dataloader()
         trainer.fit(mef_model, train_loader)
 
@@ -193,8 +194,7 @@ class AtlasThief(Base):
                                       self.attack_settings.output_type)
         val_set = CustomLabelDataset(val_set, y_val)
 
-        val_label_counts = dict(
-                list(enumerate([0] * self.data_settings._num_classes)))
+        val_label_counts = dict(list(enumerate([0] * self._num_classes)))
         for class_id in torch.argmax(y_val, dim=1):
             val_label_counts[class_id.item()] += 1
 
@@ -256,7 +256,6 @@ class AtlasThief(Base):
             self._train_substitute_model(train_set, val_set, it + 1)
 
             if (it + 1) == (self.attack_settings.iterations + 1):
-                self._finalize_attack()
                 break
 
             self._get_aggreement_score()
@@ -279,9 +278,5 @@ class AtlasThief(Base):
             y_query = self._get_predictions(self._victim_model, query_set,
                                             self.attack_settings.output_type)
             query_sets.append(CustomLabelDataset(query_set, y_query))
-
-        self._get_test_set_metrics()
-        self._get_aggreement_score()
-        self._save_final_subsitute()
 
         return

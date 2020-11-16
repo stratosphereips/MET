@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 
 import numpy as np
 import torch
@@ -11,42 +10,13 @@ from tqdm import tqdm
 from mef.utils.logger import set_up_logger
 from mef.utils.pytorch.datasets import CustomDataset, MefDataset
 from mef.utils.pytorch.lighting.module import MefModule
-from mef.utils.pytorch.lighting.training import get_trainer
-
-
-@dataclass
-class AttackSettings:
-    pass
-
-
-@dataclass
-class DataSettings:
-    batch_size: int = 32
-    _num_classes: int = None
-
-
-@dataclass
-class TrainerSettings:
-    training_epochs: int = 1000
-    patience: int = 100
-    evaluation_frequency: int = 1
-    _validation: bool = True
-    precision: int = 32
-    accuracy: bool = False
-
-
-@dataclass
-class BaseSettings:
-    save_loc: str = "./cache/"
-    gpus: int = 0
-    seed: int = None
-    deterministic: bool = True
-    debug: bool = False
+from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
+from mef.utils.settings import BaseSettings, DataSettings, TrainerSettings
 
 
 class Base(ABC):
-    base_settings = BaseSettings()
     attack_settings = None
+    base_settings = BaseSettings()
     data_settings = DataSettings()
     trainer_settings = TrainerSettings()
 
@@ -55,11 +25,13 @@ class Base(ABC):
                  substitute_model,
                  optimizer,
                  loss,
+                 num_classes,
                  lr_scheduler=None):
         self._logger = None
         # Datasets
         self._test_set = None
         self._thief_dataset = None
+        self._num_classes = num_classes
 
         # Models
         self._victim_model = victim_model
@@ -107,19 +79,19 @@ class Base(ABC):
                                 train_set,
                                 val_set=None,
                                 iteration=None):
-        train_set = MefDataset(train_set, self.data_settings.batch_size)
-        train_dataloader = train_set.train_dataloader()
+        dataset = MefDataset(self.data_settings.batch_size, train_set, val_set)
+        train_dataloader = dataset.train_dataloader()
 
         val_dataloader = None
-        if val_set is not None:
-            val_set = MefDataset(val_set, self.data_settings.batch_size)
-            val_dataloader = val_set.val_dataloader()
+        if dataset.val_set is not None:
+            val_dataloader = dataset.val_dataloader()
 
-        trainer = get_trainer(self.base_settings, self.trainer_settings,
-                              "substitute", iteration)
+        trainer = get_trainer_with_settings(self.base_settings,
+                                            self.trainer_settings,
+                                            "substitute", iteration,
+                                            dataset.val_set is None)
 
-        mef_model = MefModule(self._substitute_model,
-                              self.data_settings._num_classes,
+        mef_model = MefModule(self._substitute_model, self._num_classes,
                               self._optimizer, self._loss, self._lr_scheduler)
         trainer.fit(mef_model, train_dataloader, val_dataloader)
 
@@ -132,11 +104,14 @@ class Base(ABC):
     def _test_model(self,
                     model,
                     test_set):
-        test_set = MefDataset(test_set, self.data_settings.batch_size)
+        test_set = MefDataset(self.data_settings.batch_size, test_set=test_set)
         test_dataloader = test_set.test_dataloader()
-        mef_model = MefModule(model, self.data_settings._num_classes,
-                              loss=self._loss)
-        trainer = get_trainer(self.base_settings, self.trainer_settings)
+        mef_model = MefModule(model, self._num_classes, loss=self._loss)
+
+        trainer = get_trainer_with_settings(self.base_settings,
+                                            self.trainer_settings,
+                                            model_name='', iteration=None,
+                                            validation=False)
         metrics = trainer.test(mef_model, test_dataloader)
 
         return 100 * metrics[0]["test_acc"]
@@ -172,11 +147,11 @@ class Base(ABC):
         return
 
     def _save_final_subsitute(self):
-        final_model_loc = self.base_settings.save_loc + \
-                          "/final_substitute_model.pt"
+        final_model_loc = self.base_settings.save_loc.joinpath(
+                "final_substitute_model.pt")
         self._logger.info(
                 "Saving final substitute model state dictionary to: {}".format(
-                        final_model_loc))
+                        final_model_loc.__str__()))
         torch.save(dict(state_dict=self._substitute_model.state_dict()),
                    final_model_loc)
 
@@ -194,7 +169,7 @@ class Base(ABC):
             raise ValueError()
 
         model.eval()
-        data = MefDataset(data, self.data_settings.batch_size)
+        data = MefDataset(self.data_settings.batch_size, val_set=data)
         loader = data.val_dataloader()
         hidden_layer_outputs = []
         y_preds = []

@@ -8,9 +8,10 @@ from torch.utils.data import ConcatDataset, Subset
 from torchattacks import DeepFool
 from tqdm import tqdm
 
-from .base import AttackSettings, Base
+from .base import Base
 from ..utils.pytorch.datasets import CustomLabelDataset, MefDataset
 from ..utils.pytorch.functional import soft_cross_entropy
+from ..utils.settings import AttackSettings
 
 
 @dataclass
@@ -60,11 +61,11 @@ class ActiveThief(Base):
                                      weight_decay=1e-3)
         loss = soft_cross_entropy
 
-        super().__init__(victim_model, substitute_model, optimizer, loss)
+        super().__init__(victim_model, substitute_model, optimizer, loss,
+                         num_classes)
         self.attack_settings = ActiveThiefSettings(iterations,
                                                    selection_strategy,
                                                    output_type, budget)
-        self.data_settings._num_classes = num_classes
 
     @classmethod
     def get_attack_args(cls):
@@ -108,14 +109,14 @@ class ActiveThief(Base):
                           k,
                           data_rest):
         scores = []
-        data_rest = MefDataset(data_rest, self.data_settings.batch_size)
+        data_rest = MefDataset(self.trainer_settings.batch_size, data_rest)
         loader = data_rest.generic_dataloader()
         for _, prob_dists in tqdm(loader, desc="Calculating entropy scores"):
             log_probs = prob_dists * torch.log2(prob_dists)
             raw_entropy = 0 - torch.sum(log_probs, dim=1)
 
             normalized_entropy = raw_entropy / math.log2(
-                    self.data_settings._num_classes)
+                    self._num_classes)
 
             scores.append(normalized_entropy)
 
@@ -125,7 +126,7 @@ class ActiveThief(Base):
                           k,
                           data_rest,
                           init_centers):
-        data_rest = MefDataset(data_rest, self.data_settings.batch_size)
+        data_rest = MefDataset(self.trainer_settings.batch_size, data_rest)
         loader = data_rest.generic_dataloader()
 
         curr_centers = init_centers
@@ -167,7 +168,7 @@ class ActiveThief(Base):
                            k,
                            data_rest):
         self._substitute_model.eval()
-        data_rest = MefDataset(data_rest, self.data_settings.batch_size)
+        data_rest = MefDataset(self.trainer_settings.batch_size, data_rest)
         loader = data_rest.generic_dataloader()
 
         deepfool = DeepFool(self._substitute_model, steps=30)
@@ -240,8 +241,7 @@ class ActiveThief(Base):
                                       self.attack_settings.output_type)
         val_set = CustomLabelDataset(val_set, y_val)
 
-        val_label_counts = dict(
-                list(enumerate([0] * self.data_settings._num_classes)))
+        val_label_counts = dict(list(enumerate([0] * self._num_classes)))
         for class_id in torch.argmax(y_val, dim=1):
             val_label_counts[class_id.item()] += 1
 

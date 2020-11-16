@@ -3,11 +3,12 @@ from dataclasses import dataclass
 
 import torch
 import torch.nn.functional as F
-from torch.utils.data import ConcatDataset, DataLoader
+from torch.utils.data import ConcatDataset
 from tqdm import tqdm
 
-from mef.attacks.base import AttackSettings, Base
-from mef.utils.pytorch.datasets import CustomDataset, NoYDataset
+from mef.attacks.base import Base
+from mef.utils.pytorch.datasets import CustomDataset, MefDataset, NoYDataset
+from mef.utils.settings import AttackSettings
 
 
 @dataclass
@@ -34,10 +35,9 @@ class BlackBox(Base):
         loss = F.cross_entropy
 
         super().__init__(victim_model, substitute_model, optimizer,
-                         loss)
+                         loss, num_classes)
         self.attack_settings = BlackBoxSettings(iterations, lmbda)
         self.trainer_settings._validation = False
-        self.data_settings._num_classes = num_classes
 
     @classmethod
     def get_attack_args(cls):
@@ -61,7 +61,7 @@ class BlackBox(Base):
         x_var = x.requires_grad_()
 
         predictions = self._substitute_model(x_var)
-        for class_idx in range(self.data_settings._num_classes):
+        for class_idx in range(self._num_classes):
             outputs = predictions[:, class_idx]
             derivative = torch.autograd.grad(
                     outputs,
@@ -74,8 +74,10 @@ class BlackBox(Base):
 
     def _jacobian_augmentation(self, query_sets, lmbda):
         thief_dataset = ConcatDataset(query_sets)
-        loader = DataLoader(thief_dataset, pin_memory=True, num_workers=4,
-                            batch_size=self.data_settings.batch_size)
+        thief_dataset = MefDataset(self.data_settings.batch_size,
+                                   thief_dataset)
+        loader = thief_dataset.generic_dataloader()
+
         x_query_set = []
         for x_thief, y_thief in tqdm(loader, desc="Jacobian augmentation",
                                      total=len(loader)):
@@ -115,8 +117,8 @@ class BlackBox(Base):
             if it < self.attack_settings.iterations - 1:
                 self._substitute_model.eval()
                 self._logger.info("Augmenting training data")
-                x_query_set = self._jacobian_augmentation(
-                        query_sets, self.attack_settings.lmbda)
+                x_query_set = self._jacobian_augmentation(query_sets,
+                                                          self.attack_settings.lmbda)
 
                 self._logger.info("Labeling substitute training data")
                 # Adversary has access only to labels

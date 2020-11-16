@@ -1,23 +1,22 @@
 import os
 import sys
+from pathlib import Path
 
 import torch
 import torch.nn.functional as F
 from pytorch_lightning import seed_everything
-from torch.utils.data import ConcatDataset, DataLoader
+from torch.utils.data import ConcatDataset
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import transforms as T
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.atlas import AtlasThief
-from mef.attacks.base import BaseSettings, TrainerSettings
+from mef.utils.experiment import train_victim_model
+from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets.vision import ImageNet1000
 from mef.utils.pytorch.models.vision import AtCnn
-from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import split_dataset
-from mef.utils.pytorch.lighting.module import MefModule
-from mef.utils.pytorch.lighting.training import get_trainer
 
 IMAGENET_TRAIN_SIZE = 100000
 IMAGENET_VAL_SIZE = 50000
@@ -58,36 +57,18 @@ def set_up(args):
                                 seed=args.seed)
     thief_dataset = ConcatDataset([imagenet_train, imagenet_val])
 
-    try:
-        saved_model = torch.load(args.save_loc +
-                                 "/victim/final_victim_model.pt")
-        victim_model.load_state_dict(saved_model["state_dict"])
-        print("Loaded victim model")
-    except FileNotFoundError:
-        print("Training victim model")
-        optimizer = torch.optim.Adam(victim_model.parameters(),
-                                     weight_decay=1e-3)
-        loss = F.cross_entropy
+    train_set, val_set = split_dataset(train_set, 0.2)
+    optimizer = torch.optim.Adam(victim_model.parameters(),
+                                 weight_decay=1e-3)
+    loss = F.cross_entropy
 
-        train_set, val_set = split_dataset(train_set, 0.2)
-        train_dataloader = DataLoader(dataset=train_set, shuffle=True,
-                                      num_workers=4, pin_memory=True,
-                                      batch_size=args.batch_size)
-
-        val_dataloader = DataLoader(dataset=val_set, pin_memory=True,
-                                    num_workers=4, batch_size=args.batch_size)
-
-        mef_model = MefModule(victim_model, NUM_CLASSES, optimizer, loss)
-
-        base_settings = BaseSettings(gpus=args.gpus, save_loc=args.save_loc)
-        trainer_settings = TrainerSettings(
-                training_epochs=args.substitute_train_epochs,
-                patience=args.patience, precision=args.precision)
-        trainer = get_trainer(base_settings, trainer_settings, "victim")
-        trainer.fit(mef_model, train_dataloader, val_dataloader)
-
-        torch.save(dict(state_dict=victim_model.state_dict()),
-                   args.save_loc + "/victim/final_victim_model.pt")
+    victim_training_epochs = 1000
+    train_victim_model(victim_model, optimizer, loss, train_set,
+                       NUM_CLASSES, victim_training_epochs, args.batch_size,
+                       val_set, patience=args.patience,
+                       save_loc=args.save_loc, gpus=args.gpus,
+                       deterministic=args.deterministic, debug=args.debug,
+                       precision=args.precision)
 
     return victim_model, substitute_model, thief_dataset, test_set
 
@@ -106,20 +87,20 @@ if __name__ == "__main__":
                     args.iterations, args.output_type, args.budget)
 
     # Baset settings
-    af.base_settings.save_loc = args.save_loc
+    af.base_settings.save_loc = Path(args.save_loc)
     af.base_settings.gpus = args.gpus
     af.base_settings.seed = args.seed
     af.base_settings.deterministic = args.deterministic
     af.base_settings.debug = args.debug
 
     # Trainer settings
-    af.trainer_settings.training_epochs = args.substitute_train_epochs
+    af.trainer_settings.training_epochs = args.training_epochs
     af.trainer_settings.patience = args.patience
     af.trainer_settings.evaluation_frequency = args.evaluation_frequency
     af.trainer_settings.precision = args.precision
     af.trainer_settings.accuracy = args.accuracy
 
     # Data settings
-    af.data_settings.batch_size = args.batch_size
+    af.data_settings.batch_size =  args.batch_size
 
     af(thief_dataset, test_set)

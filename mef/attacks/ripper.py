@@ -4,8 +4,9 @@ from dataclasses import dataclass
 import torch
 import torch.nn.functional as F
 
-from mef.attacks.base import AttackSettings, Base
+from mef.attacks.base import Base
 from mef.utils.pytorch.datasets import GeneratorRandomDataset
+from mef.utils.settings import AttackSettings
 
 
 @dataclass
@@ -88,7 +89,7 @@ class Ripper(Base):
         self._logger.info("########### Starting Ripper attack ##########")
         # Get budget of the attack
         self._logger.info("Ripper's attack budget: {}".format(
-                    self.attack_settings.budget))
+                self.attack_settings.budget))
 
         # For consistency between attacks the student dataset is called
         # thief dataset

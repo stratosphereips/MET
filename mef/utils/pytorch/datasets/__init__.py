@@ -1,7 +1,8 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, Dataset, IterableDataset, random_split
+from torch.utils.data import ConcatDataset, DataLoader, Dataset, \
+    IterableDataset, random_split
 
 
 def split_dataset(dataset, split_size):
@@ -12,37 +13,50 @@ def split_dataset(dataset, split_size):
 
 
 class MefDataset:
-    def __init__(self, dataset, batch_size):
-        self.dataset = dataset
+    def __init__(self,
+                 batch_size,
+                 train_set=None,
+                 val_set=None,
+                 test_set=None):
+        self.train_set = train_set
+        self.val_set = val_set
+        self.test_set = test_set
         self.batch_size = batch_size
 
     def generic_dataloader(self):
-        if isinstance(self.dataset, IterableDataset):
-            return DataLoader(dataset=self.dataset, pin_memory=True,
-                              batch_size=self.batch_size)
-        return DataLoader(dataset=self.dataset, pin_memory=True,
+        dataset = []
+        for set in [self.train_set, self.val_set, self.test_set]:
+            if set is not None:
+                dataset.append(set)
+
+        if len(dataset) == 1:
+            dataset = dataset[0]
+        else:
+            dataset = ConcatDataset(dataset)
+
+        return DataLoader(dataset=dataset, pin_memory=True,
                           num_workers=4, batch_size=self.batch_size)
 
     def train_dataloader(self):
-        if isinstance(self.dataset, IterableDataset):
-            return DataLoader(dataset=self.dataset, pin_memory=True,
+        if isinstance(self.train_set, IterableDataset):
+            return DataLoader(dataset=self.train_set, pin_memory=True,
                               shuffle=True, batch_size=self.batch_size)
-        return DataLoader(dataset=self.dataset, pin_memory=True,
+        return DataLoader(dataset=self.train_set, pin_memory=True,
                           num_workers=4, shuffle=True,
                           batch_size=self.batch_size)
 
     def val_dataloader(self):
-        if isinstance(self.dataset, IterableDataset):
-            return DataLoader(dataset=self.dataset, pin_memory=True,
+        if isinstance(self.val_set, IterableDataset):
+            return DataLoader(dataset=self.val_set, pin_memory=True,
                               batch_size=self.batch_size)
-        return DataLoader(dataset=self.dataset, pin_memory=True,
+        return DataLoader(dataset=self.val_set, pin_memory=True,
                           num_workers=4, batch_size=self.batch_size)
 
     def test_dataloader(self):
-        if isinstance(self.dataset, IterableDataset):
-            return DataLoader(dataset=self.dataset, pin_memory=True,
+        if isinstance(self.test_set, IterableDataset):
+            return DataLoader(dataset=self.test_set, pin_memory=True,
                               batch_size=self.batch_size)
-        return DataLoader(dataset=self.dataset, pin_memory=True,
+        return DataLoader(dataset=self.test_set, pin_memory=True,
                           num_workers=4, batch_size=self.batch_size)
 
 
@@ -79,7 +93,14 @@ class CustomDataset(Dataset):
         self.targets = targets
 
     def __getitem__(self, index):
-        return self.data[index], self.targets[index]
+        sample = self.data[index]
+        target = self.targets[index]
+
+        # When the target corresponds to integer return integer and not tensor
+        if target.numel() == 1:
+            target = target.item()
+
+        return sample, target
 
     def __len__(self):
         return len(self.data)
