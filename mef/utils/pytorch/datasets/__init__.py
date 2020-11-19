@@ -1,6 +1,4 @@
-import numpy as np
 import torch
-import torch.nn.functional as F
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, \
     IterableDataset, random_split
 
@@ -39,23 +37,20 @@ class MefDataset:
 
     def train_dataloader(self):
         if isinstance(self.train_set, IterableDataset):
-            return DataLoader(dataset=self.train_set, pin_memory=True,
-                              shuffle=True, batch_size=self.batch_size)
+            return DataLoader(dataset=self.train_set)
         return DataLoader(dataset=self.train_set, pin_memory=True,
                           num_workers=4, shuffle=True,
                           batch_size=self.batch_size)
 
     def val_dataloader(self):
         if isinstance(self.val_set, IterableDataset):
-            return DataLoader(dataset=self.val_set, pin_memory=True,
-                              batch_size=self.batch_size)
+            return DataLoader(dataset=self.val_set)
         return DataLoader(dataset=self.val_set, pin_memory=True,
                           num_workers=4, batch_size=self.batch_size)
 
     def test_dataloader(self):
         if isinstance(self.test_set, IterableDataset):
-            return DataLoader(dataset=self.test_set, pin_memory=True,
-                              batch_size=self.batch_size)
+            return DataLoader(dataset=self.test_set)
         return DataLoader(dataset=self.test_set, pin_memory=True,
                           num_workers=4, batch_size=self.batch_size)
 
@@ -117,64 +112,3 @@ class NoYDataset(Dataset):
 
     def __len__(self):
         return len(self.data)
-
-
-class AugmentationDataset(Dataset):
-    def __init__(self, data, labels, transform):
-        self.data = data
-        self.labels = labels
-        self.transform = transform
-
-    def __getitem__(self, index):
-        sample = self.data[(index % len(self.data))]
-        # imgaug works with numpy arrays
-        if isinstance(sample, torch.Tensor):
-            sample = sample.numpy().transpose(1, 2, 0)
-        sample = self.transform(sample)
-
-        return sample, self.labels[index]
-
-    def __len__(self):
-        return len(self.data)
-
-
-class GeneratorRandomDataset(IterableDataset):
-    def __init__(self, victim_model, generator, latent_dim, batch_size,
-                 output_type, greyscale="False"):
-        self._victim_model = victim_model
-        self._generator = generator
-        self._latent_dim = latent_dim
-        self._output_type = output_type
-        self._greyscale = greyscale
-        self._batch_size = batch_size
-
-    def __iter__(self):
-        for _ in range(1000):
-            images = self._generator(torch.Tensor(
-                    np.random.uniform(-3.3, 3.3, size=(self._batch_size,
-                                                       self._encoding_size))))
-
-            if self._greyscale:
-                multipliers = [.2126, .7152, .0722]
-                multipliers = np.expand_dims(multipliers, 0)
-                multipliers = np.expand_dims(multipliers, -1)
-                multipliers = np.expand_dims(multipliers, -1)
-                multipliers = np.tile(multipliers, [1, 1, 32, 32])
-                multipliers = torch.Tensor(multipliers)
-                images = images * multipliers
-                images = images.sum(axis=1, keepdims=True)
-
-            with torch.no_grad():
-                y_preds = self._victim_model(images)
-                if self._output_type == "one_hot":
-                    labels = F.one_hot(torch.argmax(y_preds, dim=-1),
-                                       num_classes=y_preds.size()[1])
-                    # to_oneshot returns tensor with uint8 type
-                    labels = labels.float()
-                elif self._output_type == "softmax":
-                    labels = F.softmax(y_preds, dim=-1)
-                elif self._output_type == "labels":
-                    labels = torch.argmax(y_preds, dim=-1)
-                else:
-                    labels = y_preds
-            yield images, labels

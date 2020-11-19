@@ -17,6 +17,16 @@ class MefModule(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, y = batch
+
+        # Dataloader adds one more dimension corresponding to batch size,
+        # which means the datasets created by generators which already
+        # have 4-dimensions will be 5-dimensional in the form [1, B, C, H, W]
+        # In case of y it will be 3-dimensional [1, B, L]
+        if len(x.size()) == 5:
+            x = x.squeeze()
+        if len(y.size()) == 3:
+            y = y.squeeze()
+
         y_hat = self._model(x)
         loss = self._loss(y_hat, y)
 
