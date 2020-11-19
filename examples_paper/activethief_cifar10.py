@@ -19,7 +19,7 @@ from mef.utils.pytorch.models.vision.at_cnn import AtCnn
 from mef.utils.pytorch.datasets import split_dataset
 
 IMAGENET_TRAIN_SIZE = 100000
-IMAGENET_VAL_SIZE = 50000
+IMAGENET_VAL_SIZE = 20000
 DIMS = (3, 32, 32)
 NUM_CLASSES = 10
 
@@ -40,7 +40,7 @@ def set_up(args):
     print("Preparing data")
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
-    transform = transforms.Compose([transforms.CenterCrop(DIMS[1]),
+    transform = transforms.Compose([transforms.Resize(DIMS[-1]),
                                     transforms.ToTensor(),
                                     transforms.Normalize(mean, std)])
     train_set = CIFAR10(root=args.cifar10_dir, download=True,

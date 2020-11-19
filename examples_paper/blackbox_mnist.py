@@ -33,7 +33,7 @@ def set_up(args):
 
     # Prepare data
     print("Preparing data")
-    transform = T.Compose([T.CenterCrop(DIMS[1:]), T.ToTensor()])
+    transform = T.Compose([T.Resize(-1), T.ToTensor()])
     mnist = dict()
     mnist["train"] = MNIST(root=args.mnist_dir, download=True,
                            transform=transform)

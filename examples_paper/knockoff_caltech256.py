@@ -31,7 +31,7 @@ def set_up(args):
     # Prepare data
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
-    transform = T.Compose([T.CenterCrop(224), T.ToTensor(),
+    transform = T.Compose([T.Resize(224), T.ToTensor(),
                            T.Normalize(mean, std)])
 
     train_set = Caltech256(args.caltech256_dir, transform=transform,

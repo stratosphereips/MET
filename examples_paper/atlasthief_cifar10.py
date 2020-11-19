@@ -47,7 +47,7 @@ def set_up(args):
     test_set = CIFAR10(root=args.cifar10_dir, train=False, download=True,
                        transform=transform)
 
-    transform = T.Compose([T.CenterCrop(DIMS[1]), T.ToTensor(),
+    transform = T.Compose([T.Resize(DIMS[-1]), T.ToTensor(),
                            T.Normalize(mean, std)])
     imagenet_train = ImageNet1000(root=args.imagenet_dir,
                                   size=IMAGENET_TRAIN_SIZE,
