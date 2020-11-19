@@ -23,4 +23,4 @@ class AlexNet(Base):
 
     @auto_move_data
     def forward(self, x):
-        return  self._alexnet(x)
+        return self._alexnet(x)

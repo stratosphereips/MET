@@ -1,5 +1,6 @@
 import pytorch_lightning as pl
 import torch
+import torch.nn.functional as F
 
 
 class MefModule(pl.LightningModule):
@@ -11,6 +12,7 @@ class MefModule(pl.LightningModule):
         self._loss = loss
         self._lr_scheduler = lr_scheduler
         self.to(next(model.parameters()).device)
+        self._train_accuracy = pl.metrics.Accuracy()
         self._accuracy = pl.metrics.Accuracy(compute_on_step=False)
         self._f1_macro = pl.metrics.Fbeta(num_classes, average="macro",
                                           compute_on_step=False)
@@ -38,7 +40,7 @@ class MefModule(pl.LightningModule):
         y_hat = self._model(x)
 
         if (y.numel() // len(y)) != 1:
-            y = torch.argmax(y, dim=1)
+            y = torch.argmax(y, dim=-1)
 
         self._accuracy(y_hat, y)
         self._f1_macro(y_hat, y)

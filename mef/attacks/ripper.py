@@ -205,7 +205,7 @@ class Ripper(Base):
                                  "optimized)")
         parser.add_argument("--output_type", default="softmax", type=str,
                             help="Type of output from victim model {softmax, "
-                                 "logits, one_hot, labels} (Default: label)")
+                                 "logits, one_hot, labels} (Default: softmax)")
         parser.add_argument("--training_epochs", default=200, type=int,
                             help="Number of training epochs for substitute "
                                  "model (Default: 200)")
@@ -216,6 +216,7 @@ class Ripper(Base):
 
     def _get_student_dataset(self):
         self._generator.eval()
+        self._victim_model.eval()
         if self.attack_settings.generated_data == "random":
             return GeneratorRandomDataset(self._generator,
                                           self.attack_settings.latent_dim,
