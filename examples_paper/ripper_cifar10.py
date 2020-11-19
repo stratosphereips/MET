@@ -7,11 +7,10 @@ from pytorch_lightning import seed_everything
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import transforms as T
 
-from mef.utils.pytorch.models.generators.cifar_sngan.sngan_cifar10 import \
-    Generator as SNGAN
-
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
+from mef.utils.pytorch.models.generators.cifar_sngan.sngan_cifar10 import \
+    Generator as SNGAN
 from mef.attacks.ripper import Ripper
 from mef.utils.pytorch.models.vision import Alexnet, HalfAlexnet
 from mef.utils.ios import mkdir_if_missing
