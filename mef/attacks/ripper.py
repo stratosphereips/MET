@@ -23,24 +23,26 @@ def optimize(classifier,
              num_classes):
     batch = []
 
-    iterations = batch_size
-    for it in range(iterations):
-        c = 0.
-        x = 0
-        # K - population size
-        pop_size = 30
+    # Hyperparameters from paper
+    u = 3
+    t = 0.02  # t - threshold value
+    pop_size = 30  # K - population size
+    max_iterations = 10
+    for _ in range(batch_size):
+        c = np.inf
+        it = 0
         image = None
-        specimens = np.random.uniform(-3.3, 3.3, size=(pop_size, latent_dim))
+        specimens = np.random.uniform(-u, u, size=(pop_size, latent_dim))
         label = np.random.randint(num_classes, size=(1, 1))
         y = np.eye(num_classes)[label]
-        while c < .9 and x < 300:
-            x += 1
+        while c >= t and it < max_iterations:
+            it += 1
             with torch.no_grad():
                 images = generator(torch.tensor(specimens).float())
 
                 # The original implementation expects the classifier to
                 # return logits
-                logits = classifier(images).detach().cpu()
+                logits = classifier(images).cpu()
                 y_hats = F.softmax(logits, dim=-1).numpy()
 
             losses = [loss(y_hat, y) for y_hat in y_hats]
@@ -50,9 +52,9 @@ def optimize(classifier,
             specimens = specimens[indexes[:10]]
             specimens = np.concatenate([
                 specimens,
-                specimens + np.random.normal(scale=.5, size=(10, latent_dim)),
-                specimens + np.random.normal(scale=.5, size=(10, latent_dim))])
-            c = y_hats[indexes[0]][label]
+                specimens + np.random.normal(scale=1, size=(10, latent_dim)),
+                specimens + np.random.normal(scale=1, size=(10, latent_dim))])
+            c = np.amin(losses)
 
         batch.append(image)
 
@@ -129,7 +131,7 @@ class GeneratorOptimizedDataset(IterableDataset):
         # optimization = optimize_to_grayscale if self._to_grayscale else \
         #     optimize
         optimization = optimize
-        for _ in range(1000):
+        for _ in range(100):
             images = optimization(self._victim_model, self._generator,
                                   self._batch_size, self._latent_dim,
                                   self._num_classes)
