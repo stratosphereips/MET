@@ -38,8 +38,8 @@ def set_up(args):
 
     # Prepare data
     print("Preparing data")
-    mean = [0.485, 0.456, 0.406]
-    std = [0.229, 0.224, 0.225]
+    mean = (0.5,)
+    std = (0.5,)
     transform = T.Compose([T.CenterCrop(DIMS[1]), T.ToTensor(),
                            T.Normalize(mean, std)])
     train_set = CIFAR10(root=args.cifar10_dir, download=True,
