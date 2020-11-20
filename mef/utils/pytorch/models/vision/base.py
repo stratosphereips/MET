@@ -1,7 +1,7 @@
-import pytorch_lightning as pl
+import torch.nn as nn
 
 
-class Base(pl.LightningModule):
+class Base(nn.Module):
 
     def __init__(self, num_classes, feature_extraction=False):
         super().__init__()

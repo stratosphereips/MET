@@ -1,9 +1,7 @@
-import pytorch_lightning as pl
 import torch.nn as nn
-from pytorch_lightning.core.decorators import auto_move_data
 
 
-class HalfAlexnet(pl.LightningModule):
+class HalfAlexnet(nn.Module):
     def __init__(self, name, n_outputs=10):
         super(HalfAlexnet, self).__init__()
 
@@ -64,11 +62,10 @@ class HalfAlexnet(pl.LightningModule):
 
         self.soft = nn.Softmax()
 
-    @auto_move_data
     def forward(self, x):
         layer1 = self.batch_norm1(self.pad(self.lrn(self.relu(self.conv1(x)))))
         layer2 = self.batch_norm2(
-            self.pad(self.lrn(self.relu(self.conv2(layer1)))))
+                self.pad(self.lrn(self.relu(self.conv2(layer1)))))
         layer3 = self.batch_norm3(self.relu(self.conv3(layer2)))
         layer4 = self.batch_norm4(self.relu(self.conv4(layer3)))
         layer5 = self.batch_norm5(self.pad(self.relu(self.conv5(layer4))))

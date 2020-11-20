@@ -59,7 +59,7 @@ class KnockOff(Base):
 
     def __init__(self, victim_model, substitute_model, num_classes,
                  sampling_strategy="adaptive", reward_type="cert",
-                 output_type="softmax", budget=10000):
+                 victim_output_type="softmax", budget=10000):
         optimizer = torch.optim.SGD(substitute_model.parameters(), lr=0.01,
                                     momentum=0.5)
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
@@ -67,9 +67,10 @@ class KnockOff(Base):
         loss = soft_cross_entropy
 
         super().__init__(victim_model, substitute_model, optimizer,
-                         loss, lr_scheduler)
+                         loss, num_classes, victim_output_type, lr_scheduler)
         self.attack_settings = KnockOffSettings(sampling_strategy,
-                                                reward_type, output_type,
+                                                reward_type,
+                                                victim_output_type,
                                                 budget)
         self.trainer_settings._validation = False
         self.data_settings._num_classes = num_classes
@@ -77,6 +78,7 @@ class KnockOff(Base):
         # KnockOff's specific attributes
         self._online_optimizer = torch.optim.SGD(
                 self._substitute_model.parameters(), lr=0.0005, momentum=0.5)
+        self._online_loss = loss
 
         self._selected_actions = np.array([])
         self._selected_idxs = np.array([])
@@ -97,7 +99,8 @@ class KnockOff(Base):
                             help="Type of reward for adaptive strategy, "
                                  "can be one of {cert, div, loss, all} "
                                  "(Default: all)")
-        parser.add_argument("--output_type", default="softmax", type=str,
+        parser.add_argument("--victim_output_type", default="softmax",
+                            type=str,
                             help="Type of output from victim model {softmax, "
                                  "logits, one_hot, labels} (Default: softmax)")
         parser.add_argument("--budget", default=20000, type=int,
@@ -118,8 +121,7 @@ class KnockOff(Base):
         selected_data = Subset(self._thief_dataset, self._selected_idxs)
 
         self._logger.info("Getting fake labels from victim model")
-        y_output = self._get_predictions(self._victim_model, selected_data,
-                                         self.attack_settings.output_type)
+        y_output = self._get_predictions(self._victim_model, selected_data)
 
         return CustomLabelDataset(selected_data, y_output)
 
@@ -156,8 +158,8 @@ class KnockOff(Base):
 
             self._online_optimizer.zero_grad()
 
-            y_hat = self._substitute_model(x)
-            loss = self._loss(y_hat, y_output)
+            logits = self._substitute_model(x)[0]
+            loss = self._online_loss(logits, y_output)
             loss.backward()
             self._online_optimizer.step()
 
@@ -172,37 +174,43 @@ class KnockOff(Base):
 
         return reward.numpy()
 
-    def _reward_div(self, y_output, n):
+    def _reward_div(self,
+                    y,
+                    n):
         """
         Compute `div` reward value.
         """
         # First update y_avg
-        self._y_avg = self._y_avg + (1.0 / n) * \
-                      (y_output.mean(dim=0) - self._y_avg)
+        self._y_avg = self._y_avg + (1.0 / n) * (y.mean(dim=0) - self._y_avg)
 
         # Then compute reward
-        reward = torch.mean(torch.sum(np.maximum(0, y_output - self._y_avg),
+        reward = torch.mean(torch.sum(np.maximum(0, y - self._y_avg),
                                       dim=1))
 
         return reward.numpy()
 
-    def _reward_loss(self, y_output, y_hat):
+    def _reward_loss(self,
+                     y_hat,
+                     y):
         """
         Compute `loss` reward value.
         """
 
         # Compute reward
-        reward = soft_cross_entropy(y_hat, y_output)
+        reward = soft_cross_entropy(y_hat, y)
 
         return reward.numpy()
 
-    def _reward_all(self, y_output, y_hat, n):
+    def _reward_all(self,
+                    y_hat,
+                    y,
+                    n):
         """
         Compute `all` reward value.
         """
-        reward_cert = self._reward_cert(y_output)
-        reward_div = self._reward_div(y_output, n)
-        reward_loss = self._reward_loss(y_output, y_hat)
+        reward_cert = self._reward_cert(y)
+        reward_div = self._reward_div(y, n)
+        reward_loss = self._reward_loss(y, y_hat)
         reward = [reward_cert, reward_div, reward_loss]
         self._reward_avg = self._reward_avg + (1.0 / n) * \
                            (reward - self._reward_avg)
@@ -218,16 +226,19 @@ class KnockOff(Base):
 
         return np.mean(reward)
 
-    def _reward(self, y_output, y_hat, iteration):
+    def _reward(self,
+                y_hat,
+                y,
+                iteration):
         reward_type = self.attack_settings.reward_type
         if reward_type == "cert":
-            return self._reward_cert(y_output)
+            return self._reward_cert(y)
         elif reward_type == "div":
-            return self._reward_div(y_output, iteration)
+            return self._reward_div(y, iteration)
         elif reward_type == "loss":
-            return self._reward_loss(y_output, y_hat)
+            return self._reward_loss(y_hat, y)
         else:
-            return self._reward_all(y_output, y_hat, iteration)
+            return self._reward_all(y_hat, y, iteration)
 
     def _adaptive_strategy(self):
         # Number of actions
@@ -268,21 +279,21 @@ class KnockOff(Base):
 
             # Query the victim model
             self._logger.info("Getting victim predictions on sampled data")
-            y_output = self._get_predictions(self._victim_model, sampled_data,
-                                             self.attack_settings.output_type)
+            y = self._get_predictions(self._victim_model, sampled_data)
 
             # Train the thieved classifier
-            query_set = CustomLabelDataset(sampled_data, y_output)
+            query_set = CustomLabelDataset(sampled_data, y)
             query_sets.append(query_set)
             self._online_train(query_set)
 
             # Test new labels
             self._logger.info("Getting substitute predictions on sampled data")
             y_hat = self._get_predictions(self._substitute_model, sampled_data)
+            y_hat = F.softmax(y_hat, dim=-1)
 
             # Compute rewards
             self._logger.info("Computing rewards")
-            reward = self._reward(y_output, y_hat, it)
+            reward = self._reward(y_hat, y, it)
             self._logger.info("Reward: {}".format(reward))
             avg_reward = avg_reward + (1.0 / it) * (reward - avg_reward)
             self._logger.info("Average Reward: {}".format(avg_reward))
@@ -311,6 +322,8 @@ class KnockOff(Base):
                 "KnockOff's attack budget: {}".format(
                         self.attack_settings.budget))
 
+        base_path = Path(self.base_settings.save_loc)
+
         if self.attack_settings.sampling_strategy == "random":
             self._logger.info("Starting random sampling strategy")
             transfer_data = self._random_strategy()
@@ -322,12 +335,11 @@ class KnockOff(Base):
             transfer_data = self._adaptive_strategy()
             self._substitute_model.load_state_dict(original_state_dict)
 
-        base_path = Path(self.base_settings.save_loc)
-        with open(base_path.joinpath("selected_idxs.pl"), 'wb') as f:
-            pickle.dump(self._selected_idxs, f)
-        if self.attack_settings.sampling_strategy == "adaptive":
             with open(base_path.joinpath("selected_actions.pl"), 'wb') as f:
                 pickle.dump(self._selected_actions, f)
+
+        with open(base_path.joinpath("selected_idxs.pl"), 'wb') as f:
+            pickle.dump(self._selected_idxs, f)
 
         self._logger.info("Offline training of substitute model")
         self._train_substitute_model(transfer_data)

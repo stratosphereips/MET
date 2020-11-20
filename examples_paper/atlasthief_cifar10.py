@@ -84,7 +84,7 @@ if __name__ == "__main__":
 
     victim_model, substitute_model, thief_dataset, test_set = set_up(args)
     af = AtlasThief(victim_model, substitute_model, NUM_CLASSES,
-                    args.iterations, args.output_type, args.budget)
+                    args.iterations, args.victim_output_type, args.budget)
 
     # Baset settings
     af.base_settings.save_loc = Path(args.save_loc)

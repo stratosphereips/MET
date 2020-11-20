@@ -13,7 +13,7 @@ from mef.attacks.base import Base
 from mef.utils.pytorch.datasets import CustomDataset, CustomLabelDataset, \
     MefDataset, NoYDataset
 from mef.utils.pytorch.functional import soft_cross_entropy
-from mef.utils.pytorch.lighting.module import MefModule
+from mef.utils.pytorch.lighting.module import MefModel
 from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
 from mef.utils.settings import AttackSettings
 
@@ -121,7 +121,8 @@ class AtlasThief(Base):
         loss = nn.CrossEntropyLoss()
         optimizer = torch.optim.SGD(correct_model.parameters(), lr=0.01,
                                     momentum=0.5)
-        mef_model = MefModule(correct_model, 2, optimizer, loss)
+        mef_model = MefModel(correct_model, 2, optimizer, loss,
+                             output_type="raw")
 
         train_set = MefDataset(self.data_settings.batch_size, train_set)
         train_loader = train_set.train_dataloader()

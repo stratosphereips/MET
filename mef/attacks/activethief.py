@@ -18,7 +18,7 @@ from ..utils.settings import AttackSettings
 class ActiveThiefSettings(AttackSettings):
     iterations: int
     selection_strategy: str
-    output_type: str
+    victim_output_type: str
     budget: int
     init_seed_size: int
     val_size: int
@@ -27,12 +27,17 @@ class ActiveThiefSettings(AttackSettings):
     def __init__(self,
                  iterations: int,
                  selection_strategy: str,
-                 output_type: str,
+                 victim_output_type: str,
                  budget: int):
         self.iterations = iterations
         self.selection_strategy = selection_strategy.lower()
-        self.output_type = output_type.lower()
+        self.victim_output_type = victim_output_type.lower()
         self.budget = budget
+
+        if victim_output_type not in ["one_hot", "softmax", "raw",
+                                      "labels"]:
+            raise ValueError("Victim output type must be one of {one_hot, "
+                             "softmax, raw, labels}")
 
         # Check configuration
         if self.selection_strategy not in ["random", "entropy", "k-center",
@@ -55,17 +60,17 @@ class ActiveThief(Base):
                  num_classes,
                  iterations=10,
                  selection_strategy="entropy",
-                 output_type="softmax",
+                 victim_output_type="softmax",
                  budget=20000):
         optimizer = torch.optim.Adam(substitute_model.parameters(),
                                      weight_decay=1e-3)
         loss = soft_cross_entropy
 
         super().__init__(victim_model, substitute_model, optimizer, loss,
-                         num_classes)
+                         num_classes, victim_output_type)
         self.attack_settings = ActiveThiefSettings(iterations,
                                                    selection_strategy,
-                                                   output_type, budget)
+                                                   victim_output_type, budget)
 
     @classmethod
     def get_attack_args(cls):
@@ -80,9 +85,10 @@ class ActiveThief(Base):
                             help="Number of iterations of the attacks ("
                                  "Default: "
                                  "10)")
-        parser.add_argument("--output_type", default="softmax", type=str,
+        parser.add_argument("--victim_output_type", default="softmax",
+                            type=str,
                             help="Type of output from victim model {softmax, "
-                                 "logits, one_hot} (Default: softmax)")
+                                 "raw, one_hot} (Default: softmax)")
         parser.add_argument("--budget", default=20000, type=int,
                             help="Size of the budget (Default: 20000)")
         parser.add_argument("--training_epochs", default=1000,
@@ -142,7 +148,6 @@ class ActiveThief(Base):
 
                     if self.base_settings.gpus:
                         y_rest_batch = y_rest_batch.cuda()
-                        curr_centers = curr_centers.cuda()
 
                     dists = torch.cdist(y_rest_batch, curr_centers, p=2)
                     dists_min_vals, _ = torch.min(dists, dim=1)
@@ -237,8 +242,7 @@ class ActiveThief(Base):
                    : self.attack_settings.val_size]
         idxs_rest = np.setdiff1d(idxs_rest, idxs_val)
         val_set = Subset(self._thief_dataset, idxs_val)
-        y_val = self._get_predictions(self._victim_model, val_set,
-                                      self.attack_settings.output_type)
+        y_val = self._get_predictions(self._victim_model, val_set)
         val_set = CustomLabelDataset(val_set, y_val)
 
         val_label_counts = dict(list(enumerate([0] * self._num_classes)))
@@ -256,8 +260,7 @@ class ActiveThief(Base):
                      :self.attack_settings.init_seed_size]
         idxs_rest = np.setdiff1d(idxs_rest, idxs_query)
         query_set = Subset(self._thief_dataset, idxs_query)
-        y_query = self._get_predictions(self._victim_model, query_set,
-                                        self.attack_settings.output_type)
+        y_query = self._get_predictions(self._victim_model, query_set)
         query_sets.append(CustomLabelDataset(query_set, y_query))
 
         # Get victim model predicted labels for test set
@@ -274,7 +277,7 @@ class ActiveThief(Base):
 
         # Save substitute model state_dict for retraining from scratch
         sub_orig_state_dict = self._substitute_model.state_dict()
-        optim_orig_state_dict = self._optimizer.state_dict()
+        optim_orig_state_dict = self._substitute_model.optimizer.state_dict()
 
         for it in range(self.attack_settings.iterations + 1):
             self._logger.info("---------- Iteration: {} ----------".format(
@@ -293,7 +296,8 @@ class ActiveThief(Base):
 
             # Reset substitute model and optimizer
             self._substitute_model.load_state_dict(sub_orig_state_dict)
-            self._optimizer.load_state_dict(optim_orig_state_dict)
+            self._substitute_model.optimizer.load_state_dict(
+                optim_orig_state_dict)
 
             # Step 3: The substitute model is trained with union of all the
             # labeled queried sets
@@ -332,8 +336,7 @@ class ActiveThief(Base):
             # model for labeling
             self._logger.info("Getting predictions for the current query set "
                               "from the victim model")
-            y_query = self._get_predictions(self._victim_model, query_set,
-                                            self.attack_settings.output_type)
+            y_query = self._get_predictions(self._victim_model, query_set)
             query_sets.append(CustomLabelDataset(query_set, y_query))
 
         return

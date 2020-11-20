@@ -35,7 +35,7 @@ class BlackBox(Base):
         loss = F.cross_entropy
 
         super().__init__(victim_model, substitute_model, optimizer,
-                         loss, num_classes)
+                         loss, num_classes, victim_output_type="labels")
         self.attack_settings = BlackBoxSettings(iterations, lmbda)
         self.trainer_settings._validation = False
 
@@ -60,7 +60,7 @@ class BlackBox(Base):
         list_derivatives = []
         x_var = x.requires_grad_()
 
-        predictions = self._substitute_model(x_var)
+        predictions = self._substitute_model(x_var)[0]
         for class_idx in range(self._num_classes):
             outputs = predictions[:, class_idx]
             derivative = torch.autograd.grad(
@@ -123,8 +123,7 @@ class BlackBox(Base):
                 self._logger.info("Labeling substitute training data")
                 # Adversary has access only to labels
                 y_query_set = self._get_predictions(self._victim_model,
-                                                    NoYDataset(x_query_set),
-                                                    "labels")
+                                                    NoYDataset(x_query_set))
                 query_sets.append(CustomDataset(x_query_set, y_query_set))
 
         return

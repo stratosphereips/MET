@@ -15,7 +15,7 @@ class CopyCat(Base):
         loss = F.cross_entropy
 
         super().__init__(victim_model, substitute_model, optimizer, loss,
-                         num_classes)
+                         num_classes, victim_output_type="labels")
         self.trainer_settings._validation = False
 
     @classmethod
@@ -37,8 +37,7 @@ class CopyCat(Base):
         # Get stolen labels from victim model
         self._logger.info("Getting stolen labels")
         stolen_labels = self._get_predictions(self._victim_model,
-                                              self._thief_dataset,
-                                              "labels")
+                                              self._thief_dataset)
 
         synthetic_dataset = CustomLabelDataset(self._thief_dataset,
                                                stolen_labels)

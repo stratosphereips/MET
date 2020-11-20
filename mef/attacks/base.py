@@ -2,14 +2,13 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from pytorch_lightning import seed_everything
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from mef.utils.logger import set_up_logger
 from mef.utils.pytorch.datasets import CustomDataset, MefDataset
-from mef.utils.pytorch.lighting.module import MefModule
+from mef.utils.pytorch.lighting.module import MefModel
 from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
 from mef.utils.settings import BaseSettings, DataSettings, TrainerSettings
 
@@ -26,6 +25,7 @@ class Base(ABC):
                  optimizer,
                  loss,
                  num_classes,
+                 victim_output_type,
                  lr_scheduler=None):
         self._logger = None
         # Datasets
@@ -34,17 +34,15 @@ class Base(ABC):
         self._num_classes = num_classes
 
         # Models
-        self._victim_model = victim_model
-        self._substitute_model = substitute_model
-
+        self._victim_model = MefModel(victim_model, self._num_classes,
+                                      output_type=victim_output_type)
+        self._substitute_model = MefModel(substitute_model, self._num_classes,
+                                          optimizer, loss, lr_scheduler,
+                                          "raw")
+        # add self._device attribute + parameter to mefmodel
         if self.base_settings.gpus is not None:
             self._victim_model.cuda()
             self._substitute_model.cuda()
-
-        # Optimizer, loss_functions and lr_scheduler for substitute model
-        self._optimizer = optimizer
-        self._lr_scheduler = lr_scheduler
-        self._loss = loss
 
     @classmethod
     @abstractmethod
@@ -91,9 +89,7 @@ class Base(ABC):
                                             "substitute", iteration,
                                             dataset.val_set is not None)
 
-        mef_model = MefModule(self._substitute_model, self._num_classes,
-                              self._optimizer, self._loss, self._lr_scheduler)
-        trainer.fit(mef_model, train_dataloader, val_dataloader)
+        trainer.fit(self._substitute_model, train_dataloader, val_dataloader)
 
         # For some reason the model after fit is on CPU and not GPU
         if self.base_settings.gpus is not None:
@@ -106,13 +102,12 @@ class Base(ABC):
                     test_set):
         test_set = MefDataset(self.data_settings.batch_size, test_set=test_set)
         test_dataloader = test_set.test_dataloader()
-        mef_model = MefModule(model, self._num_classes, loss=self._loss)
 
         trainer = get_trainer_with_settings(self.base_settings,
                                             self.trainer_settings,
                                             model_name='', iteration=None,
                                             validation=False)
-        metrics = trainer.test(mef_model, test_dataloader)
+        metrics = trainer.test(model, test_dataloader)
 
         return 100 * metrics[0]["test_acc"]
 
@@ -159,49 +154,26 @@ class Base(ABC):
 
     def _get_predictions(self,
                          model,
-                         data,
-                         output_type="softmax",
-                         return_all_layers=False):
-        if output_type not in ["one_hot", "softmax", "logits", "labels"]:
-            self._logger.error(
-                    "Output_type must be one of {one_hot, softmax, logits, "
-                    "labels}")
-            raise ValueError()
+                         data):
 
         model.eval()
         data = MefDataset(self.data_settings.batch_size, val_set=data)
         loader = data.val_dataloader()
         hidden_layer_outputs = []
-        y_preds = []
+        y_hats = []
         with torch.no_grad():
             for x, _ in tqdm(loader, desc="Getting predictions"):
-                if return_all_layers:
-                    y_pred, feature_vec = model(x, return_all_layers=True)
-                    hidden_layer_outputs.append(feature_vec.detach().cpu())
-                else:
-                    y_pred = model(x)
-                y_preds.append(y_pred.cpu())
+                output = model(x)
+                y_hats.append(output[0].detach().cpu())
+                if len(output) == 2:
+                    hidden_layer_outputs.append(output[1].detach().cpu())
 
-        y_preds = torch.cat(y_preds)
-        if return_all_layers:
-            hidden_layer_outputs = torch.cat(hidden_layer_outputs)
+        y_hats = torch.cat(y_hats)
 
-        if output_type == "one_hot":
-            y_hat = F.one_hot(torch.argmax(y_preds, dim=-1),
-                              num_classes=y_preds.size()[-1])
-            # to_oneshot returns tensor with uint8 type
-            y_hat = y_hat.float()
-        elif output_type == "softmax":
-            y_hat = F.softmax(y_preds, dim=-1)
-        elif output_type == "labels":
-            y_hat = torch.argmax(y_preds, dim=-1)
-        else:
-            y_hat = y_preds
+        if len(hidden_layer_outputs) != 0:
+            return y_hats, hidden_layer_outputs
 
-        if return_all_layers:
-            return y_hat, hidden_layer_outputs
-
-        return y_hat
+        return y_hats
 
     def _parse_args(self, args, kwargs):
         # Numpy input (x_sub, y_sub, x_test, y_test)

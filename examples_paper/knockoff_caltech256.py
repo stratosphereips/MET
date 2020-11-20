@@ -31,7 +31,7 @@ def set_up(args):
     # Prepare data
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
-    transform = T.Compose([T.Resize(224), T.ToTensor(),
+    transform = T.Compose([T.Resize((224, 224)), T.ToTensor(),
                            T.Normalize(mean, std)])
 
     train_set = Caltech256(args.caltech256_dir, transform=transform,
@@ -69,8 +69,8 @@ if __name__ == "__main__":
 
     victim_model, substitute_model, sub_dataset, test_set = set_up(args)
     ko = KnockOff(victim_model, substitute_model, NUM_CLASSES,
-                  args.sampling_strategy, args.reward_type, args.output_type,
-                  args.budget)
+                  args.sampling_strategy, args.reward_type,
+                  args.victim_output_type, args.budget)
 
     # Baset settings
     ko.base_settings.save_loc = Path(args.save_loc)

@@ -1,9 +1,8 @@
 import torch
 import torch.nn as nn
-from pytorch_lightning.core.decorators import auto_move_data
 
-from mef.utils.pytorch.models.vision.base import Base
 from mef.utils.pytorch.blocks import ConvBlock
+from mef.utils.pytorch.models.vision.base import Base
 
 
 class AtCnn(Base):
@@ -32,7 +31,6 @@ class AtCnn(Base):
         num_features = test_out.size(1) * test_out.size(2) * test_out.size(3)
         self._fcs, self._fc_final = self._build_fcs(num_features)
 
-    @auto_move_data
     def forward(self, x, return_all_layers=False):
         hidden = self._convs(x)
         hidden = hidden.view(hidden.size(0), -1)

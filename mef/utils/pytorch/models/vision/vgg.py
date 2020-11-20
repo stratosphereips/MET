@@ -1,6 +1,5 @@
 import torch.nn as nn
 import torchvision
-from pytorch_lightning.core.decorators import auto_move_data
 
 from mef.utils.pytorch.models.vision.base import Base
 
@@ -34,6 +33,5 @@ class Vgg(Base):
             self._vgg.classifier[6] = nn.Linear(in_features=in_features,
                                                 out_features=num_classes)
 
-    @auto_move_data
     def forward(self, x):
         return self._vgg(x)

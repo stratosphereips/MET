@@ -66,7 +66,7 @@ if __name__ == "__main__":
 
     victim_model, substitute_model, generator, test_set = set_up(args)
     rp = Ripper(victim_model, substitute_model, generator, LATENT_DIM,
-                NUM_CLASSES, args.generated_data, args.output_type)
+                NUM_CLASSES, args.generated_data)
 
     # Baset settings
     rp.base_settings.save_loc = Path(args.save_loc)

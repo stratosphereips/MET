@@ -1,10 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from pytorch_lightning.core.decorators import auto_move_data
 
-from mef.utils.pytorch.models.vision.base import Base
 from mef.utils.pytorch.blocks import ConvBlock
+from mef.utils.pytorch.models.vision.base import Base
 
 
 class SimpleNet(Base):
@@ -31,7 +30,6 @@ class SimpleNet(Base):
         num_features = test_out.size(1) * test_out.size(2) * test_out.size(3)
         self._fc_final = nn.Linear(num_features, num_classes)
 
-    @auto_move_data
     def forward(self, x, return_all_layers=False):
         x = self._layers(x)
 
