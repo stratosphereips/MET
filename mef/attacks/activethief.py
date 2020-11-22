@@ -141,7 +141,7 @@ class ActiveThief(Base):
         dists = []
         with torch.no_grad():
             for _, y_rest_batch in tqdm(loader, desc="Calculating distance "
-                                                     "from initial center"):
+                                                     "from initial centers"):
                 if self.base_settings.gpus:
                     y_rest_batch = y_rest_batch.cuda()
 

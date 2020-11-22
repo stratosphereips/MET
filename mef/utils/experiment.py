@@ -9,6 +9,7 @@ from torch.utils.data import Dataset
 from mef.utils.pytorch.datasets import MefDataset
 from mef.utils.pytorch.lighting.module import MefModel
 from mef.utils.pytorch.lighting.trainer import get_trainer
+from mef.utils.settings import BaseSettings
 
 
 def train_victim_model(victim_model: Module,
@@ -37,7 +38,8 @@ def train_victim_model(victim_model: Module,
         # Prepare secret model
         print("Training victim model")
 
-        dataset = MefDataset(batch_size, train_set, val_set)
+        dataset = MefDataset(BaseSettings(batch_size=batch_size), train_set,
+                             val_set)
         train_dataloader = dataset.train_dataloader()
 
         val_dataloader = None
