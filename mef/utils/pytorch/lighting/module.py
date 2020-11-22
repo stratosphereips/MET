@@ -18,7 +18,6 @@ class MefModel(pl.LightningModule):
         self.optimizer = optimizer
         self._loss = loss
         self._lr_scheduler = lr_scheduler
-        self.to(next(model.parameters()).device)
         self._train_accuracy = pl.metrics.Accuracy()
         self._accuracy = pl.metrics.Accuracy(compute_on_step=False)
         self._f1_macro = pl.metrics.Fbeta(num_classes, average="macro",

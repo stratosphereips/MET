@@ -155,10 +155,9 @@ class Base(ABC):
     def _get_predictions(self,
                          model,
                          data):
-
         model.eval()
-        data = MefDataset(self.data_settings.batch_size, val_set=data)
-        loader = data.val_dataloader()
+        data = MefDataset(self.data_settings.batch_size, data)
+        loader = data.generic_dataloader()
         hidden_layer_outputs = []
         y_hats = []
         with torch.no_grad():
@@ -171,7 +170,7 @@ class Base(ABC):
         y_hats = torch.cat(y_hats)
 
         if len(hidden_layer_outputs) != 0:
-            return y_hats, hidden_layer_outputs
+            return y_hats, torch.stack(hidden_layer_outputs)
 
         return y_hats
 

@@ -180,11 +180,14 @@ class ActiveThief(Base):
 
         scores = []
         for x, _ in tqdm(loader, desc="Getting dfal scores"):
-            x_adv = deepfool(x).cpu()
+            if self.base_settings.gpus:
+                x = x.cuda()
+
+            x_adv = deepfool(x)
 
             # difference as L2-norm
             for adv, orig in zip(x_adv, x):
-                scores.append(torch.dist(adv, orig))
+                scores.append(torch.dist(adv, orig).detach().cpu())
 
         return torch.stack(scores).topk(k).indices.numpy()
 

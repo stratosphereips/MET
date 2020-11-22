@@ -33,26 +33,26 @@ class MefDataset:
             dataset = ConcatDataset(dataset)
 
         return DataLoader(dataset=dataset, pin_memory=True,
-                          num_workers=4, batch_size=self.batch_size)
+                          num_workers=8, batch_size=self.batch_size)
 
     def train_dataloader(self):
         if isinstance(self.train_set, IterableDataset):
             return DataLoader(dataset=self.train_set)
         return DataLoader(dataset=self.train_set, pin_memory=True,
-                          num_workers=4, shuffle=True,
+                          num_workers=8, shuffle=True,
                           batch_size=self.batch_size)
 
     def val_dataloader(self):
         if isinstance(self.val_set, IterableDataset):
             return DataLoader(dataset=self.val_set)
         return DataLoader(dataset=self.val_set, pin_memory=True,
-                          num_workers=4, batch_size=self.batch_size)
+                          num_workers=8, batch_size=self.batch_size)
 
     def test_dataloader(self):
         if isinstance(self.test_set, IterableDataset):
             return DataLoader(dataset=self.test_set)
         return DataLoader(dataset=self.test_set, pin_memory=True,
-                          num_workers=4, batch_size=self.batch_size)
+                          num_workers=8, batch_size=self.batch_size)
 
 
 class CustomLabelDataset(Dataset):
