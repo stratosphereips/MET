@@ -138,38 +138,47 @@ class ActiveThief(Base):
         if self.base_settings.gpus:
             init_centers = init_centers.cuda()
 
-        dists = []
+        min_dists = []
         with torch.no_grad():
             for _, y_rest_batch in tqdm(loader, desc="Calculating distance "
                                                      "from initial centers"):
                 if self.base_settings.gpus:
                     y_rest_batch = y_rest_batch.cuda()
 
-                dists.append(torch.cdist(y_rest_batch, init_centers, p=2))
+                # To save memory we are only keeping the minimal distance
+                # for each y from initial centers
+                batch_dists = torch.cdist(y_rest_batch, init_centers, p=2)
+                batch_dists_min_vals, _ = torch.min(batch_dists, dim=-1)
+                min_dists.append(batch_dists_min_vals)
 
-        dists = torch.cat(dists)
+        min_dists = torch.cat(min_dists)
         selected_points = []
         for _ in tqdm(range(k), desc="Selecting best points"):
-            dists_min_vals, _ = torch.min(dists, dim=-1)
-            _, dists_min_max_id = torch.max(dists_min_vals, dim=-1)
+            _, min_dists_max_id = torch.max(min_dists, dim=-1)
 
-            selected_points.append(dists_min_max_id)
-            new_center = data_rest.train_set.targets[dists_min_max_id][None, :]
+            selected_points.append(min_dists_max_id)
+            new_center = data_rest.train_set.targets[min_dists_max_id][None, :]
 
             if self.base_settings.gpus:
                 new_center = new_center.cuda()
 
-            new_center_dists = []
+            new_center_dists_min_vals = []
             with torch.no_grad():
                 for _, y_rest_batch in loader:
 
                     if self.base_settings.gpus:
                         y_rest_batch = y_rest_batch.cuda()
 
-                    new_center_dists.append(torch.cdist(y_rest_batch,
-                                                        new_center, p=2))
+                    batch_dists = torch.cdist(y_rest_batch, new_center, p=2)
+                    batch_dists_min_vals, _ = torch.min(batch_dists, dim=-1)
 
-                dists = torch.cat([dists, torch.cat(new_center_dists)], dim=-1)
+                    new_center_dists_min_vals.append(batch_dists_min_vals)
+
+                min_dists = torch.stack([min_dists,
+                                         torch.cat(new_center_dists_min_vals)],
+                                        dim=1)
+                # For each y we update minimal distance
+                min_dists, _ = torch.min(min_dists, dim=-1)
 
         return torch.stack(selected_points).detach().cpu().numpy()
 
