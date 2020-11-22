@@ -115,7 +115,7 @@ class ActiveThief(Base):
                           k,
                           data_rest):
         scores = []
-        data_rest = MefDataset(self.trainer_settings.batch_size, data_rest)
+        data_rest = MefDataset(self.base_settings, data_rest)
         loader = data_rest.generic_dataloader()
         for _, prob_dists in tqdm(loader, desc="Calculating entropy scores"):
             log_probs = prob_dists * torch.log2(prob_dists)
@@ -132,7 +132,7 @@ class ActiveThief(Base):
                           k,
                           data_rest,
                           init_centers):
-        data_rest = MefDataset(self.trainer_settings.batch_size, data_rest)
+        data_rest = MefDataset(self.base_settings, data_rest)
         loader = data_rest.generic_dataloader()
 
         curr_centers = init_centers
@@ -154,15 +154,15 @@ class ActiveThief(Base):
                     dist_min_max_val, dist_min_max_id = torch.max(
                             dists_min_vals, dim=0)
 
-                    min_max_vals.append(dist_min_max_val.cpu())
-                    idxs_min_max.append(dist_min_max_id.cpu())
+                    min_max_vals.append(dist_min_max_val.detach().cpu())
+                    idxs_min_max.append(dist_min_max_id.detach().cpu())
 
             batch_id = np.argmax(min_max_vals)
-            sample_id = batch_id * data_rest.batch_size + \
+            sample_id = batch_id * self.base_settings.batch_size + \
                         idxs_min_max[batch_id.item()]
             selected_points.append(sample_id)
 
-            new_center = data_rest.dataset.targets[sample_id][None, :]
+            new_center = data_rest.train_set.targets[sample_id][None, :]
             if self.base_settings.gpus is not None:
                 new_center = new_center.cuda()
             curr_centers = torch.cat([curr_centers, new_center])
@@ -173,7 +173,7 @@ class ActiveThief(Base):
                            k,
                            data_rest):
         self._substitute_model.eval()
-        data_rest = MefDataset(self.trainer_settings.batch_size, data_rest)
+        data_rest = MefDataset(self.base_settings, data_rest)
         loader = data_rest.generic_dataloader()
 
         deepfool = DeepFool(self._substitute_model, steps=30)
@@ -300,7 +300,7 @@ class ActiveThief(Base):
             # Reset substitute model and optimizer
             self._substitute_model.load_state_dict(sub_orig_state_dict)
             self._substitute_model.optimizer.load_state_dict(
-                optim_orig_state_dict)
+                    optim_orig_state_dict)
 
             # Step 3: The substitute model is trained with union of all the
             # labeled queried sets
