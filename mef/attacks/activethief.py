@@ -135,39 +135,43 @@ class ActiveThief(Base):
         data_rest = MefDataset(self.base_settings, data_rest)
         loader = data_rest.generic_dataloader()
 
-        curr_centers = init_centers
         if self.base_settings.gpus:
-            curr_centers = curr_centers.cuda()
+            init_centers = init_centers.cuda()
 
+        dists = []
+        with torch.no_grad():
+            for _, y_rest_batch in tqdm(loader, desc="Calculating distance "
+                                                     "from initial center"):
+                if self.base_settings.gpus:
+                    y_rest_batch = y_rest_batch.cuda()
+
+                dists.append(torch.cdist(y_rest_batch, init_centers, p=2))
+
+        dists = torch.cat(dists)
         selected_points = []
         for _ in tqdm(range(k), desc="Selecting best points"):
-            min_max_vals = []
-            idxs_min_max = []
+            dists_min_vals, _ = torch.min(dists, dim=-1)
+            _, dists_min_max_id = torch.max(dists_min_vals, dim=-1)
+
+            selected_points.append(dists_min_max_id)
+            new_center = data_rest.train_set.targets[dists_min_max_id][None, :]
+
+            if self.base_settings.gpus:
+                new_center = new_center.cuda()
+
+            new_center_dists = []
             with torch.no_grad():
                 for _, y_rest_batch in loader:
 
                     if self.base_settings.gpus:
                         y_rest_batch = y_rest_batch.cuda()
 
-                    dists = torch.cdist(y_rest_batch, curr_centers, p=2)
-                    dists_min_vals, _ = torch.min(dists, dim=1)
-                    dist_min_max_val, dist_min_max_id = torch.max(
-                            dists_min_vals, dim=0)
+                    new_center_dists.append(torch.cdist(y_rest_batch,
+                                                        new_center, p=2))
 
-                    min_max_vals.append(dist_min_max_val.detach().cpu())
-                    idxs_min_max.append(dist_min_max_id.detach().cpu())
+                dists = torch.cat([dists, torch.cat(new_center_dists)], dim=-1)
 
-            batch_id = np.argmax(min_max_vals)
-            sample_id = batch_id * self.base_settings.batch_size + \
-                        idxs_min_max[batch_id.item()]
-            selected_points.append(sample_id)
-
-            new_center = data_rest.train_set.targets[sample_id][None, :]
-            if self.base_settings.gpus is not None:
-                new_center = new_center.cuda()
-            curr_centers = torch.cat([curr_centers, new_center])
-
-        return np.array(selected_points)
+        return torch.stack(selected_points).detach().cpu().numpy()
 
     def _deepfool_strategy(self,
                            k,
@@ -186,10 +190,9 @@ class ActiveThief(Base):
             x_adv = deepfool(x)
 
             # difference as L2-norm
-            for adv, orig in zip(x_adv, x):
-                scores.append(torch.dist(adv, orig).detach().cpu())
+            scores.append(torch.dist(x_adv, x))
 
-        return torch.stack(scores).topk(k).indices.numpy()
+        return torch.stack(scores).topk(k).indices.detach().cpu().numpy()
 
     def _select_samples(self,
                         data_rest,
