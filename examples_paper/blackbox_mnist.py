@@ -77,6 +77,8 @@ if __name__ == "__main__":
     # Baset settings
     bb.base_settings.save_loc = Path(args.save_loc)
     bb.base_settings.gpus = args.gpus
+    bb.base_settings.num_workes = args.num_workers
+    bb.base_settings.batch_size = args.batch_size
     bb.base_settings.seed = args.seed
     bb.base_settings.deterministic = args.deterministic
     bb.base_settings.debug = args.debug
@@ -85,8 +87,5 @@ if __name__ == "__main__":
     bb.trainer_settings.training_epochs = args.training_epochs
     bb.trainer_settings.precision = args.precision
     bb.trainer_settings.accuracy = args.accuracy
-
-    # Data settings
-    bb.data_settings.batch_size = args.batch_size
 
     bb(thief_dataset, test_set)

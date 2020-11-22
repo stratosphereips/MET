@@ -173,12 +173,12 @@ class Ripper(Base):
             return GeneratorRandomDataset(self._generator,
                                           self.attack_settings.latent_dim,
                                           self._victim_model,
-                                          self.data_settings.batch_size)
+                                          self.base_settings.batch_size)
         else:
             return GeneratorOptimizedDataset(self._generator,
                                              self.attack_settings.latent_dim,
                                              self._victim_model,
-                                             self.data_settings.batch_size,
+                                             self.base_settings.batch_size,
                                              self._num_classes)
 
     def _run(self, *args, **kwargs):
@@ -186,7 +186,7 @@ class Ripper(Base):
         # Get budget of the attack
         self._logger.info("Ripper's attack budget: {}".format(
                 self.trainer_settings.training_epochs *
-                self.data_settings.batch_size * 100))
+                self.base_settings.batch_size * 100))
 
         # For consistency between attacks the student dataset is called
         # thief dataset

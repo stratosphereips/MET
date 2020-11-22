@@ -124,7 +124,7 @@ class AtlasThief(Base):
         mef_model = MefModel(correct_model, 2, optimizer, loss,
                              output_type="raw")
 
-        train_set = MefDataset(self.data_settings.batch_size, train_set)
+        train_set = MefDataset(self.base_settings, train_set)
         train_loader = train_set.train_dataloader()
         trainer.fit(mef_model, train_loader)
 

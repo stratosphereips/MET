@@ -6,9 +6,6 @@ from pathlib import Path
 class AttackSettings:
     pass
 
-@dataclass
-class DataSettings:
-    batch_size: int = 32
 
 @dataclass
 class TrainerSettings:
@@ -23,6 +20,8 @@ class TrainerSettings:
 class BaseSettings:
     save_loc: Path = Path("./cache/")
     gpus: int = 0
+    num_workers: int = 4
+    batch_size: int = 32
     seed: int = None
     deterministic: bool = True
     debug: bool = False

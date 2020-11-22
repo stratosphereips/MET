@@ -160,6 +160,8 @@ if __name__ == "__main__":
     # Baset settings
     copycat.base_settings.save_loc = Path(args.save_loc)
     copycat.base_settings.gpus = args.gpus
+    copycat.base_settings.num_workes = args.num_workers
+    copycat.base_settings.batch_size = args.batch_size
     copycat.base_settings.seed = args.seed
     copycat.base_settings.deterministic = args.deterministic
     copycat.base_settings.debug = args.debug
@@ -168,9 +170,6 @@ if __name__ == "__main__":
     copycat.trainer_settings.training_epochs = args.training_epochs
     copycat.trainer_settings.precision = args.precision
     copycat.trainer_settings.accuracy = args.accuracy
-
-    # Data settings
-    copycat.data_settings.batch_size = args.batch_size
 
     print("CopyCat attack with NPD dataset")
     copycat(thief_dataset[0], test_set)

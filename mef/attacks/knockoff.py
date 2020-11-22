@@ -73,7 +73,6 @@ class KnockOff(Base):
                                                 victim_output_type,
                                                 budget)
         self.trainer_settings._validation = False
-        self.data_settings._num_classes = num_classes
 
         # KnockOff's specific attributes
         self._online_optimizer = torch.optim.SGD(
@@ -148,7 +147,7 @@ class KnockOff(Base):
 
     def _online_train(self, data):
         self._substitute_model.train()
-        data = MefDataset(self.data_settings.batch_size, data)
+        data = MefDataset(self.base_settings, data)
         loader = data.generic_dataloader()
 
         for x, y_output in tqdm(loader, desc="Online training"):
@@ -252,7 +251,7 @@ class KnockOff(Base):
         # We need to keep an average version of the victim output
         if self.attack_settings.reward_type == "div" or \
                 self.attack_settings.reward_type == "all":
-            self._y_avg = torch.zeros(self.data_settings._num_classes)
+            self._y_avg = torch.zeros(self._num_classes)
 
         # We need to keep an average and variance version of rewards
         if self.attack_settings.reward_type == "all":

@@ -12,14 +12,15 @@ def split_dataset(dataset, split_size):
 
 class MefDataset:
     def __init__(self,
-                 batch_size,
+                 base_settings,
                  train_set=None,
                  val_set=None,
                  test_set=None):
         self.train_set = train_set
         self.val_set = val_set
         self.test_set = test_set
-        self.batch_size = batch_size
+        self._batch_size = base_settings.batch_size
+        self._num_workers = base_settings.num_workers
 
     def generic_dataloader(self):
         dataset = []
@@ -33,26 +34,28 @@ class MefDataset:
             dataset = ConcatDataset(dataset)
 
         return DataLoader(dataset=dataset, pin_memory=True,
-                          num_workers=8, batch_size=self.batch_size)
+                          num_workers=self._num_workers,
+                          batch_size=self._batch_size)
 
     def train_dataloader(self):
         if isinstance(self.train_set, IterableDataset):
             return DataLoader(dataset=self.train_set)
         return DataLoader(dataset=self.train_set, pin_memory=True,
-                          num_workers=8, shuffle=True,
-                          batch_size=self.batch_size)
+                          num_workers=self._num_workers, shuffle=True,
+                          batch_size=self._batch_size)
 
     def val_dataloader(self):
         if isinstance(self.val_set, IterableDataset):
             return DataLoader(dataset=self.val_set)
         return DataLoader(dataset=self.val_set, pin_memory=True,
-                          num_workers=8, batch_size=self.batch_size)
+                          num_workers=self._num_workers,
+                          batch_size=self._batch_size)
 
     def test_dataloader(self):
         if isinstance(self.test_set, IterableDataset):
             return DataLoader(dataset=self.test_set)
         return DataLoader(dataset=self.test_set, pin_memory=True,
-                          num_workers=8, batch_size=self.batch_size)
+                          num_workers=8, batch_size=self._batch_size)
 
 
 class CustomLabelDataset(Dataset):

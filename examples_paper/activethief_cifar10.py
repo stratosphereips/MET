@@ -92,6 +92,8 @@ if __name__ == "__main__":
     # Baset settings
     af.base_settings.save_loc = Path(args.save_loc)
     af.base_settings.gpus = args.gpus
+    af.base_settings.num_workes = args.num_workers
+    af.base_settings.batch_size = args.batch_size
     af.base_settings.seed = args.seed
     af.base_settings.deterministic = args.deterministic
     af.base_settings.debug = args.debug
@@ -102,8 +104,5 @@ if __name__ == "__main__":
     af.trainer_settings.evaluation_frequency = args.evaluation_frequency
     af.trainer_settings.precision = args.precision
     af.trainer_settings.accuracy = args.accuracy
-    
-    # Data settings
-    af.data_settings.batch_size = args.batch_size
 
     af(thief_dataset, test_set)

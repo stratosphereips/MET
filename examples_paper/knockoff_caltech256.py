@@ -75,6 +75,8 @@ if __name__ == "__main__":
     # Baset settings
     ko.base_settings.save_loc = Path(args.save_loc)
     ko.base_settings.gpus = args.gpus
+    ko.base_settings.num_workes = args.num_workers
+    ko.base_settings.batch_size = args.batch_size
     ko.base_settings.seed = args.seed
     ko.base_settings.deterministic = args.deterministic
     ko.base_settings.debug = args.debug
@@ -83,8 +85,5 @@ if __name__ == "__main__":
     ko.trainer_settings.training_epochs = args.training_epochs
     ko.trainer_settings.precision = args.precision
     ko.trainer_settings.accuracy = args.accuracy
-
-    # Data settings
-    ko.data_settings.batch_size = args.batch_size
 
     ko(sub_dataset, test_set)

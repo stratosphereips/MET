@@ -10,13 +10,12 @@ from mef.utils.logger import set_up_logger
 from mef.utils.pytorch.datasets import CustomDataset, MefDataset
 from mef.utils.pytorch.lighting.module import MefModel
 from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
-from mef.utils.settings import BaseSettings, DataSettings, TrainerSettings
+from mef.utils.settings import BaseSettings, TrainerSettings
 
 
 class Base(ABC):
     attack_settings = None
     base_settings = BaseSettings()
-    data_settings = DataSettings()
     trainer_settings = TrainerSettings()
 
     def __init__(self,
@@ -60,6 +59,9 @@ class Base(ABC):
                                  "saved (Default: ./cache/)")
         parser.add_argument("--gpus", type=int, default=0,
                             help="Number of gpus to be used (Default: 0)")
+        parser.add_argument("--num_workers", type=int, default=4,
+                            help="Number of workers to be used in loaders ("
+                                 "Default: 4)")
         parser.add_argument("--deterministic", action="store_false",
                             help="Run in deterministic mode (Default: True)")
         parser.add_argument("--debug", action="store_true",
@@ -77,7 +79,7 @@ class Base(ABC):
                                 train_set,
                                 val_set=None,
                                 iteration=None):
-        dataset = MefDataset(self.data_settings.batch_size, train_set, val_set)
+        dataset = MefDataset(self.base_settings, train_set, val_set)
         train_dataloader = dataset.train_dataloader()
 
         val_dataloader = None
@@ -100,7 +102,7 @@ class Base(ABC):
     def _test_model(self,
                     model,
                     test_set):
-        test_set = MefDataset(self.data_settings.batch_size, test_set=test_set)
+        test_set = MefDataset(self.base_settings, test_set=test_set)
         test_dataloader = test_set.test_dataloader()
 
         trainer = get_trainer_with_settings(self.base_settings,
@@ -156,7 +158,7 @@ class Base(ABC):
                          model,
                          data):
         model.eval()
-        data = MefDataset(self.data_settings.batch_size, data)
+        data = MefDataset(self.base_settings, data)
         loader = data.generic_dataloader()
         hidden_layer_outputs = []
         y_hats = []

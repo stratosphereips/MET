@@ -74,7 +74,7 @@ class BlackBox(Base):
 
     def _jacobian_augmentation(self, query_sets, lmbda):
         thief_dataset = ConcatDataset(query_sets)
-        thief_dataset = MefDataset(self.data_settings.batch_size,
+        thief_dataset = MefDataset(self.base_settings,
                                    thief_dataset)
         loader = thief_dataset.generic_dataloader()
 

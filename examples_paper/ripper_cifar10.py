@@ -71,6 +71,8 @@ if __name__ == "__main__":
     # Baset settings
     rp.base_settings.save_loc = Path(args.save_loc)
     rp.base_settings.gpus = args.gpus
+    rp.base_settings.num_workes = args.num_workers
+    rp.base_settings.batch_size = args.batch_size
     rp.base_settings.seed = args.seed
     rp.base_settings.deterministic = args.deterministic
     rp.base_settings.debug = args.debug
@@ -79,8 +81,5 @@ if __name__ == "__main__":
     rp.trainer_settings.training_epochs = args.training_epochs
     rp.trainer_settings.precision = args.precision
     rp.trainer_settings.accuracy = args.accuracy
-
-    # Data settings
-    rp.data_settings.batch_size = args.batch_size
 
     rp(test_set)
