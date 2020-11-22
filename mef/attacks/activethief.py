@@ -153,30 +153,31 @@ class ActiveThief(Base):
 
         min_dists = torch.cat(min_dists)
         selected_points = []
-        for _ in tqdm(range(k), desc="Selecting best points"):
-            _, min_dists_max_id = torch.max(min_dists, dim=-1)
+        for _ in tqdm(range(k//5), desc="Selecting best points"):
+            min_dists_max_ids = torch.argsort(min_dists, dim=-1,
+                                              descending=True)[:5]
 
-            selected_points.append(min_dists_max_id)
-            new_center = data_rest.train_set.targets[min_dists_max_id][None, :]
+            selected_points.append(min_dists_max_ids)
+            new_centers = data_rest.train_set.targets[min_dists_max_ids]
 
             if self.base_settings.gpus:
-                new_center = new_center.cuda()
+                new_centers = new_centers.cuda()
 
-            new_center_dists_min_vals = []
+            new_centers_dists_min_vals = []
             with torch.no_grad():
                 for _, y_rest_batch in loader:
 
                     if self.base_settings.gpus:
                         y_rest_batch = y_rest_batch.cuda()
 
-                    batch_dists = torch.cdist(y_rest_batch, new_center, p=2)
+                    batch_dists = torch.cdist(y_rest_batch, new_centers, p=2)
                     batch_dists_min_vals, _ = torch.min(batch_dists, dim=-1)
 
-                    new_center_dists_min_vals.append(batch_dists_min_vals)
+                    new_centers_dists_min_vals.append(batch_dists_min_vals)
 
-                min_dists = torch.stack([min_dists,
-                                         torch.cat(new_center_dists_min_vals)],
-                                        dim=1)
+                min_dists = torch.stack(
+                        [min_dists, torch.cat(new_centers_dists_min_vals)],
+                        dim=1)
                 # For each y we update minimal distance
                 min_dists, _ = torch.min(min_dists, dim=-1)
 
