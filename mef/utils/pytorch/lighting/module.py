@@ -91,7 +91,9 @@ class MefModel(pl.LightningModule):
         if self.device.type == "cuda":
             output = output.cuda()
 
-        if len(y.size()) > 1:
+        if len(y.size()) == 1:
+            y = torch.round(y)
+        else:
             y = torch.argmax(y, dim=-1)
 
         self._accuracy(output, y)

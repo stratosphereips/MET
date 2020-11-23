@@ -141,7 +141,7 @@ class Base(ABC):
 
         sub_test_labels = self._get_predictions(self._substitute_model,
                                                 self._test_set)
-        if len(vict_test_labels.size()) == 1:
+        if len(sub_test_labels.size()) == 1:
             sub_test_labels = torch.round(sub_test_labels).numpy()
         else:
             sub_test_labels = torch.argmax(sub_test_labels, dim=-1).numpy()
