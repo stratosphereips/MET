@@ -10,6 +10,7 @@ import torch.nn as nn
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.activethief import ActiveThief
+from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import CustomDataset
 
 NUM_CLASSES = 2
