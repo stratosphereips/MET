@@ -13,14 +13,13 @@ from mef.attacks.activethief import ActiveThief
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import CustomDataset
 
-DATA_DIR = ""
-MODEL_DIR = "E:\Models"
 NUM_CLASSES = 2
 
 
 class Ember2018(nn.Module):
-    def __init__(self, model_file):
+    def __init__(self, model_dir):
         super().__init__()
+        model_file = Path(model_dir).joinpath("ember_model_2018.txt").__str__()
         self.ember = lgb.Booster(model_file=model_file)
 
     def forward(self, x):
@@ -53,9 +52,9 @@ class EmberSubsitute(nn.Module):
         return self.model(x)
 
 
-def prepare_ember2018_data():
-    X_train_path = Path(DATA_DIR).joinpath("X_train.dat")
-    y_train_path = Path(DATA_DIR).joinpath("y_train.dat")
+def prepare_ember2018_data(data_dir):
+    X_train_path = Path(data_dir).joinpath("X_train.dat")
+    y_train_path = Path(data_dir).joinpath("y_train.dat")
     y_train = np.memmap(y_train_path, dtype=np.float32, mode="r")
     N = y_train.shape[0]
     X_train = np.memmap(X_train_path, dtype=np.float32, mode="r",
@@ -67,8 +66,8 @@ def prepare_ember2018_data():
 
     thief_dataset = CustomDataset(X_train, y_train)
 
-    X_test_path = Path(DATA_DIR).joinpath("X_test.dat")
-    y_test_path = Path(DATA_DIR).joinpath("y_test.dat")
+    X_test_path = Path(data_dir).joinpath("X_test.dat")
+    y_test_path = Path(data_dir).joinpath("y_test.dat")
     y_test = np.memmap(y_test_path, dtype=np.float32, mode="r")
     N = y_train.shape[0]
     X_test = np.memmap(X_test_path, dtype=np.float32, mode="r",
@@ -88,11 +87,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
     mkdir_if_missing(args.save_loc)
 
-    model_file = Path(MODEL_DIR).joinpath("ember_model_2018.txt").__str__()
-    victim_model = Ember2018(model_file)
+    victim_model = Ember2018(args.ember2018_model_dir)
     substitute_model = EmberSubsitute()
 
-    thief_dataset, test_set = prepare_ember2018_data()
+    thief_dataset, test_set = prepare_ember2018_data(args.ember2018_data_dir)
 
     af = ActiveThief(victim_model, substitute_model, NUM_CLASSES,
                      args.iterations, args.selection_strategy,
