@@ -78,15 +78,15 @@ def prepare_ember2018_data(data_dir):
 
 
 if __name__ == '__main__':
-    # parser = ActiveThief.get_attack_args()
-    # parser.add_argument("--ember2018_data_dir", type=str,
-    #                     help="Path to Ember2018 dataset")
-    # parser.add_argument("--ember2018_model_dir", type=str,
-    #                     help="Path to Ember2018 dataset")
-    # args = parser.parse_args()
-    # mkdir_if_missing(args.save_loc)
-    #
-    # victim_model = Ember2018(args.ember2018_model_dir)
+    parser = ActiveThief.get_attack_args()
+    parser.add_argument("--ember2018_data_dir", type=str,
+                        help="Path to Ember2018 dataset")
+    parser.add_argument("--ember2018_model_dir", type=str,
+                        help="Path to Ember2018 dataset")
+    args = parser.parse_args()
+    mkdir_if_missing(args.save_loc)
+
+    victim_model = Ember2018(args.ember2018_model_dir)
     substitute_model = EmberSubsitute()
 
     thief_dataset, test_set = prepare_ember2018_data(args.ember2018_data_dir)
