@@ -47,6 +47,12 @@ class MefModel(pl.LightningModule):
         else:
             y_hats = output
 
+        # In case the underlying model is not on GPU but on CPU
+        if self.device.type == "cuda":
+            y_hats = y_hats.cuda()
+            if self._return_hidden_layer:
+                hidden = hidden.cuda()
+
         if self._return_hidden_layer:
             return [y_hats, hidden]
         else:

@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 import torch
+import torch.nn as nn
 from pytorch_lightning import seed_everything
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -41,7 +42,11 @@ class Base(ABC):
         # add self._device attribute + parameter to mefmodel
         if self.base_settings.gpus is not None:
             self._victim_model.cuda()
+            if isinstance(self._victim_model.model, nn.Module):
+                self._victim_model.model.cuda()
             self._substitute_model.cuda()
+            if isinstance(self._substitute_model.model, nn.Module):
+                self._substitute_model.model.cuda()
 
     @classmethod
     @abstractmethod
