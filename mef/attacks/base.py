@@ -129,10 +129,17 @@ class Base(ABC):
         # Agreement score
         vict_test_labels = self._get_predictions(self._victim_model,
                                                  self._test_set)
-        vict_test_labels = torch.argmax(vict_test_labels, dim=-1).numpy()
+        if len(vict_test_labels.size()) == 1:
+            vict_test_labels = torch.round(vict_test_labels).numpy()
+        else:
+            vict_test_labels = torch.argmax(vict_test_labels, dim=-1).numpy()
+
         sub_test_labels = self._get_predictions(self._substitute_model,
                                                 self._test_set)
-        sub_test_labels = torch.argmax(sub_test_labels, dim=-1).numpy()
+        if len(vict_test_labels.size()) == 1:
+            sub_test_labels = torch.round(sub_test_labels).numpy()
+        else:
+            sub_test_labels = torch.argmax(sub_test_labels, dim=-1).numpy()
 
         agreement_count = np.sum(vict_test_labels == sub_test_labels)
         self._logger.info("Agreement count: {}".format(agreement_count))

@@ -40,7 +40,10 @@ class MefModel(pl.LightningModule):
         elif self._output_type == "softmax":
             y_hats = F.softmax(output, dim=-1)
         elif self._output_type == "labels":
-            y_hats = torch.argmax(output, dim=-1)
+            if len(output.size()) == 1:
+                y_hats = torch.round(output)
+            else:
+                y_hats = torch.argmax(output, dim=-1)
         else:
             y_hats = output
 

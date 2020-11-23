@@ -101,7 +101,7 @@ class AtlasThief(Base):
     def _get_train_set(self,
                        val_set):
         preds, hidden_layer_output = self._get_predictions(
-                self._substitute_model, val_set, return_all_layers=True)
+            self._substitute_model, val_set)
 
         preds = preds.argmax(dim=1)
         targets = val_set.targets.argmax(dim=1)
@@ -115,7 +115,7 @@ class AtlasThief(Base):
         trainer_settings.training_epochs = 25
         trainer_settings.validation = False
         trainer = get_trainer_with_settings(base_settings, trainer_settings,
-                                            "correct_model")
+                                            "correct_model", None, False)
 
         correct_model = UncertaintyPredictor(train_set[0][0].shape[0])
         loss = nn.CrossEntropyLoss()
@@ -147,7 +147,7 @@ class AtlasThief(Base):
         train_labels = [new_train_labels]
 
         _, hidden_layer_outputs_data_rest = self._get_predictions(
-                self._substitute_model, data_rest, return_all_layers=True)
+                self._substitute_model, data_rest)
         hidden_layer_data_rest_all = NoYDataset(hidden_layer_outputs_data_rest)
 
         idx_hidden_rest = np.arange(len(hidden_layer_data_rest_all))
@@ -192,8 +192,7 @@ class AtlasThief(Base):
                    :self.attack_settings.val_size]
         idxs_rest = np.setdiff1d(idxs_rest, idxs_val)
         val_set = Subset(self._thief_dataset, idxs_val)
-        y_val = self._get_predictions(self._victim_model, val_set,
-                                      self.attack_settings.output_type)
+        y_val = self._get_predictions(self._victim_model, val_set)
         val_set = CustomLabelDataset(val_set, y_val)
 
         val_label_counts = dict(list(enumerate([0] * self._num_classes)))
@@ -211,17 +210,8 @@ class AtlasThief(Base):
                      :self.attack_settings.init_seed_size]
         idxs_rest = np.setdiff1d(idxs_rest, idxs_query)
         query_set = Subset(self._thief_dataset, idxs_query)
-        y_query = self._get_predictions(self._victim_model, query_set,
-                                        self.attack_settings.output_type)
+        y_query = self._get_predictions(self._victim_model, query_set)
         query_sets.append(CustomLabelDataset(query_set, y_query))
-
-        # Get victim model predicted labels for test set
-        self._logger.info("Getting victim model's labels for test set")
-        vict_test_labels = self._get_predictions(self._victim_model,
-                                                 self._test_set)
-        vict_test_labels = torch.argmax(vict_test_labels, dim=1)
-        self._logger.info(
-                "Number of test samples: {}".format(len(vict_test_labels)))
 
         # Get victim model metrics on test set
         self._logger.info("Getting victim model's metrics for test set")
@@ -229,7 +219,7 @@ class AtlasThief(Base):
 
         # Save substitute model state_dict for retraining from scratch
         sub_orig_state_dict = self._substitute_model.state_dict()
-        optim_orig_state_dict = self._optimizer.state_dict()
+        optim_orig_state_dict = self._substitute_model.optimizer.state_dict()
 
         for it in range(self.attack_settings.iterations + 1):
             self._logger.info("---------- Iteration: {} ----------".format(
@@ -248,7 +238,8 @@ class AtlasThief(Base):
 
             # Reset substitute model and optimizer
             self._substitute_model.load_state_dict(sub_orig_state_dict)
-            self._optimizer.load_state_dict(optim_orig_state_dict)
+            self._substitute_model.optimizer.load_state_dict(
+                    optim_orig_state_dict)
 
             # Step 3: The substitute model is trained with union of all the
             # labeled queried sets
@@ -277,8 +268,7 @@ class AtlasThief(Base):
             # model for labeling
             self._logger.info("Getting predictions for the current query set "
                               "from the victim model")
-            y_query = self._get_predictions(self._victim_model, query_set,
-                                            self.attack_settings.output_type)
+            y_query = self._get_predictions(self._victim_model, query_set)
             query_sets.append(CustomLabelDataset(query_set, y_query))
 
         return

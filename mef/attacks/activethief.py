@@ -262,8 +262,12 @@ class ActiveThief(Base):
         val_set = CustomLabelDataset(val_set, y_val)
 
         val_label_counts = dict(list(enumerate([0] * self._num_classes)))
-        for class_id in torch.argmax(y_val, dim=1):
-            val_label_counts[class_id.item()] += 1
+        if len(y_val.size()) == 1:
+            for class_id in torch.round(y_val):
+                val_label_counts[class_id.item()] += 1
+        else:
+            for class_id in torch.argmax(y_val, dim=-1):
+                val_label_counts[class_id.item()] += 1
 
         self._logger.info("Validation dataset labels distribution: {}".format(
                 val_label_counts))
@@ -278,14 +282,6 @@ class ActiveThief(Base):
         query_set = Subset(self._thief_dataset, idxs_query)
         y_query = self._get_predictions(self._victim_model, query_set)
         query_sets.append(CustomLabelDataset(query_set, y_query))
-
-        # Get victim model predicted labels for test set
-        self._logger.info("Getting victim model's labels for test set")
-        vict_test_labels = self._get_predictions(self._victim_model,
-                                                 self._test_set)
-        vict_test_labels = torch.argmax(vict_test_labels, dim=1)
-        self._logger.info(
-                "Number of test samples: {}".format(len(vict_test_labels)))
 
         # Get victim model metrics on test set
         self._logger.info("Getting victim model's metrics for test set")
