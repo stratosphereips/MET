@@ -43,7 +43,8 @@ class EmberSubsitute(nn.Module):
                        nn.ReLU()])
         layers.extend([nn.Linear(in_features=1200, out_features=1200),
                        nn.ReLU()])
-        layers.extend([nn.Linear(in_features=1200, out_features=1)])
+        layers.extend([nn.Linear(in_features=1200, out_features=1),
+                       nn.Sigmoid()])
 
         self.model = nn.Sequential(*layers)
 
