@@ -96,8 +96,8 @@ class MefModel(pl.LightningModule):
         else:
             y = torch.argmax(y, dim=-1)
 
-        self._accuracy(output, y)
-        self._f1_macro(output, y)
+        self._accuracy(output.float(), y)
+        self._f1_macro(output.float(), y)
         return
 
     def validation_step(self,
