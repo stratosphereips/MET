@@ -43,13 +43,12 @@ class EmberSubsitute(nn.Module):
                        nn.ReLU()])
         layers.extend([nn.Linear(in_features=1200, out_features=1200),
                        nn.ReLU()])
-        layers.extend([nn.Linear(in_features=1200, out_features=1),
-                       nn.Sigmoid()])
+        layers.extend([nn.Linear(in_features=1200, out_features=1)])
 
         self.model = nn.Sequential(*layers)
 
     def forward(self, x):
-        return self.model(x)
+        return self.model(x).squeeze()
 
 
 def prepare_ember2018_data(data_dir):
