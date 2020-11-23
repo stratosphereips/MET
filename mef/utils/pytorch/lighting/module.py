@@ -73,6 +73,11 @@ class MefModel(pl.LightningModule):
             y = y.squeeze()
 
         logits = self.model(x)
+
+        # In case the underlying model is not on GPU but on CPU
+        if self.device.type == "cuda":
+            logits = logits.cuda()
+
         loss = self._loss(logits, y)
 
         self.log("train_loss", loss)
@@ -82,7 +87,11 @@ class MefModel(pl.LightningModule):
         x, y = batch
         output = self.model(x)
 
-        if (y.numel() // len(y)) != 1:
+        # In case the underlying model is not on GPU but on CPU
+        if self.device.type == "cuda":
+            output = output.cuda()
+
+        if len(y.size()) > 1:
             y = torch.argmax(y, dim=-1)
 
         self._accuracy(output, y)
