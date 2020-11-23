@@ -91,8 +91,10 @@ class Base(ABC):
         trainer.fit(self._substitute_model, train_dataloader, val_dataloader)
 
         # For some reason the model after fit is on CPU and not GPU
-        if self.base_settings.gpus is not None:
+        if self.base_settings.gpus:
             self._substitute_model.cuda()
+            if isinstance(self._substitute_model.model, nn.Module):
+                self._substitute_model.model.cuda()
 
         return
 
