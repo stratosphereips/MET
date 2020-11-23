@@ -40,7 +40,7 @@ class Base(ABC):
                                           optimizer, loss, lr_scheduler,
                                           "raw")
         # add self._device attribute + parameter to mefmodel
-        if self.base_settings.gpus is not None:
+        if self.base_settings.gpus:
             self._victim_model.cuda()
             if isinstance(self._victim_model.model, nn.Module):
                 self._victim_model.model.cuda()
