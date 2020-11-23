@@ -18,12 +18,12 @@ class MefModel(pl.LightningModule):
         self.optimizer = optimizer
         self._loss = loss
         self._lr_scheduler = lr_scheduler
-        self._train_accuracy = pl.metrics.Accuracy()
+        self._output_type = output_type
+        self._return_hidden_layer = return_hidden_layer
+
         self._accuracy = pl.metrics.Accuracy(compute_on_step=False)
         self._f1_macro = pl.metrics.Fbeta(num_classes, average="macro",
                                           compute_on_step=False)
-        self._output_type = output_type
-        self._return_hidden_layer = return_hidden_layer
 
     @auto_move_data
     def forward(self, x):
