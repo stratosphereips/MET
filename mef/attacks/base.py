@@ -39,14 +39,6 @@ class Base(ABC):
         self._substitute_model = MefModel(substitute_model, self._num_classes,
                                           optimizer, loss, lr_scheduler,
                                           "raw")
-        # add self._device attribute + parameter to mefmodel
-        if self.base_settings.gpus:
-            self._victim_model.cuda()
-            if isinstance(self._victim_model.model, nn.Module):
-                self._victim_model.model.cuda()
-            self._substitute_model.cuda()
-            if isinstance(self._substitute_model.model, nn.Module):
-                self._substitute_model.model.cuda()
 
     @classmethod
     @abstractmethod
@@ -314,6 +306,16 @@ class Base(ABC):
         self._logger = set_up_logger("Mef",
                                      "debug" if self.base_settings.debug else
                                      "info", self.base_settings.save_loc)
+
+        # TODO: add self._device attribute + parameter to mefmodel
+        if self.base_settings.gpus:
+            self._victim_model.cuda()
+            if isinstance(self._victim_model.model, nn.Module):
+                self._victim_model.model.cuda()
+            self._substitute_model.cuda()
+            if isinstance(self._substitute_model.model, nn.Module):
+                self._substitute_model.model.cuda()
+
         self._parse_args(args, kwargs)
         self._run()
         self._finalize_attack()

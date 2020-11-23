@@ -49,7 +49,7 @@ def get_trainer(save_loc: Path,
 
     # Prepare trainer
     trainer = Trainer(default_root_dir=save_loc.__str__(),
-                      gpus=gpus,
+                      gpus=gpus if gpus else None,
                       auto_select_gpus=True if gpus else False,
                       max_epochs=training_epochs,
                       check_val_every_n_epoch=evaluation_frequency,
@@ -58,7 +58,7 @@ def get_trainer(save_loc: Path,
                       callbacks=callbacks,
                       fast_dev_run=debug,
                       weights_summary=None,
-                      precision=precision)
+                      precision=precision if gpus else 32)
 
     return trainer
 
