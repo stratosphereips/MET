@@ -10,7 +10,6 @@ import torch.nn as nn
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks.activethief import ActiveThief
-from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import CustomDataset
 
 NUM_CLASSES = 2
@@ -43,7 +42,7 @@ class EmberSubsitute(nn.Module):
                        nn.ReLU()])
         layers.extend([nn.Linear(in_features=1200, out_features=1200),
                        nn.ReLU()])
-        layers.append([nn.Linear(in_features=1200, out_features=1),
+        layers.extend([nn.Linear(in_features=1200, out_features=1),
                        nn.Sigmoid()])
 
         self.model = nn.Sequential(*layers)
@@ -79,15 +78,15 @@ def prepare_ember2018_data(data_dir):
 
 
 if __name__ == '__main__':
-    parser = ActiveThief.get_attack_args()
-    parser.add_argument("--ember2018_data_dir", type=str,
-                        help="Path to Ember2018 dataset")
-    parser.add_argument("--ember2018_model_dir", type=str,
-                        help="Path to Ember2018 dataset")
-    args = parser.parse_args()
-    mkdir_if_missing(args.save_loc)
-
-    victim_model = Ember2018(args.ember2018_model_dir)
+    # parser = ActiveThief.get_attack_args()
+    # parser.add_argument("--ember2018_data_dir", type=str,
+    #                     help="Path to Ember2018 dataset")
+    # parser.add_argument("--ember2018_model_dir", type=str,
+    #                     help="Path to Ember2018 dataset")
+    # args = parser.parse_args()
+    # mkdir_if_missing(args.save_loc)
+    #
+    # victim_model = Ember2018(args.ember2018_model_dir)
     substitute_model = EmberSubsitute()
 
     thief_dataset, test_set = prepare_ember2018_data(args.ember2018_data_dir)
