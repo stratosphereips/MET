@@ -32,7 +32,7 @@ class UncertaintyPredictor(pl.LightningModule):
 
 
 @dataclass
-class ActiveThiefSettings(AttackSettings):
+class AtlasThiefSettings(AttackSettings):
     iterations: int
     output_type: str
     budget: int
@@ -61,16 +61,15 @@ class AtlasThief(Base):
                  substitute_model,
                  num_classes,
                  iterations=10,
-                 output_type="softmax",
+                 victim_output_type="prob_dist",
                  budget=20000):
         optimizer = torch.optim.Adam(substitute_model.parameters(),
                                      weight_decay=1e-3)
         loss = soft_cross_entropy
 
         super().__init__(victim_model, substitute_model, optimizer, loss,
-                         num_classes)
-        self.attack_settings = ActiveThiefSettings(iterations, output_type,
-                                                   budget)
+                         num_classes, victim_output_type)
+        self.attack_settings = AtlasThiefSettings(iterations, budget)
 
     @classmethod
     def get_attack_args(self):
@@ -79,9 +78,10 @@ class AtlasThief(Base):
                             help="Number of iterations of the attacks ("
                                  "Default: "
                                  "10)")
-        parser.add_argument("--output_type", default="softmax", type=str,
-                            help="Type of output from victim model {softmax, "
-                                 "logits, one_hot} (Default: softmax)")
+        parser.add_argument("--output_type", default="prob_dist", type=str,
+                            help="Type of output from victim model {"
+                                 "prob_dist, raw, one_hot} (Default: "
+                                 "prob_dist)")
         parser.add_argument("--budget", default=20000, type=int,
                             help="Size of the budget (Default: 20000)")
         parser.add_argument("--training_epochs", default=1000,
@@ -101,7 +101,7 @@ class AtlasThief(Base):
     def _get_train_set(self,
                        val_set):
         preds, hidden_layer_output = self._get_predictions(
-            self._substitute_model, val_set)
+                self._substitute_model, val_set)
 
         preds = preds.argmax(dim=1)
         targets = val_set.targets.argmax(dim=1)

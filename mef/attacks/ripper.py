@@ -144,8 +144,9 @@ class Ripper(Base):
         optimizer = torch.optim.Adam(substitute_model.parameters())
         loss = soft_cross_entropy
 
+        # TODO: correct the hardcoded victim_output_type
         super().__init__(victim_model, substitute_model, optimizer, loss,
-                         num_classes, victim_output_type="softmax")
+                         num_classes, victim_output_type="prob_dist")
         self.attack_settings = RipperSettings(latent_dim, generated_data)
 
         # Ripper's specific attributes

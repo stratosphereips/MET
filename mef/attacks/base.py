@@ -33,9 +33,14 @@ class Base(ABC):
         self._thief_dataset = None
         self._num_classes = num_classes
 
+        if victim_output_type.lower() not in ["one_hot", "prob_dist", "raw",
+                                      "labels"]:
+            raise ValueError("Victim output type must be one of {one_hot, "
+                             "prob_dist, raw, labels}")
+
         # Models
         self._victim_model = MefModel(victim_model, self._num_classes,
-                                      output_type=victim_output_type)
+                                      output_type=victim_output_type.lower())
         self._substitute_model = MefModel(substitute_model, self._num_classes,
                                           optimizer, loss, lr_scheduler,
                                           "raw")

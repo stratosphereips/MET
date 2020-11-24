@@ -18,7 +18,6 @@ from ..utils.settings import AttackSettings
 class ActiveThiefSettings(AttackSettings):
     iterations: int
     selection_strategy: str
-    victim_output_type: str
     budget: int
     init_seed_size: int
     val_size: int
@@ -27,17 +26,10 @@ class ActiveThiefSettings(AttackSettings):
     def __init__(self,
                  iterations: int,
                  selection_strategy: str,
-                 victim_output_type: str,
                  budget: int):
         self.iterations = iterations
         self.selection_strategy = selection_strategy.lower()
-        self.victim_output_type = victim_output_type.lower()
         self.budget = budget
-
-        if victim_output_type not in ["one_hot", "softmax", "raw",
-                                      "labels"]:
-            raise ValueError("Victim output type must be one of {one_hot, "
-                             "softmax, raw, labels}")
 
         # Check configuration
         if self.selection_strategy not in ["random", "entropy", "k-center",
@@ -60,7 +52,7 @@ class ActiveThief(Base):
                  num_classes,
                  iterations=10,
                  selection_strategy="entropy",
-                 victim_output_type="softmax",
+                 victim_output_type="prob_dist",
                  budget=20000):
         optimizer = torch.optim.Adam(substitute_model.parameters(),
                                      weight_decay=1e-3)
@@ -85,10 +77,11 @@ class ActiveThief(Base):
                             help="Number of iterations of the attacks ("
                                  "Default: "
                                  "10)")
-        parser.add_argument("--victim_output_type", default="softmax",
+        parser.add_argument("--victim_output_type", default="prob_dist",
                             type=str,
-                            help="Type of output from victim model {softmax, "
-                                 "raw, one_hot} (Default: softmax)")
+                            help="Type of output from victim model {"
+                                 "prob_dist, raw, one_hot} (Default: "
+                                 "prob_dist)")
         parser.add_argument("--budget", default=20000, type=int,
                             help="Size of the budget (Default: 20000)")
         parser.add_argument("--training_epochs", default=1000,
@@ -153,7 +146,7 @@ class ActiveThief(Base):
 
         min_dists = torch.cat(min_dists)
         selected_points = []
-        for _ in tqdm(range(k//5), desc="Selecting best points"):
+        for _ in tqdm(range(k // 5), desc="Selecting best points"):
             min_dists_max_ids = torch.argsort(min_dists, dim=-1,
                                               descending=True)[:5]
 

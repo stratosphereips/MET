@@ -11,7 +11,7 @@ class MefModel(pl.LightningModule):
                  optimizer=None,
                  loss=None,
                  lr_scheduler=None,
-                 output_type="softmax",
+                 output_type="prob_dist",
                  return_hidden_layer=False):
         super().__init__()
         self.model = model
@@ -37,8 +37,11 @@ class MefModel(pl.LightningModule):
                                num_classes=output.size()[-1])
             # to_oneshot returns tensor with uint8 type
             y_hats = y_hats.float()
-        elif self._output_type == "softmax":
-            y_hats = F.softmax(output, dim=-1)
+        elif self._output_type == "prob_dist":
+            if len(output.size()) == 1:
+                y_hats = F.sigmoid(output)
+            else:
+                y_hats = F.softmax(output, dim=-1)
         elif self._output_type == "labels":
             if len(output.size()) == 1:
                 y_hats = torch.round(output)
@@ -74,11 +77,7 @@ class MefModel(pl.LightningModule):
 
         logits = self.model(x)
 
-        # In case the underlying model is not on GPU but on CPU
-        if self.device.type == "cuda":
-            logits = logits.cuda()
-
-        loss = self._loss(logits, y)
+        loss = self._loss(logits.float(), y.float())
 
         self.log("train_loss", loss)
         return loss

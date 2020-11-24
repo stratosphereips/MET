@@ -59,7 +59,7 @@ class KnockOff(Base):
 
     def __init__(self, victim_model, substitute_model, num_classes,
                  sampling_strategy="adaptive", reward_type="cert",
-                 victim_output_type="softmax", budget=10000):
+                 victim_output_type="prob_dist", budget=10000):
         optimizer = torch.optim.SGD(substitute_model.parameters(), lr=0.01,
                                     momentum=0.5)
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
@@ -98,10 +98,11 @@ class KnockOff(Base):
                             help="Type of reward for adaptive strategy, "
                                  "can be one of {cert, div, loss, all} "
                                  "(Default: all)")
-        parser.add_argument("--victim_output_type", default="softmax",
+        parser.add_argument("--victim_output_type", default="prob_dist",
                             type=str,
-                            help="Type of output from victim model {softmax, "
-                                 "logits, one_hot, labels} (Default: softmax)")
+                            help="Type of output from victim model {"
+                                 "prob_dist, raw, one_hot, labels} (Default: "
+                                 "prob_dist)")
         parser.add_argument("--budget", default=20000, type=int,
                             help="Size of the budget (Default: 20000)")
         parser.add_argument("--training_epochs", default=100, type=int,
