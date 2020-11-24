@@ -6,6 +6,7 @@ import lightgbm as lgb
 import numpy as np
 import torch
 import torch.nn as nn
+from sklearn.preprocessing import StandardScaler
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
@@ -64,16 +65,19 @@ def prepare_ember2018_data(data_dir):
     X_train = X_train[train_rows]
     y_train = y_train[train_rows]
 
-    thief_dataset = CustomDataset(X_train, y_train)
-
     X_test_path = Path(data_dir).joinpath("X_test.dat")
     y_test_path = Path(data_dir).joinpath("y_test.dat")
-    y_test = np.memmap(y_test_path, dtype=np.float32, mode="r")
-    N = y_train.shape[0]
-    X_test = np.memmap(X_test_path, dtype=np.float32, mode="r",
+    y_test = np.memmap(y_test_path, dtype=np.float32, mode="readwrite")
+    N = y_test.shape[0]
+    X_test = np.memmap(X_test_path, dtype=np.float32, mode="readwrite",
                        shape=(N, 2381))
 
-    test_set = CustomDataset(X_test, y_test)
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.fit_transform(X_test)
+
+    thief_dataset = CustomDataset(X_train_scaled, y_train)
+    test_set = CustomDataset(X_test_scaled, y_test)
 
     return thief_dataset, test_set
 
