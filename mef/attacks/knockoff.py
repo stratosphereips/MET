@@ -55,9 +55,14 @@ class KnockOffSettings(AttackSettings):
 
 class KnockOff(Base):
 
-    def __init__(self, victim_model, substitute_model, num_classes,
-                 sampling_strategy="adaptive", reward_type="cert",
-                 victim_output_type="prob_dist", budget=10000):
+    def __init__(self,
+                 victim_model,
+                 substitute_model,
+                 num_classes,
+                 sampling_strategy="adaptive",
+                 reward_type="cert",
+                 victim_output_type="prob_dist",
+                 budget=10000):
         optimizer = torch.optim.SGD(substitute_model.parameters(), lr=0.01,
                                     momentum=0.5)
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,

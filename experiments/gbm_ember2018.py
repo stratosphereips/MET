@@ -42,8 +42,7 @@ class EmberSubsitute(nn.Module):
                        nn.ReLU(), nn.Dropout()])
         layers.extend([nn.Linear(in_features=1200, out_features=1200),
                        nn.ReLU()])
-        layers.extend([nn.Linear(in_features=1200, out_features=1),
-                       nn.Sigmoid()])
+        layers.extend([nn.Linear(in_features=1200, out_features=1)])
 
         self.model = nn.Sequential(*layers)
 
@@ -96,7 +95,8 @@ if __name__ == '__main__':
 
     af = ActiveThief(victim_model, substitute_model, NUM_CLASSES,
                      args.iterations, args.selection_strategy,
-                     args.victim_output_type, args.budget)
+                     args.victim_output_type, args.budget,
+                     loss=torch.nn.BCEWithLogitsLoss())
 
     # Baset settings
     af.base_settings.save_loc = Path(args.save_loc)

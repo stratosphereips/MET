@@ -9,10 +9,17 @@ from .base import Base
 
 class CopyCat(Base):
 
-    def __init__(self, victim_model, substitute_model, num_classes):
-        optimizer = torch.optim.SGD(substitute_model.parameters(), lr=0.01,
-                                    momentum=0.8)
-        loss = F.cross_entropy
+    def __init__(self,
+                 victim_model,
+                 substitute_model,
+                 num_classes,
+                 optimizer: torch.optim.Optimizer = None,
+                 loss=None):
+        if optimizer is None:
+            optimizer = torch.optim.SGD(substitute_model.parameters(), lr=0.01,
+                                        momentum=0.8)
+        if loss is None:
+            loss = F.cross_entropy
 
         super().__init__(victim_model, substitute_model, optimizer, loss,
                          num_classes, victim_output_type="labels")

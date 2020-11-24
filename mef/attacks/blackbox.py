@@ -30,9 +30,13 @@ class BlackBox(Base):
                  substitute_model,
                  num_classes,
                  iterations=6,
-                 lmbda=0.1):
-        optimizer = torch.optim.Adam(substitute_model.parameters())
-        loss = F.cross_entropy
+                 lmbda=0.1,
+                 optimizer: torch.optim.Optimizer = None,
+                 loss=None):
+        if optimizer is None:
+            optimizer = torch.optim.Adam(substitute_model.parameters())
+        if loss is None:
+            loss = F.cross_entropy
 
         super().__init__(victim_model, substitute_model, optimizer,
                          loss, num_classes, victim_output_type="labels")

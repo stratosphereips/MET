@@ -140,9 +140,13 @@ class Ripper(Base):
                  generator,
                  latent_dim,
                  num_classes,
-                 generated_data="optimized"):
-        optimizer = torch.optim.Adam(substitute_model.parameters())
-        loss = soft_cross_entropy
+                 generated_data="optimized",
+                 optimizer: torch.optim.Optimizer = None,
+                 loss=None):
+        if optimizer is None:
+            optimizer = torch.optim.Adam(substitute_model.parameters())
+        if loss is None:
+            loss = soft_cross_entropy
 
         # TODO: correct the hardcoded victim_output_type
         super().__init__(victim_model, substitute_model, optimizer, loss,

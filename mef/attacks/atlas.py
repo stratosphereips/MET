@@ -62,10 +62,13 @@ class AtlasThief(Base):
                  num_classes,
                  iterations=10,
                  victim_output_type="prob_dist",
-                 budget=20000):
-        optimizer = torch.optim.Adam(substitute_model.parameters(),
-                                     weight_decay=1e-3)
-        loss = soft_cross_entropy
+                 budget=20000,
+                 optimizer: torch.optim.Optimizer = None,
+                 loss=None):
+        if optimizer is None:
+            optimizer = torch.optim.Adam(substitute_model.parameters())
+        if loss is None:
+            loss = soft_cross_entropy
 
         super().__init__(victim_model, substitute_model, optimizer, loss,
                          num_classes, victim_output_type)
