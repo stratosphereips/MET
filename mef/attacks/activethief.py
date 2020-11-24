@@ -61,8 +61,7 @@ class ActiveThief(Base):
         super().__init__(victim_model, substitute_model, optimizer, loss,
                          num_classes, victim_output_type)
         self.attack_settings = ActiveThiefSettings(iterations,
-                                                   selection_strategy,
-                                                   victim_output_type, budget)
+                                                   selection_strategy, budget)
 
     @classmethod
     def get_attack_args(cls):

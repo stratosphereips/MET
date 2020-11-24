@@ -29,11 +29,9 @@ class KnockOffSettings(AttackSettings):
     def __init__(self,
                  sampling_strategy: str,
                  reward_type: str,
-                 output_type: str,
                  budget: int):
         self.sampling_strategy = sampling_strategy.lower()
         self.reward_type = reward_type.lower()
-        self.output_type = output_type.lower()
         self.budget = budget
         self.k = 4
         self.iterations = self.budget // self.k
@@ -69,9 +67,7 @@ class KnockOff(Base):
         super().__init__(victim_model, substitute_model, optimizer,
                          loss, num_classes, victim_output_type, lr_scheduler)
         self.attack_settings = KnockOffSettings(sampling_strategy,
-                                                reward_type,
-                                                victim_output_type,
-                                                budget)
+                                                reward_type, budget)
         self.trainer_settings._validation = False
 
         # KnockOff's specific attributes
