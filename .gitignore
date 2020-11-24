@@ -1,5 +1,4 @@
 /examples_paper/data/
-/examples_paper/log/
 /examples_paper/cache/
 /data/
 /log/
@@ -7,3 +6,5 @@
 /.idea/
 /venv/
 __pycache__/
+/experiments/data/
+/experiments/cache/
