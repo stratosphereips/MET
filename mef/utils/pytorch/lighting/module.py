@@ -1,65 +1,90 @@
+from abc import ABC, abstractmethod
+
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 from pytorch_lightning.core.decorators import auto_move_data
 
+from mef.utils.pytorch.functional import get_labels, get_prob_dist
 
-class MefModel(pl.LightningModule):
+
+def _tranfsform_output(output,
+                       output_type):
+    if output_type == "one_hot":
+        y_hats = F.one_hot(torch.argmax(output, dim=-1),
+                           num_classes=output.size()[-1])
+        # to_oneshot returns tensor with uint8 type
+        y_hats = y_hats.float()
+    elif output_type == "prob_dist":
+        y_hats = get_prob_dist(output)
+    elif output_type == "labels":
+        y_hats = get_labels(output)
+    else:
+        y_hats = output
+
+    return y_hats
+
+
+def _check_float_type(tensor):
+    if tensor.dtype.__str__() != "torch.float32":
+        return tensor.float()
+    return tensor
+
+
+class MefModel(pl.LightningModule, ABC):
     def __init__(self,
                  model,
-                 num_classes,
-                 optimizer=None,
-                 loss=None,
-                 lr_scheduler=None,
-                 output_type="prob_dist",
-                 return_hidden_layer=False):
+                 num_classes):
         super().__init__()
         self.model = model
-        self.optimizer = optimizer
-        self._loss = loss
-        self._lr_scheduler = lr_scheduler
-        self._output_type = output_type
-        self._return_hidden_layer = return_hidden_layer
 
         self._accuracy = pl.metrics.Accuracy(compute_on_step=False)
         self._f1_macro = pl.metrics.Fbeta(num_classes, average="macro",
                                           compute_on_step=False)
 
+    @abstractmethod
+    def _shared_step(self, batch):
+        pass
+
+    def validation_step(self,
+                        batch,
+                        batch_idx):
+        self._shared_step(batch)
+        self.log_dict({"val_acc": self._accuracy, "val_f1": self._f1_macro},
+                      prog_bar=True, on_epoch=True)
+        return
+
+    def test_step(self,
+                  batch,
+                  batch_idx):
+        self._shared_step(batch)
+        self.log_dict({"test_acc": self._accuracy, "test_f1": self._f1_macro},
+                      prog_bar=True, on_epoch=True)
+        return
+
+
+class TrainingModel(MefModel):
+    def __init__(self,
+                 model,
+                 num_classes,
+                 optimizer=None,
+                 loss=None,
+                 lr_scheduler=None):
+        super().__init__(model, num_classes)
+        self.optimizer = optimizer
+        self._loss = loss
+        self._lr_scheduler = lr_scheduler
+
     @auto_move_data
     def forward(self, x):
-        if self._return_hidden_layer:
-            output, hidden = self.model(x)
-        else:
-            output = self.model(x)
+        output = self.model(x)
 
-        if self._output_type == "one_hot":
-            y_hats = F.one_hot(torch.argmax(output, dim=-1),
-                               num_classes=output.size()[-1])
-            # to_oneshot returns tensor with uint8 type
-            y_hats = y_hats.float()
-        elif self._output_type == "prob_dist":
-            if len(output.size()) == 1:
-                y_hats = F.sigmoid(output)
-            else:
-                y_hats = F.softmax(output, dim=-1)
-        elif self._output_type == "labels":
-            if len(output.size()) == 1:
-                y_hats = torch.round(output)
-            else:
-                y_hats = torch.argmax(output, dim=-1)
+        if isinstance(output, tuple):
+            # [logits, hidden_layer]
+            return list(output)
         else:
-            y_hats = output
-
-        # In case the underlying model is not on GPU but on CPU
-        if self.device.type == "cuda":
-            y_hats = y_hats.cuda()
-            if self._return_hidden_layer:
-                hidden = hidden.cuda()
-
-        if self._return_hidden_layer:
-            return [y_hats, hidden]
-        else:
-            return [y_hats]
+            # [logits]
+            return list([output])
 
     def training_step(self,
                       batch,
@@ -76,27 +101,27 @@ class MefModel(pl.LightningModule):
             y = y.squeeze()
 
         logits = self.model(x)
-
-        loss = self._loss(logits.float(), y.float())
+        loss = self._loss(logits, y)
 
         self.log("train_loss", loss)
         return loss
 
     def _shared_step(self, batch):
         x, y = batch
-        output = self.model(x)
+        x = _check_float_type(x)
+        y = _check_float_type(y)
 
-        # In case the underlying model is not on GPU but on CPU
-        if self.device.type == "cuda":
-            output = output.cuda()
+        logits = self.model(x)
+        output = _tranfsform_output(logits, "prob_dist")
 
         if len(y.size()) == 1:
             y = torch.round(y)
         else:
             y = torch.argmax(y, dim=-1)
 
-        self._accuracy(output.float(), y)
-        self._f1_macro(output.float(), y)
+        output = _check_float_type(output)
+        self._accuracy(output, y)
+        self._f1_macro(output, y)
         return
 
     def validation_step(self,
@@ -119,3 +144,45 @@ class MefModel(pl.LightningModule):
         if self._lr_scheduler is None:
             return self.optimizer
         return [self.optimizer], [self._lr_scheduler]
+
+
+class VictimModel(MefModel):
+    def __init__(self,
+                 model,
+                 num_classes,
+                 output_type="prob_dist"):
+        super().__init__(model, num_classes)
+        self._output_type = output_type
+
+    @auto_move_data
+    def forward(self, x, inference=True):
+        output = self.model(x)
+
+        y_hats = _tranfsform_output(output, self._output_type)
+
+        # In case the underlying model is not on GPU but on CPU
+        if self.device.type == "cuda":
+            y_hats = y_hats.cuda()
+
+        return [y_hats]
+
+    def _shared_step(self, batch):
+        x, y = batch
+        x = _check_float_type(x)
+        y = _check_float_type(y)
+
+        output = self.model(x)
+
+        # In case the underlying victim model is not on GPU but on CPU
+        if self.device.type == "cuda":
+            output = output.cuda()
+
+        if len(y.size()) == 1:
+            y = torch.round(y).long()
+        else:
+            y = torch.argmax(y, dim=-1).long()
+
+        output = _check_float_type(output)
+        self._accuracy(output, y)
+        self._f1_macro(output, y)
+        return

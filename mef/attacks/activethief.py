@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from .base import Base
 from ..utils.pytorch.datasets import CustomLabelDataset, MefDataset
-from ..utils.pytorch.functional import soft_cross_entropy
+from ..utils.pytorch.functional import get_prob_dist, soft_cross_entropy
 from ..utils.settings import AttackSettings
 
 
@@ -329,6 +329,7 @@ class ActiveThief(Base):
                                   "rest of the thief dataset")
                 y_rest = self._get_predictions(self._substitute_model,
                                                data_rest)
+                y_rest = get_prob_dist(y_rest)
                 data_rest = CustomLabelDataset(data_rest, y_rest)
 
             # Step 5: An active learning subset selection strategy is used

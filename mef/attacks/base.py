@@ -9,7 +9,9 @@ from tqdm import tqdm
 
 from mef.utils.logger import set_up_logger
 from mef.utils.pytorch.datasets import CustomDataset, MefDataset
-from mef.utils.pytorch.lighting.module import MefModel
+from mef.utils.pytorch.functional import get_labels
+from mef.utils.pytorch.lighting.module import TrainingModel, \
+    VictimModel
 from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
 from mef.utils.settings import BaseSettings, TrainerSettings
 
@@ -34,16 +36,16 @@ class Base(ABC):
         self._num_classes = num_classes
 
         if victim_output_type.lower() not in ["one_hot", "prob_dist", "raw",
-                                      "labels"]:
+                                              "labels"]:
             raise ValueError("Victim output type must be one of {one_hot, "
                              "prob_dist, raw, labels}")
 
         # Models
-        self._victim_model = MefModel(victim_model, self._num_classes,
-                                      output_type=victim_output_type.lower())
-        self._substitute_model = MefModel(substitute_model, self._num_classes,
-                                          optimizer, loss, lr_scheduler,
-                                          "raw")
+        self._victim_model = VictimModel(victim_model, self._num_classes,
+                                         victim_output_type.lower())
+        self._substitute_model = TrainingModel(substitute_model,
+                                               self._num_classes,
+                                               optimizer, loss, lr_scheduler)
 
     @classmethod
     @abstractmethod
@@ -133,17 +135,11 @@ class Base(ABC):
         # Agreement score
         vict_test_labels = self._get_predictions(self._victim_model,
                                                  self._test_set)
-        if len(vict_test_labels.size()) == 1:
-            vict_test_labels = torch.round(vict_test_labels).numpy()
-        else:
-            vict_test_labels = torch.argmax(vict_test_labels, dim=-1).numpy()
+        vict_test_labels = get_labels(vict_test_labels).numpy()
 
         sub_test_labels = self._get_predictions(self._substitute_model,
                                                 self._test_set)
-        if len(sub_test_labels.size()) == 1:
-            sub_test_labels = torch.round(sub_test_labels).numpy()
-        else:
-            sub_test_labels = torch.argmax(sub_test_labels, dim=-1).numpy()
+        sub_test_labels = get_labels(sub_test_labels).numpy()
 
         agreement_count = np.sum(vict_test_labels == sub_test_labels)
         self._logger.info("Agreement count: {}".format(agreement_count))
