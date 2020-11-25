@@ -294,17 +294,6 @@ class ActiveThief(Base):
             self._logger.info("---------- Iteration: {} ----------".format(
                     it + 1))
 
-            # Get metrics from victim model and substitute model
-            self._logger.info("Getting substitute model's metrics for test "
-                              "set")
-            sub_test_acc = self._test_model(self._substitute_model,
-                                            self._test_set)
-            self._logger.info("Test set metrics")
-            self._logger.info(
-                    "Victim model Accuracy: {:.1f}%".format(vict_test_acc))
-            self._logger.info(
-                    "Substitute model Accuracy: {:.1f}%".format(sub_test_acc))
-
             # Reset substitute model and optimizer
             self._substitute_model.load_state_dict(sub_orig_state_dict)
             self._substitute_model.optimizer.load_state_dict(
@@ -320,6 +309,15 @@ class ActiveThief(Base):
             if (it + 1) == (self.attack_settings.iterations + 1):
                 break
 
+            # Get metrics from victim model and substitute model
+            self._logger.info("Getting substitute model metrics for test set")
+            sub_test_acc = self._test_model(self._substitute_model,
+                                            self._test_set)
+            self._logger.info("Test set metrics")
+            self._logger.info("Victim model Accuracy: {:.1f}%".format(
+                    vict_test_acc))
+            self._logger.info("Substitute model Accuracy: {:.1f}%".format(
+                    sub_test_acc))
             self._get_aggreement_score()
 
             # Step 4: Approximate labels are obtained for remaining samples
