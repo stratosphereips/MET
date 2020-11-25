@@ -121,7 +121,8 @@ class ActiveThief(Base):
 
             scores.append(normalized_entropy)
 
-        return torch.cat(scores).topk(k).indices.numpy()
+        return torch.argsort(torch.cat(scores), dim=-1,
+                             descending=True)[:k].numpy()
 
     def _kcenter_strategy(self,
                           k,
@@ -197,7 +198,8 @@ class ActiveThief(Base):
             # difference as L2-norm
             scores.append(torch.dist(x_adv, x))
 
-        return torch.stack(scores).topk(k).indices.detach().cpu().numpy()
+        return torch.argsort(torch.cat(scores), dim=-1,
+                             descending=True)[:k].deatach().cpu().numpy()
 
     def _select_samples(self,
                         data_rest,
