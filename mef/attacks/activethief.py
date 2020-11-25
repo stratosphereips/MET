@@ -1,9 +1,9 @@
 import argparse
-import math
 from dataclasses import dataclass
 
 import numpy as np
 import torch
+from torch.distributions import Categorical
 from torch.utils.data import ConcatDataset, Subset
 from torchattacks import DeepFool
 from tqdm import tqdm
@@ -113,16 +113,10 @@ class ActiveThief(Base):
         data_rest = MefDataset(self.base_settings, data_rest)
         loader = data_rest.generic_dataloader()
         for _, prob_dists in tqdm(loader, desc="Calculating entropy scores"):
-            log_probs = prob_dists * torch.log2(prob_dists)
-            raw_entropy = 0 - torch.sum(log_probs, dim=1)
+            scores.append(Categorical(prob_dists).entropy())
 
-            normalized_entropy = raw_entropy / math.log2(
-                    self._num_classes)
-
-            scores.append(normalized_entropy)
-
-        return torch.argsort(torch.cat(scores), dim=-1,
-                             descending=True)[:k].numpy()
+        scores = torch.cat(scores)
+        return torch.argsort(scores, dim=-1, descending=True)[:k].numpy()
 
     def _kcenter_strategy(self,
                           k,
