@@ -41,26 +41,43 @@ class MefModel(pl.LightningModule, ABC):
         self._accuracy = pl.metrics.Accuracy(compute_on_step=False)
         self._f1_macro = pl.metrics.Fbeta(num_classes, average="macro",
                                           compute_on_step=False)
+        self.test_outputs = None
 
     @abstractmethod
-    def _shared_step(self, batch):
+    def _shared_step_model_output(self, x):
         pass
+
+    def _shared_step(self, batch, step_type):
+        x, y = batch
+        x = _check_float_type(x)
+        y = _check_float_type(y)
+
+        output = self._shared_step_model_output(x)
+
+        if len(y.size()) == 1:
+            y = torch.round(y)
+        else:
+            y = torch.argmax(y, dim=-1)
+
+        self._accuracy(output, y)
+        self._f1_macro(output, y)
+        self.log_dict({"{}_acc".format(step_type): self._accuracy,
+                       "{}_f1".format(step_type): self._f1_macro},
+                      prog_bar=True, on_epoch=True)
+        return output
 
     def validation_step(self,
                         batch,
                         batch_idx):
-        self._shared_step(batch)
-        self.log_dict({"val_acc": self._accuracy, "val_f1": self._f1_macro},
-                      prog_bar=True, on_epoch=True)
-        return
+        return self._shared_step(batch, "val")
 
     def test_step(self,
                   batch,
                   batch_idx):
-        self._shared_step(batch)
-        self.log_dict({"test_acc": self._accuracy, "test_f1": self._f1_macro},
-                      prog_bar=True, on_epoch=True)
-        return
+        return self._shared_step(batch, "test")
+
+    def test_epoch_end(self, test_step_outputs):
+        self.test_outputs = torch.cat(test_step_outputs)
 
 
 class TrainingModel(MefModel):
@@ -106,39 +123,11 @@ class TrainingModel(MefModel):
         self.log("train_loss", loss)
         return loss
 
-    def _shared_step(self, batch):
-        x, y = batch
-        x = _check_float_type(x)
-        y = _check_float_type(y)
-
+    def _shared_step_model_output(self, x):
         logits = self.model(x)
         output = _tranfsform_output(logits, "prob_dist")
 
-        if len(y.size()) == 1:
-            y = torch.round(y)
-        else:
-            y = torch.argmax(y, dim=-1)
-
-        output = _check_float_type(output)
-        self._accuracy(output, y)
-        self._f1_macro(output, y)
-        return
-
-    def validation_step(self,
-                        batch,
-                        batch_idx):
-        self._shared_step(batch)
-        self.log_dict({"val_acc": self._accuracy, "val_f1": self._f1_macro},
-                      prog_bar=True, on_epoch=True)
-        return
-
-    def test_step(self,
-                  batch,
-                  batch_idx):
-        self._shared_step(batch)
-        self.log_dict({"test_acc": self._accuracy, "test_f1": self._f1_macro},
-                      prog_bar=True, on_epoch=True)
-        return
+        return output
 
     def configure_optimizers(self):
         if self._lr_scheduler is None:
@@ -166,23 +155,11 @@ class VictimModel(MefModel):
 
         return [y_hats]
 
-    def _shared_step(self, batch):
-        x, y = batch
-        x = _check_float_type(x)
-        y = _check_float_type(y)
-
+    def _shared_step_model_output(self, x):
         output = self.model(x)
 
         # In case the underlying victim model is not on GPU but on CPU
         if self.device.type == "cuda":
             output = output.cuda()
 
-        if len(y.size()) == 1:
-            y = torch.round(y).long()
-        else:
-            y = torch.argmax(y, dim=-1).long()
-
-        output = _check_float_type(output)
-        self._accuracy(output, y)
-        self._f1_macro(output, y)
-        return
+        return output

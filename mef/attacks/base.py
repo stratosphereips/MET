@@ -132,14 +132,10 @@ class Base(ABC):
 
     def _get_aggreement_score(self):
         self._logger.info("Getting attack metric")
-        # Agreement score
-        vict_test_labels = self._get_predictions(self._victim_model,
-                                                 self._test_set)
-        vict_test_labels = get_labels(vict_test_labels).numpy()
+        vict_test_labels = get_labels(self._victim_model.test_outputs).numpy()
 
-        sub_test_labels = self._get_predictions(self._substitute_model,
-                                                self._test_set)
-        sub_test_labels = get_labels(get_prob_dist(sub_test_labels)).numpy()
+        sub_test_labels = get_labels(get_prob_dist(
+                self._substitute_model.test_outputs)).numpy()
 
         agreement_count = np.sum(vict_test_labels == sub_test_labels)
         self._logger.info("Agreement count: {}".format(agreement_count))
