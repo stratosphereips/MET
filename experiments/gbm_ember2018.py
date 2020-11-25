@@ -33,7 +33,7 @@ class Ember2018(nn.Module):
 
 
 class EmberSubsitute(nn.Module):
-    def __init__(self):
+    def __init__(self, scaler):
         super().__init__()
         layers = []
         layers.extend([nn.Linear(in_features=2381, out_features=2400),
@@ -45,8 +45,12 @@ class EmberSubsitute(nn.Module):
         layers.extend([nn.Linear(in_features=1200, out_features=1)])
 
         self.model = nn.Sequential(*layers)
+        self._scaler = scaler
 
     def forward(self, x):
+        # Add GPU support
+        x = torch.from_numpy(self._scaler.transform(x)).float()
+
         return self.model(x).squeeze()
 
 
@@ -70,13 +74,12 @@ def prepare_ember2018_data(data_dir):
                        shape=(N, 2381))
 
     scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.fit_transform(X_test)
+    scaler = scaler.fit(X_train)
 
-    thief_dataset = CustomDataset(X_train_scaled, y_train)
-    test_set = CustomDataset(X_test_scaled, y_test)
+    thief_dataset = CustomDataset(X_train, y_train)
+    test_set = CustomDataset(X_test, y_test)
 
-    return thief_dataset, test_set
+    return thief_dataset, test_set, scaler
 
 
 if __name__ == '__main__':
@@ -88,10 +91,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
     mkdir_if_missing(args.save_loc)
 
-    victim_model = Ember2018(args.ember2018_model_dir)
-    substitute_model = EmberSubsitute()
+    thief_dataset, test_set, scaler = prepare_ember2018_data(
+            args.ember2018_data_dir)
 
-    thief_dataset, test_set = prepare_ember2018_data(args.ember2018_data_dir)
+    victim_model = Ember2018(args.ember2018_model_dir)
+    substitute_model = EmberSubsitute(scaler)
 
     af = ActiveThief(victim_model, substitute_model, NUM_CLASSES,
                      args.iterations, args.selection_strategy,
