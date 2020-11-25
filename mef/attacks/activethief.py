@@ -218,6 +218,7 @@ class ActiveThief(Base):
             # Get initial centers
             init_centers = self._get_predictions(self._substitute_model,
                                                  query_sets)
+            init_centers = get_prob_dist(init_centers)
             selected_points = self._kcenter_strategy(k, data_rest,
                                                      init_centers)
         elif selection_strategy == "dfal":
@@ -228,6 +229,7 @@ class ActiveThief(Base):
             # Get initial centers
             init_centers = self._get_predictions(self._substitute_model,
                                                  query_sets)
+            init_centers = get_prob_dist(init_centers)
             idxs_kcenter_best = self._kcenter_strategy(k, y_dfal_best,
                                                        init_centers)
             selected_points = idxs_dfal_best[idxs_kcenter_best]
