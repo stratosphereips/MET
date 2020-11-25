@@ -59,6 +59,7 @@ class MefModel(pl.LightningModule, ABC):
         else:
             y = torch.argmax(y, dim=-1)
 
+        output = _check_float_type(output)
         self._accuracy(output, y)
         self._f1_macro(output, y)
         self.log_dict({"{}_acc".format(step_type): self._accuracy,
