@@ -1,5 +1,5 @@
 import torch
-
+import torch.nn.functional as F
 
 # Cross entropy for soft-labels
 def soft_cross_entropy(logits, targets, weights=None):
