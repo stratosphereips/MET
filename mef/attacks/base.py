@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from mef.utils.logger import set_up_logger
 from mef.utils.pytorch.datasets import CustomDataset, MefDataset
-from mef.utils.pytorch.functional import get_labels
+from mef.utils.pytorch.functional import get_labels, get_prob_dist
 from mef.utils.pytorch.lighting.module import TrainingModel, \
     VictimModel
 from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
@@ -139,7 +139,7 @@ class Base(ABC):
 
         sub_test_labels = self._get_predictions(self._substitute_model,
                                                 self._test_set)
-        sub_test_labels = get_labels(sub_test_labels).numpy()
+        sub_test_labels = get_labels(get_prob_dist(sub_test_labels)).numpy()
 
         agreement_count = np.sum(vict_test_labels == sub_test_labels)
         self._logger.info("Agreement count: {}".format(agreement_count))
