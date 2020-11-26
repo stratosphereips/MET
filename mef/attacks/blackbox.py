@@ -32,14 +32,16 @@ class BlackBox(Base):
                  iterations=6,
                  lmbda=0.1,
                  optimizer: torch.optim.Optimizer = None,
-                 loss=None):
+                 loss=None,
+                 lr_scheduler=None):
         if optimizer is None:
             optimizer = torch.optim.Adam(substitute_model.parameters())
         if loss is None:
             loss = F.cross_entropy
 
+        victim_output_type = "labels"
         super().__init__(victim_model, substitute_model, optimizer,
-                         loss, num_classes, victim_output_type="labels")
+                         loss, num_classes, victim_output_type, lr_scheduler)
         self.attack_settings = BlackBoxSettings(iterations, lmbda)
         self.trainer_settings._validation = False
 

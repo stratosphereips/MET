@@ -62,12 +62,18 @@ class KnockOff(Base):
                  sampling_strategy="adaptive",
                  reward_type="cert",
                  victim_output_type="prob_dist",
-                 budget=10000):
-        optimizer = torch.optim.SGD(substitute_model.parameters(), lr=0.01,
-                                    momentum=0.5)
-        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
-                                                       step_size=60)
-        loss = soft_cross_entropy
+                 budget=20000,
+                 optimizer: torch.optim.Optimizer = None,
+                 loss=None,
+                 lr_scheduler=None):
+        if optimizer is None:
+            optimizer = torch.optim.SGD(substitute_model.parameters(), lr=0.01,
+                                        momentum=0.5)
+            if lr_scheduler is None:
+                lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
+                                                               step_size=60)
+        if loss is None:
+            loss = soft_cross_entropy
 
         super().__init__(victim_model, substitute_model, optimizer,
                          loss, num_classes, victim_output_type, lr_scheduler)
@@ -185,8 +191,7 @@ class KnockOff(Base):
         self._y_avg = self._y_avg + (1.0 / n) * (y.mean(dim=0) - self._y_avg)
 
         # Then compute reward
-        reward = torch.mean(torch.sum(np.maximum(0, y - self._y_avg),
-                                      dim=1))
+        reward = torch.mean(torch.sum(np.maximum(0, y - self._y_avg), dim=-1))
 
         return reward.numpy()
 
@@ -336,9 +341,8 @@ class KnockOff(Base):
             transfer_data = self._adaptive_strategy()
             self._substitute_model.load_state_dict(original_state_dict)
 
-            with open(base_path.joinpath("selected_actions.pl"), 'wb') as f:
-                pickle.dump(self._selected_actions, f)
-
+        with open(base_path.joinpath("selected_actions.pl"), 'wb') as f:
+            pickle.dump(self._selected_actions, f)
         with open(base_path.joinpath("selected_idxs.pl"), 'wb') as f:
             pickle.dump(self._selected_idxs, f)
 

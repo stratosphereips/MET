@@ -141,8 +141,10 @@ class Ripper(Base):
                  latent_dim,
                  num_classes,
                  generated_data="optimized",
+                 victim_output_type="prob_dist",
                  optimizer: torch.optim.Optimizer = None,
-                 loss=None):
+                 loss=None,
+                 lr_scheduler=None):
         if optimizer is None:
             optimizer = torch.optim.Adam(substitute_model.parameters())
         if loss is None:
@@ -150,7 +152,7 @@ class Ripper(Base):
 
         # TODO: correct the hardcoded victim_output_type
         super().__init__(victim_model, substitute_model, optimizer, loss,
-                         num_classes, victim_output_type="prob_dist")
+                         num_classes, victim_output_type, lr_scheduler)
         self.attack_settings = RipperSettings(latent_dim, generated_data)
 
         # Ripper's specific attributes

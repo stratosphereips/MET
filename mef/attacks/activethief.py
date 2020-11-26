@@ -55,14 +55,15 @@ class ActiveThief(Base):
                  victim_output_type="prob_dist",
                  budget=20000,
                  optimizer: torch.optim.Optimizer = None,
-                 loss=None):
+                 loss=None,
+                 lr_scheduler=None):
         if optimizer is None:
             optimizer = torch.optim.Adam(substitute_model.parameters())
         if loss is None:
             loss = soft_cross_entropy
 
         super().__init__(victim_model, substitute_model, optimizer, loss,
-                         num_classes, victim_output_type)
+                         num_classes, victim_output_type, lr_scheduler)
         self.attack_settings = ActiveThiefSettings(iterations,
                                                    selection_strategy, budget)
 

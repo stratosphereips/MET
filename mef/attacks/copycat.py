@@ -14,15 +14,17 @@ class CopyCat(Base):
                  substitute_model,
                  num_classes,
                  optimizer: torch.optim.Optimizer = None,
-                 loss=None):
+                 loss=None,
+                 lr_scheduler=None):
         if optimizer is None:
             optimizer = torch.optim.SGD(substitute_model.parameters(), lr=0.01,
                                         momentum=0.8)
         if loss is None:
             loss = F.cross_entropy
 
+        victim_output_type = "labels"
         super().__init__(victim_model, substitute_model, optimizer, loss,
-                         num_classes, victim_output_type="labels")
+                         num_classes, victim_output_type, lr_scheduler)
         self.trainer_settings._validation = False
 
     @classmethod
