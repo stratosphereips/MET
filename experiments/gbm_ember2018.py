@@ -18,10 +18,10 @@ NUM_CLASSES = 2
 
 
 class Ember2018(nn.Module):
-    def __init__(self, model_dir):
+    def __init__(self, model_dir, seed):
         super().__init__()
         model_file = Path(model_dir).joinpath("ember_model_2018.txt").__str__()
-        self.ember = lgb.Booster(model_file=model_file)
+        self.ember = lgb.Booster(params={"seed": seed}, model_file=model_file)
 
     def forward(self, x):
         x = x.detach().cpu().numpy()
@@ -94,7 +94,7 @@ if __name__ == '__main__':
     thief_dataset, test_set, scaler = prepare_ember2018_data(
             args.ember2018_data_dir)
 
-    victim_model = Ember2018(args.ember2018_model_dir)
+    victim_model = Ember2018(args.ember2018_model_dir, args.seed)
     substitute_model = EmberSubsitute(scaler)
 
     af = ActiveThief(victim_model, substitute_model, NUM_CLASSES,
