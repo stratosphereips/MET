@@ -12,7 +12,7 @@ def soft_cross_entropy(logits, targets, weights=None):
 
 
 def get_prob_dist(logits):
-    if len(logits.size()) == 1:
+    if len(logits.size()) == 2:
         sig_output = torch.sigmoid(logits)
         return torch.stack(list(
             map(lambda y: torch.tensor([1 - y, y]), sig_output)))
@@ -21,7 +21,7 @@ def get_prob_dist(logits):
 
 
 def get_labels(output):
-    if len(output.size()) == 1:
+    if len(output.size()) == 2:
         return torch.round(output)
     else:
         return torch.argmax(output, dim=-1)

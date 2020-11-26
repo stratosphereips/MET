@@ -28,7 +28,7 @@ class Ember2018(nn.Module):
 
         y_preds = torch.from_numpy(y_preds)
 
-        return y_preds
+        return y_preds.unsqueeze(dim=-1)
 
 
 class EmberSubsitute(nn.Module):
@@ -49,16 +49,15 @@ class EmberSubsitute(nn.Module):
 
     def forward(self, x):
         # TODO: create pytorch version of scaler
-        with torch.no_grad:
-            x = self._scaler.transform(x.cpu())
+        x = self._scaler.transform(x.cpu().numpy())
 
-        x = torch.from_numpy(x).float().cuda()
+        x = torch.from_numpy(x).float()
 
-        if self.device.type == "cuda":
+        if next(self.parameters()).device.type == "cuda":
             x = x.cuda()
 
         hidden = self._layer3(self._layer2(self._layer1(x)))
-        logits = self._final(hidden).squeeze()
+        logits = self._final(hidden)
 
         return logits, hidden
 

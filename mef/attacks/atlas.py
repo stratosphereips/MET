@@ -29,7 +29,7 @@ class UncertaintyPredictor(pl.LightningModule):
 
     @auto_move_data
     def forward(self, feature_vec):
-        return self._model(feature_vec).squeeze()
+        return self._model(feature_vec)
 
 
 @dataclass
@@ -121,7 +121,7 @@ class AtlasThief(Base):
                                             trainer_settings,
                                             "correct_model", None, False)
 
-        correct_model = UncertaintyPredictor(train_set[0][0].shape[0]).cuda()
+        correct_model = UncertaintyPredictor(train_set[0][0].shape[0])
         loss = nn.BCEWithLogitsLoss()
         optimizer = torch.optim.SGD(correct_model.parameters(), lr=0.01,
                                     momentum=0.5)
@@ -203,7 +203,7 @@ class AtlasThief(Base):
         val_set = CustomLabelDataset(val_set, y_val)
 
         val_label_counts = dict(list(enumerate([0] * self._num_classes)))
-        if len(y_val.size()) == 1:
+        if len(y_val.size()) == 2:
             for class_id in torch.round(y_val):
                 val_label_counts[class_id.item()] += 1
         else:

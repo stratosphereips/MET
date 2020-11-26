@@ -20,9 +20,10 @@ class _MefModel(pl.LightningModule, ABC):
                  num_classes):
         super().__init__()
         self.model = model
+        self.num_classes = num_classes
 
         self._accuracy = pl.metrics.Accuracy(compute_on_step=False)
-        self._f1_macro = pl.metrics.Fbeta(num_classes, average="macro",
+        self._f1_macro = pl.metrics.Fbeta(self.num_classes, average="macro",
                                           compute_on_step=False)
         self.test_outputs = None
 
@@ -31,7 +32,7 @@ class _MefModel(pl.LightningModule, ABC):
                           output_type):
         if output_type == "one_hot":
             y_hats = F.one_hot(torch.argmax(output, dim=-1),
-                               num_classes=output.size()[-1])
+                               num_classes=self.num_classes)
             # to_oneshot returns tensor with uint8 type
             y_hats = y_hats.float()
         elif output_type == "prob_dist":
@@ -101,12 +102,12 @@ class TrainingModel(_MefModel):
 
     @auto_move_data
     def forward(self, x):
-        if self.device.type == "cuda" and self.model.device.type == "cpu":
+        if self.device.type == "cuda" and next(self.model.parameters()).device.type == "cpu":
             x = x.detach().cpu().numpy()
 
         output = self.model(x)
 
-        if self.device.type == "cuda" and self.model.device.type == "cpu":
+        if self.device.type == "cuda" and next(self.model.parameters()).device.type == "cpu":
             output = output.cuda()
         return self._output_to_list(output)
 
@@ -156,7 +157,7 @@ class VictimModel(_MefModel):
 
     @auto_move_data
     def forward(self, x, inference=True):
-        if self.device.type == "cuda" and self.model.device.type == "cpu":
+        if self.device.type == "cuda" and next(self.model.parameters()).device.type == "cpu":
             x = x.detach().cpu().numpy()
 
         y_hats = self.model(x)
@@ -164,7 +165,7 @@ class VictimModel(_MefModel):
         y_hats = self._transform_output(y_hats, self._output_type)
 
         # In case the underlying model is not on GPU but on CPU
-        if self.device.type == "cuda" and self.model.device.type == "cpu":
+        if self.device.type == "cuda" and next(self.model.parameters()).device.type == "cpu":
             y_hats = y_hats.cuda()
 
         return [y_hats]
