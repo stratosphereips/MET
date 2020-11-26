@@ -175,7 +175,7 @@ class Base(ABC):
         y_hats = torch.cat(y_hats)
 
         if len(hidden_layer_outputs) != 0:
-            return y_hats, torch.stack(hidden_layer_outputs)
+            return y_hats, torch.cat(hidden_layer_outputs)
 
         return y_hats
 

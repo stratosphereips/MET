@@ -15,7 +15,7 @@ def get_prob_dist(logits):
     if len(logits.size()) == 1:
         sig_output = torch.sigmoid(logits)
         return torch.stack(list(
-            map(lambda y: torch.tensor([torch.ones(1) - y, y]), sig_output)))
+            map(lambda y: torch.tensor([1 - y, y]), sig_output)))
     else:
         return torch.softmax(logits, dim=-1)
 

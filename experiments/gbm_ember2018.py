@@ -10,7 +10,7 @@ from sklearn.preprocessing import StandardScaler
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
-from mef.attacks.activethief import ActiveThief
+from mef.attacks import ActiveThief, AtlasThief
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import CustomDataset
 
@@ -33,25 +33,29 @@ class Ember2018(nn.Module):
 
 
 class EmberSubsitute(nn.Module):
-    def __init__(self, scaler):
+    def __init__(self, scaler, return_hidden):
         super().__init__()
-        layers = []
-        layers.extend([nn.Linear(in_features=2381, out_features=2400),
-                       nn.ReLU(), nn.Dropout()])
-        layers.extend([nn.Linear(in_features=2400, out_features=1200),
-                       nn.ReLU(), nn.Dropout()])
-        layers.extend([nn.Linear(in_features=1200, out_features=1200),
-                       nn.ReLU()])
-        layers.extend([nn.Linear(in_features=1200, out_features=1)])
+        self._layer1 = nn.Sequential(
+                nn.Linear(in_features=2381, out_features=2400), nn.ReLU(),
+                nn.Dropout())
+        self._layer2 = nn.Sequential(
+                nn.Linear(in_features=2400, out_features=1200), nn.ReLU(),
+                nn.Dropout())
+        self._layer3 = nn.Sequential(
+                nn.Linear(in_features=1200, out_features=1200), nn.ReLU())
+        self._final = nn.Linear(in_features=1200, out_features=1)
 
-        self.model = nn.Sequential(*layers)
         self._scaler = scaler
+        self._return_hidden = return_hidden
 
     def forward(self, x):
         # Add GPU support
         x = torch.from_numpy(self._scaler.transform(x)).float()
 
-        return self.model(x).squeeze()
+        hidden = self._layer3(self._layer2(self._layer1(x)))
+        logits = self._final(hidden).squeeze()
+
+        return logits, hidden
 
 
 def prepare_ember2018_data(data_dir):
@@ -88,6 +92,8 @@ if __name__ == '__main__':
                         help="Path to Ember2018 dataset")
     parser.add_argument("--ember2018_model_dir", type=str,
                         help="Path to Ember2018 dataset")
+    parser.add_argument("--atlasthief", action="store_true",
+                        help="Use atlasthief for the attack (Default: False)")
     args = parser.parse_args()
     mkdir_if_missing(args.save_loc)
 
@@ -95,12 +101,17 @@ if __name__ == '__main__':
             args.ember2018_data_dir)
 
     victim_model = Ember2018(args.ember2018_model_dir, args.seed)
-    substitute_model = EmberSubsitute(scaler)
+    substitute_model = EmberSubsitute(scaler, args.atlasthief)
 
-    af = ActiveThief(victim_model, substitute_model, NUM_CLASSES,
-                     args.iterations, args.selection_strategy,
-                     args.victim_output_type, args.budget,
-                     loss=torch.nn.BCEWithLogitsLoss())
+    if args.atlasthief:
+        af = AtlasThief(victim_model, substitute_model, NUM_CLASSES,
+                        args.iterations, args.victim_output_type,
+                        args.budget, loss=torch.nn.BCEWithLogitsLoss())
+    else:
+        af = ActiveThief(victim_model, substitute_model, NUM_CLASSES,
+                        args.iterations, args.selection_strategy,
+                        args.victim_output_type, args.budget,
+                        loss=torch.nn.BCEWithLogitsLoss())
 
     # Baset settings
     af.base_settings.save_loc = Path(args.save_loc)

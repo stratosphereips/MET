@@ -8,30 +8,13 @@ from pytorch_lightning.core.decorators import auto_move_data
 from mef.utils.pytorch.functional import get_labels, get_prob_dist
 
 
-def _tranfsform_output(output,
-                       output_type):
-    if output_type == "one_hot":
-        y_hats = F.one_hot(torch.argmax(output, dim=-1),
-                           num_classes=output.size()[-1])
-        # to_oneshot returns tensor with uint8 type
-        y_hats = y_hats.float()
-    elif output_type == "prob_dist":
-        y_hats = get_prob_dist(output)
-    elif output_type == "labels":
-        y_hats = get_labels(output)
-    else:
-        y_hats = output
-
-    return y_hats
-
-
 def _check_float_type(tensor):
     if tensor.dtype.__str__() != "torch.float32":
         return tensor.float()
     return tensor
 
 
-class MefModel(pl.LightningModule, ABC):
+class _MefModel(pl.LightningModule, ABC):
     def __init__(self,
                  model,
                  num_classes):
@@ -42,6 +25,23 @@ class MefModel(pl.LightningModule, ABC):
         self._f1_macro = pl.metrics.Fbeta(num_classes, average="macro",
                                           compute_on_step=False)
         self.test_outputs = None
+
+    @staticmethod
+    def _transform_output(output,
+                          output_type):
+        if output_type == "one_hot":
+            y_hats = F.one_hot(torch.argmax(output, dim=-1),
+                               num_classes=output.size()[-1])
+            # to_oneshot returns tensor with uint8 type
+            y_hats = y_hats.float()
+        elif output_type == "prob_dist":
+            y_hats = get_prob_dist(output)
+        elif output_type == "labels":
+            y_hats = get_labels(output)
+        else:
+            y_hats = output
+
+        return y_hats
 
     @abstractmethod
     def _shared_step_model_output(self, x):
@@ -54,10 +54,7 @@ class MefModel(pl.LightningModule, ABC):
 
         output = self._shared_step_model_output(x)
 
-        if len(y.size()) == 1:
-            y = torch.round(y)
-        else:
-            y = torch.argmax(y, dim=-1)
+        preds = get_labels(output)
 
         output = _check_float_type(output)
         self._accuracy(output, y)
@@ -81,7 +78,7 @@ class MefModel(pl.LightningModule, ABC):
         self.test_outputs = torch.cat(test_step_outputs)
 
 
-class TrainingModel(MefModel):
+class TrainingModel(_MefModel):
     def __init__(self,
                  model,
                  num_classes,
@@ -93,16 +90,19 @@ class TrainingModel(MefModel):
         self._loss = loss
         self._lr_scheduler = lr_scheduler
 
+    @staticmethod
+    def _output_to_list(output):
+        if isinstance(output, tuple):
+            # (logits, hidden_layer)
+            return list(output)
+        else:
+            # logits
+            return list([output])
+
     @auto_move_data
     def forward(self, x):
         output = self.model(x)
-
-        if isinstance(output, tuple):
-            # [logits, hidden_layer]
-            return list(output)
-        else:
-            # [logits]
-            return list([output])
+        return self._output_to_list(output)
 
     def training_step(self,
                       batch,
@@ -118,17 +118,21 @@ class TrainingModel(MefModel):
         if len(y.size()) == 3:
             y = y.squeeze()
 
-        logits = self.model(x)
-        loss = self._loss(logits, y)
+        output = self.model(x)
+        output = self._output_to_list(output)
+
+        loss = self._loss(output[0], y)
 
         self.log("train_loss", loss)
         return loss
 
     def _shared_step_model_output(self, x):
-        logits = self.model(x)
-        output = _tranfsform_output(logits, "prob_dist")
+        output = self.model(x)
+        output = self._output_to_list(output)
 
-        return output
+        y_hats = self._transform_output(output[0], "prob_dist")
+
+        return y_hats
 
     def configure_optimizers(self):
         if self._lr_scheduler is None:
@@ -136,7 +140,7 @@ class TrainingModel(MefModel):
         return [self.optimizer], [self._lr_scheduler]
 
 
-class VictimModel(MefModel):
+class VictimModel(_MefModel):
     def __init__(self,
                  model,
                  num_classes,
@@ -146,9 +150,9 @@ class VictimModel(MefModel):
 
     @auto_move_data
     def forward(self, x, inference=True):
-        output = self.model(x)
+        y_hats = self.model(x)
 
-        y_hats = _tranfsform_output(output, self._output_type)
+        y_hats = self._transform_output(y_hats, self._output_type)
 
         # In case the underlying model is not on GPU but on CPU
         if self.device.type == "cuda":
@@ -157,10 +161,10 @@ class VictimModel(MefModel):
         return [y_hats]
 
     def _shared_step_model_output(self, x):
-        output = self.model(x)
+        y_hats = self.model(x)
 
         # In case the underlying victim model is not on GPU but on CPU
         if self.device.type == "cuda":
-            output = output.cuda()
+            y_hats = y_hats.cuda()
 
-        return output
+        return y_hats

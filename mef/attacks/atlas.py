@@ -1,4 +1,5 @@
 import argparse
+import copy
 from dataclasses import dataclass
 
 import numpy as np
@@ -12,8 +13,8 @@ from tqdm import tqdm
 from mef.attacks.base import Base
 from mef.utils.pytorch.datasets import CustomDataset, CustomLabelDataset, \
     MefDataset, NoYDataset
-from mef.utils.pytorch.functional import soft_cross_entropy
-from mef.utils.pytorch.lighting.module import MefModel
+from mef.utils.pytorch.functional import get_labels, soft_cross_entropy
+from mef.utils.pytorch.lighting.module import TrainingModel
 from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
 from mef.utils.settings import AttackSettings
 
@@ -24,11 +25,11 @@ class UncertaintyPredictor(pl.LightningModule):
         super().__init__()
         self._model = nn.Sequential(nn.Linear(feature_vec_size, 128),
                                     nn.ReLU(inplace=True),
-                                    nn.Linear(128, 2))
+                                    nn.Linear(128, 1))
 
     @auto_move_data
     def forward(self, feature_vec):
-        return self._model(feature_vec)
+        return self._model(feature_vec).squeeze()
 
 
 @dataclass
@@ -102,33 +103,37 @@ class AtlasThief(Base):
 
     def _get_train_set(self,
                        val_set):
-        preds, hidden_layer_output = self._get_predictions(
+        logits, hidden_layer_output = self._get_predictions(
                 self._substitute_model, val_set)
 
-        preds = preds.argmax(dim=1)
-        targets = val_set.targets.argmax(dim=1)
+        preds = get_labels(logits)
+        targets = get_labels(val_set.targets)
+        self._logger.info(hidden_layer_output)
 
-        return (preds == targets).long(), hidden_layer_output
+        return (preds == targets).float(), hidden_layer_output
 
     def _train_new_output_layer(self,
                                 train_set):
-        base_settings = self.base_settings.copy()
-        trainer_settings = self.trainer_settings.copy()
+        trainer_settings = copy.copy(self.trainer_settings)
         trainer_settings.training_epochs = 25
         trainer_settings.validation = False
-        trainer = get_trainer_with_settings(base_settings, trainer_settings,
+        trainer = get_trainer_with_settings(self.base_settings,
+                                            trainer_settings,
                                             "correct_model", None, False)
 
         correct_model = UncertaintyPredictor(train_set[0][0].shape[0])
-        loss = nn.CrossEntropyLoss()
+        loss = nn.BCEWithLogitsLoss()
         optimizer = torch.optim.SGD(correct_model.parameters(), lr=0.01,
                                     momentum=0.5)
-        mef_model = MefModel(correct_model, 2, optimizer, loss,
-                             output_type="raw")
+        model = TrainingModel(correct_model, 2, optimizer, loss)
+
+        if self.base_settings.gpus:
+            model.cuda()
+            model.model.cuda()
 
         train_set = MefDataset(self.base_settings, train_set)
         train_loader = train_set.train_dataloader()
-        trainer.fit(mef_model, train_loader)
+        trainer.fit(model, train_loader)
 
         return correct_model
 
@@ -137,9 +142,9 @@ class AtlasThief(Base):
                         correct_model,
                         hidden_layer_data_rest):
         y_preds = self._get_predictions(correct_model, hidden_layer_data_rest)
-        probs_incorrect = y_preds.data[:, 0]
+        probs_incorrect = 1 - y_preds
 
-        return probs_incorrect.topk(k).indices.numpy()
+        return torch.argsort(scores, dim=-1, descending=True)[:k].numpy()
 
     def _atlas_strategy(self,
                         data_rest,
@@ -198,8 +203,12 @@ class AtlasThief(Base):
         val_set = CustomLabelDataset(val_set, y_val)
 
         val_label_counts = dict(list(enumerate([0] * self._num_classes)))
-        for class_id in torch.argmax(y_val, dim=1):
-            val_label_counts[class_id.item()] += 1
+        if len(y_val.size()) == 1:
+            for class_id in torch.round(y_val):
+                val_label_counts[class_id.item()] += 1
+        else:
+            for class_id in torch.argmax(y_val, dim=-1):
+                val_label_counts[class_id.item()] += 1
 
         self._logger.info("Validation dataset labels distribution: {}".format(
                 val_label_counts))
@@ -227,17 +236,6 @@ class AtlasThief(Base):
             self._logger.info("---------- Iteration: {} ----------".format(
                     it + 1))
 
-            # Get metrics from victim model and substitute model
-            self._logger.info("Getting substitute model's metrics for test "
-                              "set")
-            sub_test_acc = self._test_model(self._substitute_model,
-                                            self._test_set)
-            self._logger.info("Test set metrics")
-            self._logger.info(
-                    "Victim model Accuracy: {:.1f}%".format(vict_test_acc))
-            self._logger.info(
-                    "Substitute model Accuracy: {:.1f}%".format(sub_test_acc))
-
             # Reset substitute model and optimizer
             self._substitute_model.load_state_dict(sub_orig_state_dict)
             self._substitute_model.optimizer.load_state_dict(
@@ -253,6 +251,16 @@ class AtlasThief(Base):
             if (it + 1) == (self.attack_settings.iterations + 1):
                 break
 
+            # Get metrics from victim model and substitute model
+            self._logger.info("Getting substitute model's metrics for test "
+                              "set")
+            sub_test_acc = self._test_model(self._substitute_model,
+                                            self._test_set)
+            self._logger.info("Test set metrics")
+            self._logger.info(
+                    "Victim model Accuracy: {:.1f}%".format(vict_test_acc))
+            self._logger.info(
+                    "Substitute model Accuracy: {:.1f}%".format(sub_test_acc))
             self._get_aggreement_score()
 
             # Step 4: An Atlas subset selection strategy is used
