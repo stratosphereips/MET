@@ -81,7 +81,8 @@ class AtlasThief(Base):
                             help="Number of iterations of the attacks ("
                                  "Default: "
                                  "10)")
-        parser.add_argument("--output_type", default="prob_dist", type=str,
+        parser.add_argument("--victim_output_type", default="prob_dist",
+                            type=str,
                             help="Type of output from victim model {"
                                  "prob_dist, raw, one_hot} (Default: "
                                  "prob_dist)")
@@ -108,7 +109,6 @@ class AtlasThief(Base):
 
         preds = get_labels(logits)
         targets = get_labels(val_set.targets)
-        self._logger.info(hidden_layer_output)
 
         return (preds == targets).float(), hidden_layer_output
 
@@ -121,19 +121,18 @@ class AtlasThief(Base):
                                             trainer_settings,
                                             "correct_model", None, False)
 
-        correct_model = UncertaintyPredictor(train_set[0][0].shape[0])
+        correct_model = UncertaintyPredictor(train_set[0][0].shape[0]).cuda()
         loss = nn.BCEWithLogitsLoss()
         optimizer = torch.optim.SGD(correct_model.parameters(), lr=0.01,
                                     momentum=0.5)
-        model = TrainingModel(correct_model, 2, optimizer, loss)
+        correct_model = TrainingModel(correct_model, 2, optimizer, loss)
 
         if self.base_settings.gpus:
-            model.cuda()
-            model.model.cuda()
+            correct_model.cuda()
 
         train_set = MefDataset(self.base_settings, train_set)
         train_loader = train_set.train_dataloader()
-        trainer.fit(model, train_loader)
+        trainer.fit(correct_model, train_loader)
 
         return correct_model
 
@@ -144,7 +143,8 @@ class AtlasThief(Base):
         y_preds = self._get_predictions(correct_model, hidden_layer_data_rest)
         probs_incorrect = 1 - y_preds
 
-        return torch.argsort(scores, dim=-1, descending=True)[:k].numpy()
+        return torch.argsort(probs_incorrect, dim=-1, descending=True)[
+               :k].numpy()
 
     def _atlas_strategy(self,
                         data_rest,

@@ -101,7 +101,13 @@ class TrainingModel(_MefModel):
 
     @auto_move_data
     def forward(self, x):
+        if self.device.type == "cuda" and self.model.device.type == "cpu":
+            x = x.detach().cpu().numpy()
+
         output = self.model(x)
+
+        if self.device.type == "cuda" and self.model.device.type == "cpu":
+            output = output.cuda()
         return self._output_to_list(output)
 
     def training_step(self,
@@ -150,12 +156,15 @@ class VictimModel(_MefModel):
 
     @auto_move_data
     def forward(self, x, inference=True):
+        if self.device.type == "cuda" and self.model.device.type == "cpu":
+            x = x.detach().cpu().numpy()
+
         y_hats = self.model(x)
 
         y_hats = self._transform_output(y_hats, self._output_type)
 
         # In case the underlying model is not on GPU but on CPU
-        if self.device.type == "cuda":
+        if self.device.type == "cuda" and self.model.device.type == "cpu":
             y_hats = y_hats.cuda()
 
         return [y_hats]

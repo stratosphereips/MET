@@ -40,7 +40,7 @@ def set_up(args):
     print("Preparing data")
     mean = (0.5,)
     std = (0.5,)
-    transform = T.Compose([T.CenterCrop(DIMS[1]), T.ToTensor(),
+    transform = T.Compose([T.Resize(DIMS[-1]), T.ToTensor(),
                            T.Normalize(mean, std)])
     train_set = CIFAR10(root=args.cifar10_dir, download=True,
                         transform=transform)

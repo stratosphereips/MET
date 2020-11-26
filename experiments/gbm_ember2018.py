@@ -24,7 +24,6 @@ class Ember2018(nn.Module):
         self.ember = lgb.Booster(params={"seed": seed}, model_file=model_file)
 
     def forward(self, x):
-        x = x.detach().cpu().numpy()
         y_preds = self.ember.predict(x)
 
         y_preds = torch.from_numpy(y_preds)
@@ -49,8 +48,14 @@ class EmberSubsitute(nn.Module):
         self._return_hidden = return_hidden
 
     def forward(self, x):
-        # Add GPU support
-        x = torch.from_numpy(self._scaler.transform(x)).float()
+        # TODO: create pytorch version of scaler
+        with torch.no_grad:
+            x = self._scaler.transform(x.cpu())
+
+        x = torch.from_numpy(x).float().cuda()
+
+        if self.device.type == "cuda":
+            x = x.cuda()
 
         hidden = self._layer3(self._layer2(self._layer1(x)))
         logits = self._final(hidden).squeeze()
@@ -103,15 +108,18 @@ if __name__ == '__main__':
     victim_model = Ember2018(args.ember2018_model_dir, args.seed)
     substitute_model = EmberSubsitute(scaler, args.atlasthief)
 
+    if args.gpus:
+        substitute_model.cuda()
+
     if args.atlasthief:
         af = AtlasThief(victim_model, substitute_model, NUM_CLASSES,
                         args.iterations, args.victim_output_type,
                         args.budget, loss=torch.nn.BCEWithLogitsLoss())
     else:
         af = ActiveThief(victim_model, substitute_model, NUM_CLASSES,
-                        args.iterations, args.selection_strategy,
-                        args.victim_output_type, args.budget,
-                        loss=torch.nn.BCEWithLogitsLoss())
+                         args.iterations, args.selection_strategy,
+                         args.victim_output_type, args.budget,
+                         loss=torch.nn.BCEWithLogitsLoss())
 
     # Baset settings
     af.base_settings.save_loc = Path(args.save_loc)

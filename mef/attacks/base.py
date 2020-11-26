@@ -100,8 +100,6 @@ class Base(ABC):
         # For some reason the model after fit is on CPU and not GPU
         if self.base_settings.gpus:
             self._substitute_model.cuda()
-            if isinstance(self._substitute_model.model, nn.Module):
-                self._substitute_model.model.cuda()
 
         return
 
@@ -132,10 +130,12 @@ class Base(ABC):
 
     def _get_aggreement_score(self):
         self._logger.info("Getting attack metric")
-        vict_test_labels = get_labels(self._victim_model.test_outputs).numpy()
+        vict_test_labels = get_labels(self._victim_model.test_outputs)
+        vict_test_labels = vict_test_labels.detach().cpu().numpy()
 
-        sub_test_labels = get_labels(get_prob_dist(
-                self._substitute_model.test_outputs)).numpy()
+        sub_test_labels = get_labels(
+            get_prob_dist(self._substitute_model.test_outputs))
+        sub_test_labels = sub_test_labels.detach().cpu().numpy()
 
         agreement_count = np.sum(vict_test_labels == sub_test_labels)
         self._logger.info("Agreement count: {}".format(agreement_count))
@@ -309,11 +309,7 @@ class Base(ABC):
         # TODO: add self._device attribute + parameter to mefmodel
         if self.base_settings.gpus:
             self._victim_model.cuda()
-            if isinstance(self._victim_model.model, nn.Module):
-                self._victim_model.model.cuda()
             self._substitute_model.cuda()
-            if isinstance(self._substitute_model.model, nn.Module):
-                self._substitute_model.model.cuda()
 
         self._parse_args(args, kwargs)
         self._run()
