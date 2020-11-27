@@ -193,8 +193,8 @@ class ActiveThief(Base):
             # difference as L2-norm
             scores.append(torch.dist(x_adv, x))
 
-        return torch.argsort(torch.cat(scores), dim=-1,
-                             descending=True)[:k].deatach().cpu().numpy()
+        return torch.argsort(torch.cat(scores), dim=-1, descending=True)[
+               :k].deatach().cpu().numpy()
 
     def _select_samples(self,
                         data_rest,
@@ -256,7 +256,7 @@ class ActiveThief(Base):
         val_set = CustomLabelDataset(val_set, y_val)
 
         val_label_counts = dict(list(enumerate([0] * self._num_classes)))
-        if len(y_val.size()) == 2:
+        if y_val.size()[-1] == 1:
             for class_id in torch.round(y_val):
                 val_label_counts[class_id.item()] += 1
         else:

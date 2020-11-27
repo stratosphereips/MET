@@ -203,7 +203,7 @@ class AtlasThief(Base):
         val_set = CustomLabelDataset(val_set, y_val)
 
         val_label_counts = dict(list(enumerate([0] * self._num_classes)))
-        if len(y_val.size()) == 2:
+        if y_val.size()[-1] == 1:
             for class_id in torch.round(y_val):
                 val_label_counts[class_id.item()] += 1
         else:
