@@ -126,8 +126,9 @@ class TrainingModel(_MefModel):
 
     def _shared_step_model_output(self, x):
         output = self.model(x)
+        output = self._output_to_list(output)[0]
 
-        return self._output_to_list(output)[0]
+        return output.to(x.device)
 
     def configure_optimizers(self):
         if self._lr_scheduler is None:
@@ -152,4 +153,5 @@ class VictimModel(_MefModel):
         return [y_hats]
 
     def _shared_step_model_output(self, x):
-        return self.model(x)
+        output = self.model(x)
+        return output.to(x.device)

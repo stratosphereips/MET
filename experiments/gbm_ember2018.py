@@ -27,7 +27,6 @@ class Ember2018(nn.Module):
         y_preds = self.ember.predict(x.detach().cpu().numpy())
 
         y_preds = torch.from_numpy(y_preds)
-        y_preds.to(x.device)
 
         return y_preds.unsqueeze(dim=-1)
 
