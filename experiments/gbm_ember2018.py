@@ -24,9 +24,10 @@ class Ember2018(nn.Module):
         self.ember = lgb.Booster(params={"seed": seed}, model_file=model_file)
 
     def forward(self, x):
-        y_preds = self.ember.predict(x)
+        y_preds = self.ember.predict(x.detach().cpu())
 
         y_preds = torch.from_numpy(y_preds)
+        y_preds.to(x.device)
 
         return y_preds.unsqueeze(dim=-1)
 
@@ -49,14 +50,12 @@ class EmberSubsitute(nn.Module):
 
     def forward(self, x):
         # TODO: create pytorch version of scaler
-        x = self._scaler.transform(x.cpu().numpy())
+        x_scaled = self._scaler.transform(x.cpu().numpy())
 
-        x = torch.from_numpy(x).float()
+        x_scaled = torch.from_numpy(x_scaled).float()
+        x_scaled = x_scaled.to(x.device)
 
-        if next(self.parameters()).device.type == "cuda":
-            x = x.cuda()
-
-        hidden = self._layer3(self._layer2(self._layer1(x)))
+        hidden = self._layer3(self._layer2(self._layer1(x_scaled)))
         logits = self._final(hidden)
 
         return logits, hidden
@@ -108,6 +107,7 @@ if __name__ == '__main__':
     substitute_model = EmberSubsitute(scaler, args.atlasthief)
 
     if args.gpus:
+        victim_model.cuda()
         substitute_model.cuda()
 
     if args.atlasthief:
