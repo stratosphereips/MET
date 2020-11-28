@@ -2,14 +2,13 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 import torch
-import torch.nn as nn
 from pytorch_lightning import seed_everything
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from mef.utils.logger import set_up_logger
 from mef.utils.pytorch.datasets import CustomDataset, MefDataset
-from mef.utils.pytorch.functional import get_labels, get_prob_dist
+from mef.utils.pytorch.functional import get_labels
 from mef.utils.pytorch.lighting.module import TrainingModel, \
     VictimModel
 from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
@@ -129,20 +128,16 @@ class Base(ABC):
         return
 
     def _get_aggreement_score(self):
-        self._logger.info("Getting attack metric")
         vict_test_labels = get_labels(self._victim_model.test_outputs)
         vict_test_labels = vict_test_labels.detach().cpu().numpy()
 
-        sub_test_labels = get_labels(
-            get_prob_dist(self._substitute_model.test_outputs))
+        sub_test_labels = get_labels(self._substitute_model.test_outputs)
         sub_test_labels = sub_test_labels.detach().cpu().numpy()
 
-        agreement_count = np.sum(vict_test_labels == sub_test_labels)
-        self._logger.info("Agreement count: {}".format(agreement_count))
-        self._logger.info(
-                "Test agreement between victim and substitute model on test "
-                "dataset {:.1f}%"
-                    .format(100 * (agreement_count / len(vict_test_labels))))
+        agreement_count = np.sum((vict_test_labels == sub_test_labels))
+        self._logger.info("Agreement score: {}/{} ({:.1f}%)".format(
+                agreement_count, len(vict_test_labels),
+                100 * (agreement_count / len(vict_test_labels))))
 
         return
 

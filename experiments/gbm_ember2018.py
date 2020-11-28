@@ -24,7 +24,7 @@ class Ember2018(nn.Module):
         self.ember = lgb.Booster(params={"seed": seed}, model_file=model_file)
 
     def forward(self, x):
-        y_preds = self.ember.predict(x.detach().cpu())
+        y_preds = self.ember.predict(x.detach().cpu().numpy())
 
         y_preds = torch.from_numpy(y_preds)
         y_preds.to(x.device)

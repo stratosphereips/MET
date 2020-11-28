@@ -5,13 +5,8 @@ import torch
 import torch.nn.functional as F
 from pytorch_lightning.core.decorators import auto_move_data
 
-from mef.utils.pytorch.functional import get_labels, get_prob_dist
-
-
-def _check_float_type(tensor):
-    if tensor.dtype.__str__() != "torch.float32":
-        return tensor.float()
-    return tensor
+from mef.utils.pytorch.functional import get_labels, get_prob_dist, \
+    apply_softmax_or_sigmoid
 
 
 class _MefModel(pl.LightningModule, ABC):
@@ -50,15 +45,17 @@ class _MefModel(pl.LightningModule, ABC):
 
     def _shared_step(self, batch, step_type):
         x, y = batch
-        x = _check_float_type(x)
-        y = _check_float_type(y)
+        x = x.float()
+        y = y.float()
 
-        output = self._shared_step_model_output(x)
-        output = _check_float_type(output)
+        output = self._shared_step_model_output(x).float()
 
         if output.size()[-1] == 1 and y.size() != output.size():
             y = y.view(output.size())
 
+        y.to(output.device)
+        print(output.device)
+        print(y.device)
         self._accuracy(output, y)
         self._f1_macro(output, y)
         self.log_dict({"{}_acc".format(step_type): self._accuracy,
@@ -78,6 +75,7 @@ class _MefModel(pl.LightningModule, ABC):
 
     def test_epoch_end(self, test_step_outputs):
         self.test_outputs = torch.cat(test_step_outputs)
+        self.test_outputs = apply_softmax_or_sigmoid(self.test_outputs)
 
 
 class TrainingModel(_MefModel):
@@ -157,10 +155,4 @@ class VictimModel(_MefModel):
         return [y_hats]
 
     def _shared_step_model_output(self, x):
-        y_hats = self.model(x)
-
-        # In case the underlying victim model is not on GPU but on CPU
-        if self.device.type == "cuda":
-            y_hats = y_hats.cuda()
-
-        return y_hats
+        return self.model(x)

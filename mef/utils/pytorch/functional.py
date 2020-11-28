@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 
+
 # Cross entropy for soft-labels
 def soft_cross_entropy(logits, targets, weights=None):
     if weights is not None:
@@ -11,11 +12,20 @@ def soft_cross_entropy(logits, targets, weights=None):
                                     dim=-1))
 
 
+def apply_softmax_or_sigmoid(logits):
+    if logits.size()[-1] == 1:
+        sig_output = torch.sigmoid(logits)
+        return torch.stack(list(
+                map(lambda y: torch.tensor([1 - y, y]), sig_output)))
+    else:
+        return torch.softmax(logits, dim=-1)
+
+
 def get_prob_dist(logits):
     if logits.size()[-1] == 1:
         sig_output = torch.sigmoid(logits)
         return torch.stack(list(
-            map(lambda y: torch.tensor([1 - y, y]), sig_output)))
+                map(lambda y: torch.tensor([1 - y, y]), sig_output)))
     else:
         return torch.softmax(logits, dim=-1)
 
