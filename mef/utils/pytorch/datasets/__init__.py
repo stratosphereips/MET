@@ -96,14 +96,7 @@ class CustomDataset(Dataset):
         self.targets = targets
 
     def __getitem__(self, index):
-        sample = self.data[index]
-        target = self.targets[index]
-
-        # When the target corresponds to integer return integer and not tensor
-        if target.numel() == 1:
-            target = target.item()
-
-        return sample, target
+        return self.data[index], self.targets[index]
 
     def __len__(self):
         return len(self.data)

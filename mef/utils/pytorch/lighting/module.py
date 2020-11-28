@@ -54,10 +54,11 @@ class _MefModel(pl.LightningModule, ABC):
         y = _check_float_type(y)
 
         output = self._shared_step_model_output(x)
-
-        preds = get_labels(output)
-
         output = _check_float_type(output)
+
+        if output.size()[-1] == 1 and y.size() != output.size():
+            y = y.view(output.size())
+
         self._accuracy(output, y)
         self._f1_macro(output, y)
         self.log_dict({"{}_acc".format(step_type): self._accuracy,
@@ -102,13 +103,8 @@ class TrainingModel(_MefModel):
 
     @auto_move_data
     def forward(self, x):
-        if self.device.type == "cuda" and next(self.model.parameters()).device.type == "cpu":
-            x = x.detach().cpu().numpy()
-
         output = self.model(x)
 
-        if self.device.type == "cuda" and next(self.model.parameters()).device.type == "cpu":
-            output = output.cuda()
         return self._output_to_list(output)
 
     def training_step(self,
@@ -120,10 +116,10 @@ class TrainingModel(_MefModel):
         # which means the datasets created by generators which already
         # have 4-dimensions will be 5-dimensional in the form [1, B, C, H, W]
         # In case of y it will be 3-dimensional [1, B, L]
-        if len(x.size()) == 5:
-            x = x.squeeze()
-        if len(y.size()) == 3:
-            y = y.squeeze()
+        if len(x.size()) == 5 and x.size()[0] == 1:
+            x = x.squeeze(dim=0)
+        if len(y.size()) == 3 and y.size()[0] == 1:
+            y = y.squeeze(dim=0)
 
         output = self.model(x)
         output = self._output_to_list(output)
@@ -135,11 +131,8 @@ class TrainingModel(_MefModel):
 
     def _shared_step_model_output(self, x):
         output = self.model(x)
-        output = self._output_to_list(output)
 
-        y_hats = self._transform_output(output[0], "prob_dist")
-
-        return y_hats
+        return self._output_to_list(output)[0]
 
     def configure_optimizers(self):
         if self._lr_scheduler is None:
@@ -157,16 +150,9 @@ class VictimModel(_MefModel):
 
     @auto_move_data
     def forward(self, x, inference=True):
-        if self.device.type == "cuda" and next(self.model.parameters()).device.type == "cpu":
-            x = x.detach().cpu().numpy()
-
         y_hats = self.model(x)
 
         y_hats = self._transform_output(y_hats, self._output_type)
-
-        # In case the underlying model is not on GPU but on CPU
-        if self.device.type == "cuda" and next(self.model.parameters()).device.type == "cpu":
-            y_hats = y_hats.cuda()
 
         return [y_hats]
 
