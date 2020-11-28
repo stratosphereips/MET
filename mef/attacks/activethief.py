@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from .base import Base
 from ..utils.pytorch.datasets import CustomLabelDataset, MefDataset
-from ..utils.pytorch.functional import get_prob_dist, soft_cross_entropy
+from ..utils.pytorch.functional import get_prob_vector, soft_cross_entropy
 from ..utils.settings import AttackSettings
 
 
@@ -215,7 +215,7 @@ class ActiveThief(Base):
             # Get initial centers
             init_centers = self._get_predictions(self._substitute_model,
                                                  query_sets)
-            init_centers = get_prob_dist(init_centers)
+            init_centers = get_prob_vector(init_centers)
             selected_points = self._kcenter_strategy(k, data_rest,
                                                      init_centers)
         elif selection_strategy == "dfal":
@@ -226,7 +226,7 @@ class ActiveThief(Base):
             # Get initial centers
             init_centers = self._get_predictions(self._substitute_model,
                                                  query_sets)
-            init_centers = get_prob_dist(init_centers)
+            init_centers = get_prob_vector(init_centers)
             idxs_kcenter_best = self._kcenter_strategy(k, y_dfal_best,
                                                        init_centers)
             selected_points = idxs_dfal_best[idxs_kcenter_best]
@@ -326,7 +326,7 @@ class ActiveThief(Base):
                                   "rest of the thief dataset")
                 y_rest = self._get_predictions(self._substitute_model,
                                                data_rest)
-                y_rest = get_prob_dist(y_rest)
+                y_rest = get_prob_vector(y_rest)
                 data_rest = CustomLabelDataset(data_rest, y_rest)
 
             # Step 5: An active learning subset selection strategy is used

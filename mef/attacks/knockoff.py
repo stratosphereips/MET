@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from mef.attacks.base import Base
 from mef.utils.pytorch.datasets import CustomLabelDataset, MefDataset
-from mef.utils.pytorch.functional import get_prob_dist, soft_cross_entropy
+from mef.utils.pytorch.functional import get_prob_vector, soft_cross_entropy
 from mef.utils.settings import AttackSettings
 
 
@@ -295,7 +295,7 @@ class KnockOff(Base):
             # Test new labels
             self._logger.info("Getting substitute predictions on sampled data")
             y_hat = self._get_predictions(self._substitute_model, sampled_data)
-            y_hat = get_prob_dist(y_hat)
+            y_hat = get_prob_vector(y_hat)
 
             # Compute rewards
             self._logger.info("Computing rewards")

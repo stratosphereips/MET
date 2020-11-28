@@ -5,8 +5,8 @@ import torch
 import torch.nn.functional as F
 from pytorch_lightning.core.decorators import auto_move_data
 
-from mef.utils.pytorch.functional import get_labels, get_prob_dist, \
-    apply_softmax_or_sigmoid
+from mef.utils.pytorch.functional import apply_softmax_or_sigmoid, \
+    get_labels, get_prob_vector
 
 
 class _MefModel(pl.LightningModule, ABC):
@@ -22,8 +22,8 @@ class _MefModel(pl.LightningModule, ABC):
                                           compute_on_step=False)
         self.test_outputs = None
 
-    @staticmethod
-    def _transform_output(output,
+    def _transform_output(self,
+                          output,
                           output_type):
         if output_type == "one_hot":
             y_hats = F.one_hot(torch.argmax(output, dim=-1),
@@ -31,7 +31,7 @@ class _MefModel(pl.LightningModule, ABC):
             # to_oneshot returns tensor with uint8 type
             y_hats = y_hats.float()
         elif output_type == "prob_dist":
-            y_hats = get_prob_dist(output)
+            y_hats = get_prob_vector(output)
         elif output_type == "labels":
             y_hats = get_labels(output)
         else:
@@ -53,9 +53,6 @@ class _MefModel(pl.LightningModule, ABC):
         if output.size()[-1] == 1 and y.size() != output.size():
             y = y.view(output.size())
 
-        y.to(output.device)
-        print(output.device)
-        print(y.device)
         self._accuracy(output, y)
         self._f1_macro(output, y)
         self.log_dict({"{}_acc".format(step_type): self._accuracy,

@@ -21,7 +21,7 @@ def apply_softmax_or_sigmoid(logits):
         return torch.softmax(logits, dim=-1)
 
 
-def get_prob_dist(logits):
+def get_prob_vector(logits):
     if logits.size()[-1] == 1:
         sig_output = torch.sigmoid(logits)
         return torch.stack(list(
