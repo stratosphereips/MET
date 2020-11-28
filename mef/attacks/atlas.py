@@ -172,7 +172,7 @@ class AtlasThief(Base):
 
             selected_points.append(idxs_best)
             train_data.append(hidden_layer_data_rest[idxs_best])
-            train_labels.append(torch.ones(samples_per_iter).long())
+            train_labels.append(torch.ones((samples_per_iter, 1)).float())
 
             idx_hidden_rest = np.setdiff1d(idx_hidden_rest, idxs_best)
             hidden_layer_data_rest = hidden_layer_data_rest_all[
