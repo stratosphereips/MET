@@ -141,7 +141,7 @@ class AtlasThief(Base):
                         hidden_layer_data_rest):
         data = NoYDataset(hidden_layer_data_rest)
         y_preds = self._get_predictions(correct_model, data)
-        probs_incorrect = 1 - y_preds
+        probs_incorrect = (1 - y_preds).squeeze()
 
         return torch.argsort(probs_incorrect, dim=-1, descending=True)[
                :k].numpy()
@@ -169,13 +169,14 @@ class AtlasThief(Base):
             correct_model = self._train_new_output_layer(train_set)
             idxs_best = self._get_atl_sample(samples_per_iter, correct_model,
                                              hidden_layer_data_rest)
-            print(idxs_best) # TODO: correct this
+
             selected_points.append(idxs_best)
             train_data.append(hidden_layer_data_rest[idxs_best])
             train_labels.append(torch.ones(samples_per_iter).long())
 
             idx_hidden_rest = np.setdiff1d(idx_hidden_rest, idxs_best)
-            hidden_layer_data_rest = hidden_layer_data_rest_all[idx_hidden_rest]
+            hidden_layer_data_rest = hidden_layer_data_rest_all[
+                idx_hidden_rest]
 
         return np.concatenate(selected_points)
 
