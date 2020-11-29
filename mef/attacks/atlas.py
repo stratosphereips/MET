@@ -13,7 +13,7 @@ from tqdm import tqdm
 from mef.attacks.base import Base
 from mef.utils.pytorch.datasets import CustomDataset, CustomLabelDataset, \
     MefDataset, NoYDataset
-from mef.utils.pytorch.functional import get_labels, soft_cross_entropy
+from mef.utils.pytorch.functional import get_class_labels, soft_cross_entropy
 from mef.utils.pytorch.lighting.module import TrainingModel
 from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
 from mef.utils.settings import AttackSettings
@@ -107,8 +107,8 @@ class AtlasThief(Base):
         logits, hidden_layer_output = self._get_predictions(
                 self._substitute_model, val_set)
 
-        preds = get_labels(logits)
-        targets = get_labels(val_set.targets)
+        preds = get_class_labels(logits)
+        targets = get_class_labels(val_set.targets)
 
         return (preds == targets).float(), hidden_layer_output
 

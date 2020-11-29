@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from pytorch_lightning.core.decorators import auto_move_data
 
 from mef.utils.pytorch.functional import apply_softmax_or_sigmoid, \
-    get_labels, get_prob_vector
+    get_class_labels, get_prob_vector
 
 
 class _MefModel(pl.LightningModule, ABC):
@@ -33,7 +33,7 @@ class _MefModel(pl.LightningModule, ABC):
         elif output_type == "prob_dist":
             y_hats = get_prob_vector(output)
         elif output_type == "labels":
-            y_hats = get_labels(output)
+            y_hats = get_class_labels(output)
         else:
             y_hats = output
 
@@ -53,8 +53,8 @@ class _MefModel(pl.LightningModule, ABC):
         if output.size()[-1] == 1 and y.size() != output.size():
             y = y.view(output.size())
 
-        output = get_labels(output)
-        y = get_labels(y)
+        output = get_class_labels(output)
+        y = get_class_labels(y)
 
         self._accuracy(output, y)
         self._f1_macro(output, y)

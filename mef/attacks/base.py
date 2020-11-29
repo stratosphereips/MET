@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from mef.utils.logger import set_up_logger
 from mef.utils.pytorch.datasets import CustomDataset, MefDataset
-from mef.utils.pytorch.functional import get_labels
+from mef.utils.pytorch.functional import get_class_labels
 from mef.utils.pytorch.lighting.module import TrainingModel, \
     VictimModel
 from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
