@@ -57,7 +57,10 @@ class EmberSubsitute(nn.Module):
         hidden = self._layer3(self._layer2(self._layer1(x_scaled)))
         logits = self._final(hidden)
 
-        return logits, hidden
+        if self._return_hidden:
+            return logits, hidden
+        else:
+            return logits
 
 
 def prepare_ember2018_data(data_dir):
