@@ -53,6 +53,9 @@ class _MefModel(pl.LightningModule, ABC):
         if output.size()[-1] == 1 and y.size() != output.size():
             y = y.view(output.size())
 
+        output = get_labels(output)
+        y = get_labels(y)
+
         self._accuracy(output, y)
         self._f1_macro(output, y)
         self.log_dict({"{}_acc".format(step_type): self._accuracy,

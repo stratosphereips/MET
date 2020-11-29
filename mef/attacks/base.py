@@ -128,10 +128,10 @@ class Base(ABC):
         return
 
     def _get_aggreement_score(self):
-        vict_test_labels = get_labels(self._victim_model.test_outputs)
+        vict_test_labels = self._victim_model.test_outputs
         vict_test_labels = vict_test_labels.detach().cpu().numpy()
 
-        sub_test_labels = get_labels(self._substitute_model.test_outputs)
+        sub_test_labels = self._substitute_model.test_outputs
         sub_test_labels = sub_test_labels.detach().cpu().numpy()
 
         agreement_count = np.sum((vict_test_labels == sub_test_labels))
