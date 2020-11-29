@@ -14,9 +14,7 @@ def soft_cross_entropy(logits, targets, weights=None):
 
 def apply_softmax_or_sigmoid(logits):
     if logits.size()[-1] == 1:
-        sig_output = torch.sigmoid(logits)
-        return torch.stack(list(
-                map(lambda y: torch.tensor([1 - y, y]), sig_output)))
+        return torch.sigmoid(logits)
     else:
         return torch.softmax(logits, dim=-1)
 

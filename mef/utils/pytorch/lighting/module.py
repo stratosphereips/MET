@@ -72,7 +72,6 @@ class _MefModel(pl.LightningModule, ABC):
 
     def test_epoch_end(self, test_step_outputs):
         self.test_outputs = torch.cat(test_step_outputs)
-        self.test_outputs = apply_softmax_or_sigmoid(self.test_outputs)
 
 
 class TrainingModel(_MefModel):
@@ -128,7 +127,7 @@ class TrainingModel(_MefModel):
         output = self.model(x)
         output = self._output_to_list(output)[0]
 
-        return output.to(x.device)
+        return apply_softmax_or_sigmoid(output.to(x.device))
 
     def configure_optimizers(self):
         if self._lr_scheduler is None:
