@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from mef.utils.logger import set_up_logger
-from mef.utils.pytorch.datasets import CustomDataset, MefDataset
+from mef.utils.pytorch.datasets import TensorDadaset, MefDataset
 from mef.utils.pytorch.functional import get_class_labels
 from mef.utils.pytorch.lighting.module import TrainingModel, \
     VictimModel
@@ -175,61 +175,20 @@ class Base(ABC):
         return y_hats
 
     def _parse_args(self, args, kwargs):
-        # Numpy input (x_sub, y_sub, x_test, y_test)
         try:
-            if len(args) == 4:
+            # Pytorch input (sub_dataset, test_set)
+            if len(args) == 2:
                 for arg in args:
-                    if not isinstance(arg, np.ndarray):
+                    if not isinstance(arg, TensorDadaset):
                         raise TypeError()
-                else:
-                    self._thief_dataset = CustomDataset(args[0], args[1])
-                    self._test_set = CustomDataset(args[2], args[3])
-                    return
-            elif len(kwargs) == 4:
-                for _, value in kwargs.items():
-                    if not isinstance(value, np.ndarray):
-                        raise TypeError()
-                else:
-                    if "x_sub" not in kwargs:
-                        self._logger.error("x_sub input argument is missing")
-                        raise ValueError()
-                    if "y_sub" not in kwargs:
-                        self._logger.error("y_sub input argument is missing")
-                        raise ValueError()
-                    if "x_test" not in kwargs:
-                        self._logger.error("x_test input argument is missing")
-                        raise ValueError()
-                    if "y_test" not in kwargs:
-                        self._logger.error("y_test input argument is missing")
-                        raise ValueError()
-
-                    self._thief_dataset = CustomDataset(kwargs["x_sub"],
-                                                        kwargs["y_sub"])
-                    self._test_set = CustomDataset(kwargs["x_test"],
-                                                   kwargs["y_test"])
-                    return
-            elif len(args) == 2:
-                # Pytorch input (sub_dataset, test_set)
-                for arg in args:
-                    if not isinstance(arg, torch.utils.data.Dataset):
-                        break
                 else:
                     self._thief_dataset = args[0]
                     self._test_set = args[1]
                     return
-                # Pytorch input (x_test, y_test)
-                for arg in args:
-                    if not isinstance(arg, np.ndarray):
-                        break
-                else:
-                    self._thief_dataset = CustomDataset(args[0], args[1])
-                    return
-                TypeError()
             elif len(kwargs) == 2:
-                # Pytorch input (sub_dataset, test_set)
                 for _, value in kwargs.items():
-                    if not isinstance(value, torch.utils.data.Dataset):
-                        break
+                    if not isinstance(value, TensorDadaset):
+                        raise TypeError()
                 else:
                     if "sub_dataset" not in kwargs:
                         self._logger.error(
@@ -243,44 +202,24 @@ class Base(ABC):
                     self._thief_dataset = kwargs["sub_dataset"]
                     self._test_set = kwargs["test_set"]
                     return
-                # Pytorch input (x_test, y_test)
-                for _, value in kwargs.items():
-                    if not isinstance(value, np.ndarray):
-                        break
-                else:
-                    if "x_test" not in kwargs:
-                        self._logger.error(
-                                "x_test input argument is missing")
-                        raise ValueError()
-                    if "y_test" not in kwargs:
-                        self._logger.error(
-                                "y_test input argument is missing")
-                        raise ValueError()
-
-                    self._test_set = CustomDataset(kwargs["x_test"],
-                                                   kwargs["y_test"])
-                    return
-                TypeError()
+            # Pytorch input (test_set)
             elif len(args) == 1:
-                if not isinstance(args[0], torch.utils.data.Dataset):
+                if not isinstance(args[0], TensorDadaset):
                     TypeError()
                 self._test_set = args[0]
             elif len(kwargs) == 1:
-                if not isinstance(kwargs["test_set"],
-                                  torch.utils.data.Dataset):
+                if not isinstance(kwargs.items()[0], TensorDadaset):
                     TypeError()
                 if "test_set" not in kwargs:
                     self._logger.error(
                             "test_set input argument is missing")
                     raise ValueError()
                 self._test_set = kwargs["test_set"]
-        # Pytorch input (test_set)
 
-        except ValueError or TypeError:
+        except TypeError:
             self._logger.error(
-                    "Input arguments for attack must be either numpy arrays ("
-                    "x_sub, y_sub, x_test, y_test), (x_test, y_test) or "
-                    "Pytorch datasets (sub_dataset, test_set), (test_set)")
+                    "Input arguments for attack must be either of type "
+                    "TensorDataset or NumpyDataset.")
             exit()
         return
 
@@ -292,6 +231,14 @@ class Base(ABC):
         return
 
     def __call__(self, *args, **kwargs):
+        """
+        Starts the attack, the expected input is either (sub_dataset,
+        test_set) or (test_set), where each parameter type is either
+        TensorDataset or NumpyDataset.
+        :param args:
+        :param kwargs:
+        :return: None
+        """
         # Seed random generators for reproducibility
         seed_everything(self.base_settings.seed)
         # In 1.7.0 still in BETA

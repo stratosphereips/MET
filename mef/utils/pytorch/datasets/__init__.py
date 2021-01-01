@@ -79,11 +79,9 @@ class CustomLabelDataset(Dataset):
     def __len__(self):
         return len(self.dataset)
 
-
-class CustomDataset(Dataset):
+class TensorDadaset(Dataset):
     """
-    Create completely new dataset from torch tensors or numpy arrays
-    representing x, y
+    Create completely new dataset from torch tensors representing x, y
     """
 
     def __init__(self, data, targets):
@@ -100,6 +98,15 @@ class CustomDataset(Dataset):
 
     def __len__(self):
         return len(self.data)
+
+class NumpyDataset(TensorDadaset):
+    """
+    Create completely new dataset from torch numpy arrays representing x, y
+    """
+    def __init__(self, data, targets):
+        data = torch.from_numpy(data)
+        targets = torch.from_numpy(targets)
+        super().__init__(data, targets)
 
 
 class NoYDataset(Dataset):

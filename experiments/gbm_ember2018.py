@@ -12,7 +12,7 @@ sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks import ActiveThief, AtlasThief
 from mef.utils.ios import mkdir_if_missing
-from mef.utils.pytorch.datasets import CustomDataset
+from mef.utils.pytorch.datasets import NumpyDataset
 
 NUM_CLASSES = 2
 
@@ -85,8 +85,8 @@ def prepare_ember2018_data(data_dir):
     scaler = StandardScaler()
     scaler = scaler.fit(X_train)
 
-    thief_dataset = CustomDataset(X_train, y_train)
-    test_set = CustomDataset(X_test, y_test)
+    thief_dataset = NumpyDataset(X_train, y_train)
+    test_set = NumpyDataset(X_test, y_test)
 
     return thief_dataset, test_set, scaler
 
@@ -102,9 +102,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
     mkdir_if_missing(args.save_loc)
 
+    # Prepare data
     thief_dataset, test_set, scaler = prepare_ember2018_data(
             args.ember2018_data_dir)
 
+    # Prepare models
     victim_model = Ember2018(args.ember2018_model_dir, args.seed)
     substitute_model = EmberSubsitute(scaler, args.atlasthief)
 

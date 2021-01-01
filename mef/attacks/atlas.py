@@ -11,7 +11,7 @@ from torch.utils.data import ConcatDataset, Subset
 from tqdm import tqdm
 
 from mef.attacks.base import Base
-from mef.utils.pytorch.datasets import CustomDataset, CustomLabelDataset, \
+from mef.utils.pytorch.datasets import TensorDadaset, CustomLabelDataset, \
     MefDataset, NoYDataset
 from mef.utils.pytorch.functional import get_class_labels, soft_cross_entropy
 from mef.utils.pytorch.lighting.module import TrainingModel
@@ -163,7 +163,7 @@ class AtlasThief(Base):
         samples_per_iter = 10
         iterations = range(self.attack_settings.k // samples_per_iter)
         for _ in tqdm(iterations, desc="Selecting best points"):
-            train_set = CustomDataset(torch.cat(train_data),
+            train_set = TensorDadaset(torch.cat(train_data),
                                       torch.cat(train_labels))
 
             correct_model = self._train_new_output_layer(train_set)

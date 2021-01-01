@@ -7,7 +7,7 @@ from torch.utils.data import ConcatDataset
 from tqdm import tqdm
 
 from mef.attacks.base import Base
-from mef.utils.pytorch.datasets import CustomDataset, MefDataset, NoYDataset
+from mef.utils.pytorch.datasets import TensorDadaset, MefDataset, NoYDataset
 from mef.utils.settings import AttackSettings
 
 
@@ -130,6 +130,6 @@ class BlackBox(Base):
                 # Adversary has access only to labels
                 y_query_set = self._get_predictions(self._victim_model,
                                                     NoYDataset(x_query_set))
-                query_sets.append(CustomDataset(x_query_set, y_query_set))
+                query_sets.append(TensorDadaset(x_query_set, y_query_set))
 
         return
