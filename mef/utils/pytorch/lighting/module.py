@@ -18,7 +18,7 @@ class _MefModel(pl.LightningModule, ABC):
         self.num_classes = num_classes
 
         self._accuracy = pl.metrics.Accuracy(compute_on_step=False)
-        self._f1_macro = pl.metrics.Fbeta(self.num_classes, average="macro",
+        self._f1_macro = pl.metrics.FBeta(self.num_classes, average="macro",
                                           compute_on_step=False)
         self.test_outputs = None
 
