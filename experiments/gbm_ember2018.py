@@ -35,14 +35,21 @@ class EmberSubsitute(nn.Module):
     def __init__(self, scaler, return_hidden):
         super().__init__()
         self._layer1 = nn.Sequential(
-                nn.Linear(in_features=2381, out_features=2400), nn.ReLU(),
-                nn.Dropout())
+                nn.Linear(in_features=2381, out_features=2400), nn.ELU(),
+                nn.LayerNorm(2400), nn.Dropout(p=0.2))
         self._layer2 = nn.Sequential(
-                nn.Linear(in_features=2400, out_features=1200), nn.ReLU(),
-                nn.Dropout())
+                nn.Linear(in_features=2400, out_features=1024), nn.ELU(),
+                nn.LayerNorm(1024), nn.Dropout(p=0.2))
         self._layer3 = nn.Sequential(
-                nn.Linear(in_features=1200, out_features=1200), nn.ReLU())
-        self._final = nn.Linear(in_features=1200, out_features=1)
+                nn.Linear(in_features=1024, out_features=512), nn.ELU(),
+                nn.LayerNorm(512), nn.Dropout(p=0.2))
+        self._layer4 = nn.Sequential(
+                nn.Linear(in_features=512, out_features=512), nn.ELU(),
+                nn.LayerNorm(512), nn.Dropout(p=0.2))
+        self._layer5 = nn.Sequential(
+                nn.Linear(in_features=512, out_features=128), nn.ELU(),
+                nn.LayerNorm(128), nn.Dropout(p=0.2))
+        self._final = nn.Linear(in_features=128, out_features=1)
 
         self._scaler = scaler
         self._return_hidden = return_hidden
@@ -54,7 +61,8 @@ class EmberSubsitute(nn.Module):
         x_scaled = torch.from_numpy(x_scaled).float()
         x_scaled = x_scaled.to(x.device)
 
-        hidden = self._layer3(self._layer2(self._layer1(x_scaled)))
+        hidden = self._layer5(self._layer4(self._layer3(self._layer2(
+                self._layer1(x_scaled)))))
         logits = self._final(hidden)
 
         if self._return_hidden:
