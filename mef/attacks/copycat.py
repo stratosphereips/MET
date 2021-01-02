@@ -60,7 +60,6 @@ class CopyCat(Base):
              sub_data: Type[Dataset],
              test_set: Type[Dataset]):
         self._check_args(sub_data, test_set)
-        self._check_args(sub_data, test_set)
         self._logger.info("########### Starting CopyCat attack ###########")
         self._logger.info(
                 "CopyCat's attack budget: {}".format(len(self._thief_dataset)))

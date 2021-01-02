@@ -126,7 +126,6 @@ class BlackBox(Base):
              sub_data: Type[Dataset],
              test_set: Type[Dataset]):
         self._check_args(sub_data, test_set)
-        self._check_args(sub_data, test_set)
         self._logger.info("########### Starting BlackBox attack ###########")
 
         # Get attack's budget

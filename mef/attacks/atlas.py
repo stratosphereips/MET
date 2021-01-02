@@ -16,7 +16,7 @@ from mef.attacks.base import Base
 from mef.utils.pytorch.datasets import CustomLabelDataset, MefDataset, \
     NoYDataset
 from mef.utils.pytorch.functional import get_class_labels, soft_cross_entropy
-from mef.utils.pytorch.lighting.module import TrainingModel
+from mef.utils.pytorch.lighting.module import TrainableModel
 from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
 from mef.utils.settings import AttackSettings
 
@@ -126,7 +126,7 @@ class AtlasThief(Base):
         correct_model = UncertaintyPredictor(train_set[0][0].shape[0])
         loss = nn.BCEWithLogitsLoss()
         optimizer = torch.optim.Adam(correct_model.parameters())
-        correct_model = TrainingModel(correct_model, 2, optimizer, loss)
+        correct_model = TrainableModel(correct_model, 2, optimizer, loss)
 
         if self.base_settings.gpus:
             correct_model.cuda()
