@@ -160,7 +160,7 @@ if __name__ == "__main__":
     # Baset settings
     copycat.base_settings.save_loc = Path(args.save_loc)
     copycat.base_settings.gpus = args.gpus
-    copycat.base_settings.num_workes = args.num_workers
+    copycat.base_settings.num_workers = args.num_workers
     copycat.base_settings.batch_size = args.batch_size
     copycat.base_settings.seed = args.seed
     copycat.base_settings.deterministic = args.deterministic

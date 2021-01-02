@@ -75,7 +75,7 @@ if __name__ == "__main__":
     # Baset settings
     ko.base_settings.save_loc = Path(args.save_loc)
     ko.base_settings.gpus = args.gpus
-    ko.base_settings.num_workes = args.num_workers
+    ko.base_settings.num_workers = args.num_workers
     ko.base_settings.batch_size = args.batch_size
     ko.base_settings.seed = args.seed
     ko.base_settings.deterministic = args.deterministic
