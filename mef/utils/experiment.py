@@ -7,7 +7,7 @@ from torch.optim import lr_scheduler
 from torch.utils.data import Dataset
 
 from mef.utils.pytorch.datasets import MefDataset
-from mef.utils.pytorch.lighting.module import TrainingModel
+from mef.utils.pytorch.lighting.module import TrainableModel
 from mef.utils.pytorch.lighting.trainer import get_trainer
 from mef.utils.settings import BaseSettings
 
@@ -46,8 +46,8 @@ def train_victim_model(victim_model: Module,
         if dataset.val_set is not None:
             val_dataloader = dataset.val_dataloader()
 
-        model = TrainingModel(victim_model, num_classes, optimizer, loss,
-                              lr_scheduler)
+        model = TrainableModel(victim_model, num_classes, optimizer, loss,
+                               lr_scheduler)
         if gpus:
             model.cuda()
 

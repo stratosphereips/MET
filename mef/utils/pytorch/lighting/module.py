@@ -17,9 +17,9 @@ class _MefModel(pl.LightningModule, ABC):
         self.model = model
         self.num_classes = num_classes
 
-        self._accuracy = pl.metrics.Accuracy(compute_on_step=False)
-        self._f1_macro = pl.metrics.FBeta(self.num_classes, average="macro",
-                                          compute_on_step=False)
+        self._val_accuracy = pl.metrics.Accuracy(compute_on_step=False)
+        self._f1_macro = pl.metrics.F1(self.num_classes, average="macro",
+                                       compute_on_step=False)
         self.test_outputs = None
 
     def _transform_output(self,
@@ -45,23 +45,18 @@ class _MefModel(pl.LightningModule, ABC):
 
     def _shared_step(self, batch, step_type):
         x, y = batch
-        x = x.float()
-        y = y.float()
 
-        output = self._shared_step_model_output(x).float()
+        preds = self._shared_step_model_output(x)
 
-        if output.size()[-1] == 1 and y.size() != output.size():
-            y = y.view(output.size())
+        if y.ndim != 1 and y.size()[-1] != 1:
+            y = get_class_labels(y)
 
-        output = get_class_labels(output)
-        y = get_class_labels(y)
-
-        self._accuracy(output, y)
-        self._f1_macro(output, y)
-        self.log_dict({"{}_acc".format(step_type): self._accuracy,
+        self._val_accuracy(preds, y)
+        self._f1_macro(preds, y)
+        self.log_dict({"{}_acc".format(step_type): self._val_accuracy,
                        "{}_f1".format(step_type): self._f1_macro},
                       prog_bar=True, on_epoch=True)
-        return output
+        return preds.detach().cpu()
 
     def validation_step(self,
                         batch,
@@ -77,7 +72,7 @@ class _MefModel(pl.LightningModule, ABC):
         self.test_outputs = torch.cat(test_step_outputs)
 
 
-class TrainingModel(_MefModel):
+class TrainableModel(_MefModel):
     def __init__(self,
                  model,
                  num_classes,
@@ -88,6 +83,7 @@ class TrainingModel(_MefModel):
         self.optimizer = optimizer
         self._loss = loss
         self._lr_scheduler = lr_scheduler
+        self._train_acc = pl.metrics.Accuracy()
 
     @staticmethod
     def _output_to_list(output):
@@ -110,9 +106,10 @@ class TrainingModel(_MefModel):
         x, y = batch
 
         # Dataloader adds one more dimension corresponding to batch size,
-        # which means the datasets created by generators which already
-        # have 4-dimensions will be 5-dimensional in the form [1, B, C, H, W]
-        # In case of y it will be 3-dimensional [1, B, L]
+        # which means the datasets created by generators in Ripper
+        # attacks which already have 4-dimensions will be 5-dimensional in
+        # the form [1, B, C, H, W]. In case of y it will be 3-dimensional [1,
+        # B, L]
         if len(x.size()) == 5 and x.size()[0] == 1:
             x = x.squeeze(dim=0)
         if len(y.size()) == 3 and y.size()[0] == 1:
@@ -123,7 +120,13 @@ class TrainingModel(_MefModel):
 
         loss = self._loss(output[0], y)
 
-        self.log("train_loss", loss)
+        labels = y
+        if y.ndim != 1 and y.size()[-1] != 1:
+            labels = get_class_labels(y)
+
+        acc = self._train_acc(output[0], labels)
+
+        self.log_dict({"train_loss": loss, "train_acc": acc})
         return loss
 
     def _shared_step_model_output(self, x):

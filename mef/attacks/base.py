@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from mef.utils.logger import set_up_logger
 from mef.utils.pytorch.datasets import MefDataset
-from mef.utils.pytorch.lighting.module import TrainingModel, \
+from mef.utils.pytorch.lighting.module import TrainableModel, \
     VictimModel
 from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
 from mef.utils.settings import BaseSettings, TrainerSettings
@@ -40,9 +40,9 @@ class Base(ABC):
         # Models
         self._victim_model = VictimModel(victim_model, self._num_classes,
                                          victim_output_type.lower())
-        self._substitute_model = TrainingModel(substitute_model,
-                                               self._num_classes,
-                                               optimizer, loss, lr_scheduler)
+        self._substitute_model = TrainableModel(substitute_model,
+                                                self._num_classes,
+                                                optimizer, loss, lr_scheduler)
 
     @classmethod
     @abstractmethod
@@ -53,16 +53,16 @@ class Base(ABC):
     def _add_base_args(cls, parser):
         parser.add_argument("--seed", default=0, type=int,
                             help="Random seed to be used (Default: 0)")
-        parser.add_argument("--batch_size", type=int, default=64,
-                            help="Batch size to be used (Default: 64)")
+        parser.add_argument("--batch_size", type=int, default=32,
+                            help="Batch size to be used (Default: 32)")
         parser.add_argument("--save_loc", type=str, default="./cache/",
                             help="Path where the attacks file should be "
                                  "saved (Default: ./cache/)")
         parser.add_argument("--gpus", type=int, default=0,
                             help="Number of gpus to be used (Default: 0)")
-        parser.add_argument("--num_workers", type=int, default=4,
+        parser.add_argument("--num_workers", type=int, default=1,
                             help="Number of workers to be used in loaders ("
-                                 "Default: 4)")
+                                 "Default: 1)")
         parser.add_argument("--deterministic", action="store_false",
                             help="Run in deterministic mode (Default: True)")
         parser.add_argument("--debug", action="store_true",

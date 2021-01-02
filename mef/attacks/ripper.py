@@ -68,12 +68,10 @@ class GeneratorRandomDataset(IterableDataset):
                  generator,
                  latent_dim,
                  victim_model,
-                 batch_size,
-                 to_greyscale=False):
+                 batch_size):
         self._generator = generator
         self._latent_dim = latent_dim
         self._victim_model = victim_model
-        # self._to_greyscale = to_greyscale
         self._batch_size = batch_size
 
     def __iter__(self):
@@ -97,23 +95,18 @@ class GeneratorOptimizedDataset(IterableDataset):
             latent_dim,
             victim_model,
             batch_size,
-            num_classes,
-            to_grayscale=False):
+            num_classes):
         self._generator = generator
         self._latent_dim = latent_dim
         self._victim_model = victim_model
-        # self._to_grayscale = to_grayscale
         self._batch_size = batch_size
         self._num_classes = num_classes
 
     def __iter__(self):
-        # optimization = optimize_to_grayscale if self._to_grayscale else \
-        #     optimize
-        optimization = optimize
         for _ in range(100):
-            images, labels = optimization(self._victim_model, self._generator,
-                                          self._batch_size, self._latent_dim,
-                                          self._num_classes)
+            images, labels = optimize(self._victim_model, self._generator,
+                                      self._batch_size, self._latent_dim,
+                                      self._num_classes)
             yield images, labels
 
 

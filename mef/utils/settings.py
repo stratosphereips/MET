@@ -20,7 +20,7 @@ class TrainerSettings:
 class BaseSettings:
     save_loc: Path = Path("./cache/")
     gpus: int = 0
-    num_workers: int = 4
+    num_workers: int = 1
     batch_size: int = 32
     seed: int = None
     deterministic: bool = True
