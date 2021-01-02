@@ -3,12 +3,10 @@ from abc import ABC, abstractmethod
 import numpy as np
 import torch
 from pytorch_lightning import seed_everything
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from mef.utils.logger import set_up_logger
-from mef.utils.pytorch.datasets import TensorDadaset, MefDataset
-from mef.utils.pytorch.functional import get_class_labels
+from mef.utils.pytorch.datasets import MefDataset
 from mef.utils.pytorch.lighting.module import TrainingModel, \
     VictimModel
 from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
@@ -174,55 +172,6 @@ class Base(ABC):
 
         return y_hats
 
-    def _parse_args(self, args, kwargs):
-        try:
-            # Pytorch input (sub_dataset, test_set)
-            if len(args) == 2:
-                for arg in args:
-                    if not isinstance(arg, TensorDadaset):
-                        raise TypeError()
-                else:
-                    self._thief_dataset = args[0]
-                    self._test_set = args[1]
-                    return
-            elif len(kwargs) == 2:
-                for _, value in kwargs.items():
-                    if not isinstance(value, TensorDadaset):
-                        raise TypeError()
-                else:
-                    if "sub_dataset" not in kwargs:
-                        self._logger.error(
-                                "sub_dataset input argument is missing")
-                        raise ValueError()
-                    if "test_set" not in kwargs:
-                        self._logger.error(
-                                "test_set input argument is missing")
-                        raise ValueError()
-
-                    self._thief_dataset = kwargs["sub_dataset"]
-                    self._test_set = kwargs["test_set"]
-                    return
-            # Pytorch input (test_set)
-            elif len(args) == 1:
-                if not isinstance(args[0], TensorDadaset):
-                    TypeError()
-                self._test_set = args[0]
-            elif len(kwargs) == 1:
-                if not isinstance(kwargs.items()[0], TensorDadaset):
-                    TypeError()
-                if "test_set" not in kwargs:
-                    self._logger.error(
-                            "test_set input argument is missing")
-                    raise ValueError()
-                self._test_set = kwargs["test_set"]
-
-        except TypeError:
-            self._logger.error(
-                    "Input arguments for attack must be either of type "
-                    "TensorDataset or NumpyDataset.")
-            exit()
-        return
-
     def _finalize_attack(self):
         self._logger.info("########### Final attack metrics ###########")
         self._get_test_set_metrics()
@@ -253,12 +202,11 @@ class Base(ABC):
             self._victim_model.cuda()
             self._substitute_model.cuda()
 
-        self._parse_args(args, kwargs)
-        self._run()
+        self._run(*args, **kwargs)
         self._finalize_attack()
 
         return
 
     @abstractmethod
-    def _run(self):
+    def _run(self, *args, **kwargs):
         pass

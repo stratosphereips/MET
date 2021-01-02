@@ -1,13 +1,15 @@
 import argparse
 from dataclasses import dataclass
+from typing import Type
 
 import torch
 import torch.nn.functional as F
-from torch.utils.data import ConcatDataset
+from pl_bolts.datamodules.sklearn_datamodule import TensorDataset
+from torch.utils.data import ConcatDataset, Dataset
 from tqdm import tqdm
 
 from mef.attacks.base import Base
-from mef.utils.pytorch.datasets import TensorDadaset, MefDataset, NoYDataset
+from mef.utils.pytorch.datasets import MefDataset, NoYDataset
 from mef.utils.settings import AttackSettings
 
 
@@ -104,8 +106,29 @@ class BlackBox(Base):
 
         return torch.stack(x_query_set)
 
-    def _run(self):
+    def _check_args(self,
+                    sub_data: Type[Dataset],
+                    test_set: Type[Dataset]):
+        if not isinstance(sub_data, Dataset):
+            self._logger.error("Substitute dataset must be Pytorch's "
+                               "dataset.")
+            raise TypeError()
+        if not isinstance(test_set, Dataset):
+            self._logger.error("Test set must be Pytorch's dataset.")
+            raise TypeError()
+
+        self._thief_dataset = sub_data
+        self._test_set = test_set
+
+        return
+
+    def _run(self,
+             sub_data: Type[Dataset],
+             test_set: Type[Dataset]):
+        self._check_args(sub_data, test_set)
+        self._check_args(sub_data, test_set)
         self._logger.info("########### Starting BlackBox attack ###########")
+
         # Get attack's budget
         budget = len(self._thief_dataset) * \
                  (2 ** self.attack_settings.iterations) - \
@@ -130,6 +153,6 @@ class BlackBox(Base):
                 # Adversary has access only to labels
                 y_query_set = self._get_predictions(self._victim_model,
                                                     NoYDataset(x_query_set))
-                query_sets.append(TensorDadaset(x_query_set, y_query_set))
+                query_sets.append(TensorDataset(x_query_set, y_query_set))
 
         return

@@ -6,13 +6,13 @@ import lightgbm as lgb
 import numpy as np
 import torch
 import torch.nn as nn
+from pl_bolts.datamodules.sklearn_datamodule import SklearnDataset
 from sklearn.preprocessing import StandardScaler
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks import ActiveThief, AtlasThief
 from mef.utils.ios import mkdir_if_missing
-from mef.utils.pytorch.datasets import NumpyDataset
 
 NUM_CLASSES = 2
 
@@ -93,8 +93,8 @@ def prepare_ember2018_data(data_dir):
     scaler = StandardScaler()
     scaler = scaler.fit(X_train)
 
-    thief_dataset = NumpyDataset(X_train, y_train)
-    test_set = NumpyDataset(X_test, y_test)
+    thief_dataset = SklearnDataset(X_train, y_train)
+    test_set = SklearnDataset(X_test, y_test)
 
     return thief_dataset, test_set, scaler
 

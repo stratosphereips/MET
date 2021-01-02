@@ -1,9 +1,10 @@
 import argparse
 from dataclasses import dataclass
+from typing import Type
 
 import numpy as np
 import torch
-from torch.utils.data import IterableDataset
+from torch.utils.data import Dataset, IterableDataset
 
 from mef.attacks.base import Base
 from mef.utils.pytorch.functional import soft_cross_entropy
@@ -188,7 +189,26 @@ class Ripper(Base):
                                              self.base_settings.batch_size,
                                              self._num_classes)
 
-    def _run(self, *args, **kwargs):
+    def _check_args(self,
+                    sub_data: Type[Dataset],
+                    test_set: Type[Dataset]):
+        if not isinstance(sub_data, Dataset):
+            self._logger.error("Substitute dataset must be Pytorch's "
+                               "dataset.")
+            raise TypeError()
+        if not isinstance(test_set, Dataset):
+            self._logger.error("Test set must be Pytorch's dataset.")
+            raise TypeError()
+
+        self._thief_dataset = sub_data
+        self._test_set = test_set
+
+        return
+
+    def _run(self,
+             sub_data: Type[Dataset],
+             test_set: Type[Dataset]):
+        self._check_args(sub_data, test_set)
         self._logger.info("########### Starting Ripper attack ##########")
         # Get budget of the attack
         self._logger.info("Ripper's attack budget: {}".format(

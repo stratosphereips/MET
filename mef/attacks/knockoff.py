@@ -4,11 +4,12 @@ import argparse
 import pickle
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Type
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import ConcatDataset, Subset
+from torch.utils.data import ConcatDataset, Dataset, Subset
 from tqdm import tqdm
 
 from mef.attacks.base import Base
@@ -321,7 +322,26 @@ class KnockOff(Base):
 
         return ConcatDataset(query_sets)
 
-    def _run(self):
+    def _check_args(self,
+                    sub_data: Type[Dataset],
+                    test_set: Type[Dataset]):
+        if not isinstance(sub_data, Dataset):
+            self._logger.error("Substitute dataset must be Pytorch's "
+                               "dataset.")
+            raise TypeError()
+        if not isinstance(test_set, Dataset):
+            self._logger.error("Test set must be Pytorch's dataset.")
+            raise TypeError()
+
+        self._thief_dataset = sub_data
+        self._test_set = test_set
+
+        return
+
+    def _run(self,
+             sub_data: Type[Dataset],
+             test_set: Type[Dataset]):
+        self._check_args(sub_data, test_set)
         self._logger.info(
                 "########### Starting KnockOff attack ###########")
         self._logger.info(

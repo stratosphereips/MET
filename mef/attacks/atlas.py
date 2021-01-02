@@ -1,18 +1,20 @@
 import argparse
 import copy
 from dataclasses import dataclass
+from typing import Type
 
 import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
+from pl_bolts.datamodules.sklearn_datamodule import TensorDataset
 from pytorch_lightning.core.decorators import auto_move_data
-from torch.utils.data import ConcatDataset, Subset
+from torch.utils.data import ConcatDataset, Dataset, Subset
 from tqdm import tqdm
 
 from mef.attacks.base import Base
-from mef.utils.pytorch.datasets import TensorDadaset, CustomLabelDataset, \
-    MefDataset, NoYDataset
+from mef.utils.pytorch.datasets import CustomLabelDataset, MefDataset, \
+    NoYDataset
 from mef.utils.pytorch.functional import get_class_labels, soft_cross_entropy
 from mef.utils.pytorch.lighting.module import TrainingModel
 from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
@@ -163,7 +165,7 @@ class AtlasThief(Base):
         samples_per_iter = 10
         iterations = range(self.attack_settings.k // samples_per_iter)
         for _ in tqdm(iterations, desc="Selecting best points"):
-            train_set = TensorDadaset(torch.cat(train_data),
+            train_set = TensorDataset(torch.cat(train_data),
                                       torch.cat(train_labels))
 
             correct_model = self._train_new_output_layer(train_set)
@@ -180,11 +182,27 @@ class AtlasThief(Base):
 
         return np.concatenate(selected_points)
 
-    def _run(self, *args, **kwargs):
-        self._parse_args(args, kwargs)
+    def _check_args(self,
+                    sub_data: Type[Dataset],
+                    test_set: Type[Dataset]):
+        if not isinstance(sub_data, Dataset):
+            self._logger.error("Substitute dataset must be Pytorch's "
+                               "dataset.")
+            raise TypeError()
+        if not isinstance(test_set, Dataset):
+            self._logger.error("Test set must be Pytorch's dataset.")
+            raise TypeError()
 
-        self._logger.info(
-                "########### Starting AtlasThief attack ###########")
+        self._thief_dataset = sub_data
+        self._test_set = test_set
+
+        return
+
+    def _run(self,
+             sub_data: Type[Dataset],
+             test_set: Type[Dataset]):
+        self._check_args(sub_data, test_set)
+        self._logger.info("########### Starting AtlasThief attack ###########")
         # Get budget of the attack
         self._logger.info("AtlasThief's attack budget: {}".format(
                 self.attack_settings.budget))
