@@ -52,7 +52,7 @@ def set_up(args):
 
     train_victim_model(victim_model, optimizer, loss, mnist["train"],
                        NUM_CLASSES, args.training_epochs, args.batch_size,
-                       save_loc=args.save_loc, gpus=args.gpus,
+                       args.num_workers, save_loc=args.save_loc, gpus=args.gpus,
                        deterministic=args.deterministic, debug=args.debug,
                        precision=args.precision)
 

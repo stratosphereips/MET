@@ -46,11 +46,13 @@ def set_up(args):
     loss = F.cross_entropy
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=60)
 
+    victim_train_epochs = 200
     train_victim_model(victim_model, optimizer, loss, train_set,
-                       NUM_CLASSES, args.precision, args.batch_size,
-                       lr_scheduler=lr_scheduler, save_loc=args.save_loc,
-                       gpus=args.gpus, deterministic=args.deterministic,
-                       debug=args.debug, precision=args.precision)
+                       NUM_CLASSES, victim_train_epochs, args.batch_size,
+                       args.num_workers, lr_scheduler=lr_scheduler,
+                       save_loc=args.save_loc, gpus=args.gpus,
+                       deterministic=args.deterministic, debug=args.debug,
+                       precision=args.precision)
 
     return victim_model, substitute_model, sub_dataset, test_set
 
@@ -61,9 +63,6 @@ if __name__ == "__main__":
                         help="Path to Caltech256 dataset (Default: ./data/")
     parser.add_argument("--imagenet_dir", type=str,
                         help="Path to ImageNet dataset")
-    parser.add_argument("--victim_train_epochs", default=200, type=int,
-                        help="Number of epochs for which the victim should "
-                             "train for (Default: 200)")
     args = parser.parse_args()
     mkdir_if_missing(args.save_loc)
 

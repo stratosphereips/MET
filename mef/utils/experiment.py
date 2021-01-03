@@ -19,6 +19,7 @@ def train_victim_model(victim_model: Module,
                        num_classes: int,
                        training_epochs: int,
                        batch_size: int,
+                       num_workers: int,
                        val_set: Dataset = None,
                        evaluation_frequency: int = 1,
                        patience: int = 100,
@@ -38,8 +39,8 @@ def train_victim_model(victim_model: Module,
         # Prepare secret model
         print("Training victim model")
 
-        dataset = MefDataset(BaseSettings(batch_size=batch_size), train_set,
-                             val_set)
+        dataset = MefDataset(BaseSettings(batch_size=batch_size, gpus=gpus,
+                             num_workers=num_workers), train_set, val_set)
         train_dataloader = dataset.train_dataloader()
 
         val_dataloader = None
