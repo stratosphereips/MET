@@ -135,7 +135,7 @@ def set_up(args):
     victim_training_epochs = 20
     train_victim_model(victim_model, optimizer, loss, goc.od_dataset,
                        NUM_CLASSES, victim_training_epochs, args.batch_size,
-                       save_loc=args.save_loc, gpus=args.gpus,
+                       args.num_workers, save_loc=args.save_loc, gpus=args.gpus,
                        deterministic=args.deterministic, debug=args.debug,
                        precision=args.precision)
 
