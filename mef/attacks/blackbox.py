@@ -102,7 +102,7 @@ class BlackBox(Base):
                 # Create new synthetic point in adversary substitute
                 # training set
                 x_new = x_thief[idx][0] + lmbda * grad_val
-                x_query_set.append(x_new.detach())
+                x_query_set.append(x_new.detach().cpu())
 
         return torch.stack(x_query_set)
 
@@ -152,6 +152,7 @@ class BlackBox(Base):
                 # Adversary has access only to labels
                 y_query_set = self._get_predictions(self._victim_model,
                                                     NoYDataset(x_query_set))
-                query_sets.append(TensorDataset(x_query_set, y_query_set))
+                query_sets.append(TensorDataset(x_query_set,
+                                                y_query_set.numpy()))
 
         return
