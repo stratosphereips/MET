@@ -183,25 +183,18 @@ class Ripper(Base):
                                              self._num_classes)
 
     def _check_args(self,
-                    sub_data: Type[Dataset],
                     test_set: Type[Dataset]):
-        if not isinstance(sub_data, Dataset):
-            self._logger.error("Substitute dataset must be Pytorch's "
-                               "dataset.")
-            raise TypeError()
         if not isinstance(test_set, Dataset):
             self._logger.error("Test set must be Pytorch's dataset.")
             raise TypeError()
 
-        self._thief_dataset = sub_data
         self._test_set = test_set
 
         return
 
     def _run(self,
-             sub_data: Type[Dataset],
              test_set: Type[Dataset]):
-        self._check_args(sub_data, test_set)
+        self._check_args(test_set)
         self._logger.info("########### Starting Ripper attack ##########")
         # Get budget of the attack
         self._logger.info("Ripper's attack budget: {}".format(
