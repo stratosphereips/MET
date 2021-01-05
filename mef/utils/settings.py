@@ -23,5 +23,5 @@ class BaseSettings:
     num_workers: int = 1
     batch_size: int = 32
     seed: int = None
-    deterministic: bool = True
+    deterministic: bool = False
     debug: bool = False

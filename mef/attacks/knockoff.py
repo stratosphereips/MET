@@ -37,11 +37,6 @@ class KnockOffSettings(AttackSettings):
         self.k = 4
         self.iterations = self.budget // self.k
 
-        self.init_seed_size = int(self.budget * 0.1)
-        self.val_size = int(self.budget * 0.2)
-        self.k = (self.budget - self.val_size - self.init_seed_size) // \
-                 self.iterations
-
         # Check configuration
         if self.sampling_strategy not in ["random", "adaptive"]:
             raise ValueError(
@@ -142,10 +137,6 @@ class KnockOff(Base):
             y = np.array(self._thief_dataset.targets)
 
         idx_action = np.where(y == action)[0]
-        idx_action = np.setdiff1d(idx_action, self._selected_idxs)
-        if len(idx_action) == 0:
-            self._logger.error("No more samples for action {}".format(action))
-            raise ValueError()
 
         idx_sampled = np.random.permutation(idx_action)[
                       :self.attack_settings.k]
@@ -273,7 +264,8 @@ class KnockOff(Base):
         query_sets = []
 
         avg_reward = np.array(0.0)
-        for it in range(1, self.attack_settings.iterations + 1):
+        for it in tqdm(range(1, self.attack_settings.iterations + 1),
+                       desc="Selecting data samples"):
             self._logger.info("---------- Iteration: {} ----------".format(it))
             # Sample an action
             action = np.random.choice(np.arange(0, self._num_actions), p=probs)

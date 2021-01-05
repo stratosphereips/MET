@@ -63,8 +63,8 @@ class Base(ABC):
         parser.add_argument("--num_workers", type=int, default=1,
                             help="Number of workers to be used in loaders ("
                                  "Default: 1)")
-        parser.add_argument("--deterministic", action="store_false",
-                            help="Run in deterministic mode (Default: True)")
+        parser.add_argument("--deterministic", action="store_true",
+                            help="Run in deterministic mode (Default: False)")
         parser.add_argument("--debug", action="store_true",
                             help="Run in debug mode (Default: False)")
         parser.add_argument("--precision", default=32, type=int,
@@ -126,11 +126,11 @@ class Base(ABC):
         return
 
     def _get_aggreement_score(self):
-        vict_test_labels = self._victim_model.test_outputs
-        vict_test_labels = vict_test_labels.detach().cpu().numpy()
+        vict_test_labels = get_class_labels(self._victim_model.test_outputs)
+        vict_test_labels = vict_test_labels.numpy()
 
-        sub_test_labels = self._substitute_model.test_outputs
-        sub_test_labels = sub_test_labels.detach().cpu().numpy()
+        sub_test_labels = get_class_labels(self._substitute_model.test_outputs)
+        sub_test_labels = sub_test_labels.numpy()
 
         agreement_count = np.sum((vict_test_labels == sub_test_labels))
         self._logger.info("Agreement score: {}/{} ({:.1f}%)".format(
