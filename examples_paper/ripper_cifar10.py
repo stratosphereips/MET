@@ -3,8 +3,8 @@ import sys
 from pathlib import Path
 
 import torch
+import torch.nn.functional as F
 from pytorch_lightning import seed_everything
-from torchvision.datasets import CIFAR10
 from torchvision.transforms import transforms as T
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
@@ -12,8 +12,10 @@ sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 from mef.utils.pytorch.models.generators.cifar_sngan.sngan_cifar10 import \
     Generator as SNGAN
 from mef.attacks.ripper import Ripper
-from mef.utils.pytorch.models.vision import Alexnet, HalfAlexnet
+from mef.utils.experiment import train_victim_model
 from mef.utils.ios import mkdir_if_missing
+from mef.utils.pytorch.datasets.vision import Cifar10
+from mef.utils.pytorch.models.vision import AlexNetSmall, HalfAlexNetSmall
 
 IMAGENET_TRAIN_SIZE = 100000
 LATENT_DIM = 128
@@ -24,10 +26,8 @@ NUM_CLASSES = 10
 def set_up(args):
     seed_everything(args.seed)
 
-    victim_model = Alexnet("teacher_alexnet_for_cifar10", 10)
-    substitute_model = HalfAlexnet(
-            "student_half_alexnet_for_teacher_alexnet_true_cifar10_generator_cifar_100_90_classes_gan_samples_optimized_optim_adam_epochs_200",
-            10)
+    victim_model = AlexNetSmall(DIMS, NUM_CLASSES)
+    substitute_model = HalfAlexNetSmall(DIMS, NUM_CLASSES)
     generator = SNGAN()
 
     if args.gpus:
@@ -41,13 +41,20 @@ def set_up(args):
     std = (0.5,)
     transform = T.Compose([T.Resize(DIMS[-1]), T.ToTensor(),
                            T.Normalize(mean, std)])
-    test_set = CIFAR10(root=args.cifar10_dir, train=False, download=True,
-                       transform=transform)
+    train_set = Cifar10(root=args.cifar10_dir, transform=transform)
+    test_set = Cifar10(root=args.cifar10_dir, train=False, transform=transform)
 
-    # Load state dicts
-    state_dict = torch.load("./cache/ripper/CIFAR10/victim/"
-                            "teacher_alexnet_for_cifar10_state_dict")
-    victim_model.load_state_dict(state_dict)
+    optimizer = torch.optim.Adam(victim_model.parameters(), weight_decay=1e-3)
+    loss = F.cross_entropy
+
+    victim_training_epochs = 200
+    train_victim_model(victim_model, optimizer, loss, train_set,
+                       NUM_CLASSES, victim_training_epochs, args.batch_size,
+                       args.num_workers, save_loc=args.save_loc,
+                       gpus=args.gpus, deterministic=args.deterministic,
+                       debug=args.debug, precision=args.precision)
+
+    # Load generator
     state_dict = torch.load("./cache/ripper/CIFAR10/generator/"
                             "cifar_100_90_classes_gan.pth")["gen_state_dict"]
     generator.load_state_dict(state_dict)

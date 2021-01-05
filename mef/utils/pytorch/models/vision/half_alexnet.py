@@ -1,80 +1,82 @@
+import torch
 import torch.nn as nn
 
+from mef.utils.pytorch.models.vision.base import Base
 
-class HalfAlexnet(nn.Module):
-    def __init__(self, name, n_outputs=10):
-        super(HalfAlexnet, self).__init__()
+class HalfAlexNet(Base):
 
-        self.name = name
-        self.num_classes = n_outputs
+    def __init__(self, num_classes) -> None:
+        super().__init__(num_classes)
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=11, stride=4, padding=2),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2),
+            nn.Conv2d(32, 96, kernel_size=5, padding=2),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2),
+            nn.Conv2d(96, 192, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(192, 128, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(128, 128, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2),
+        )
+        self.avgpool = nn.AdaptiveAvgPool2d((6, 6))
+        self.classifier = nn.Sequential(
+            nn.Dropout(),
+            nn.Linear(128 * 6 * 6, 2048),
+            nn.ReLU(inplace=True),
+            nn.Dropout(),
+            nn.Linear(2048, 2048),
+            nn.ReLU(inplace=True),
+            nn.Linear(2048, num_classes),
+        )
 
-        self.conv1 = nn.Conv2d(3, 24, 5, stride=1, padding=2)
-        self.conv1.bias.data.normal_(0, 0.01)
-        self.conv1.bias.data.fill_(0)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.features(x)
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        x = self.classifier(x)
+        return x
 
-        self.relu = nn.ReLU()
-        self.lrn = nn.LocalResponseNorm(2)
-        self.pad = nn.MaxPool2d(3, stride=2)
+class HalfAlexNetSmall(nn.Module):
+    def __init__(self, dims, num_classes):
+        super().__init__()
+        self.features = nn.Sequential(
+                nn.Conv2d(3, 32, kernel_size=3, stride=2, padding=1),
+                nn.ReLU(inplace=True),
+                nn.MaxPool2d(kernel_size=2),
+                nn.Conv2d(32, 96, kernel_size=3, padding=1),
+                nn.ReLU(inplace=True),
+                nn.MaxPool2d(kernel_size=2),
+                nn.Conv2d(96, 192, kernel_size=3, padding=1),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(192, 128, kernel_size=3, padding=1),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(128, 128, kernel_size=3, padding=1),
+                nn.ReLU(inplace=True),
+                nn.MaxPool2d(kernel_size=2),
+        )
+        self.avgpool = nn.AdaptiveAvgPool2d((6, 6))
 
-        self.batch_norm1 = nn.BatchNorm2d(24, eps=0.001)
+        test_input = torch.zeros(1, dims[0], dims[1], dims[2])
+        # nn.BatchNorm expects more than 1 value
+        self.eval()
+        test_out = self.features(test_input)
+        num_features = test_out.size(1) * test_out.size(2) * test_out.size(3)
+        self.classifier = nn.Sequential(
+                nn.Dropout(),
+                nn.Linear(num_features, 2048),
+                nn.ReLU(inplace=True),
+                nn.Dropout(),
+                nn.Linear(2048, 2048),
+                nn.ReLU(inplace=True),
+                nn.Linear(2048, num_classes),
+        )
 
-        self.conv2 = nn.Conv2d(24, 64, 5, stride=1, padding=2)
-        self.conv2.bias.data.normal_(0, 0.01)
-        self.conv2.bias.data.fill_(1.0)
-
-        self.batch_norm2 = nn.BatchNorm2d(64, eps=0.001)
-
-        self.conv3 = nn.Conv2d(64, 96, 3, stride=1, padding=1)
-        self.conv3.bias.data.normal_(0, 0.01)
-        self.conv3.bias.data.fill_(0)
-
-        self.batch_norm3 = nn.BatchNorm2d(96, eps=0.001)
-
-        self.conv4 = nn.Conv2d(96, 96, 3, stride=1, padding=1)
-        self.conv4.bias.data.normal_(0, 0.01)
-        self.conv4.bias.data.fill_(1.0)
-
-        self.batch_norm4 = nn.BatchNorm2d(96, eps=0.001)
-
-        self.conv5 = nn.Conv2d(96, 64, 3, stride=1, padding=1)
-        self.conv5.bias.data.normal_(0, 0.01)
-        self.conv5.bias.data.fill_(1.0)
-
-        self.batch_norm5 = nn.BatchNorm2d(64, eps=0.001)
-
-        self.fc1 = nn.Linear(576, 256)
-        self.fc1.bias.data.normal_(0, 0.01)
-        self.fc1.bias.data.fill_(0)
-
-        self.drop = nn.Dropout(p=0.5)
-
-        self.batch_norm6 = nn.BatchNorm1d(256, eps=0.001)
-
-        self.fc2 = nn.Linear(256, 128)
-        self.fc2.bias.data.normal_(0, 0.01)
-        self.fc2.bias.data.fill_(0)
-
-        self.batch_norm7 = nn.BatchNorm1d(128, eps=0.001)
-
-        self.fc3 = nn.Linear(128, 10)
-        self.fc3.bias.data.normal_(0, 0.01)
-        self.fc3.bias.data.fill_(0)
-
-        self.soft = nn.Softmax()
-
-    def forward(self, x):
-        layer1 = self.batch_norm1(self.pad(self.lrn(self.relu(self.conv1(x)))))
-        layer2 = self.batch_norm2(
-                self.pad(self.lrn(self.relu(self.conv2(layer1)))))
-        layer3 = self.batch_norm3(self.relu(self.conv3(layer2)))
-        layer4 = self.batch_norm4(self.relu(self.conv4(layer3)))
-        layer5 = self.batch_norm5(self.pad(self.relu(self.conv5(layer4))))
-        flatten = layer5.view(-1, 64 * 3 * 3)
-        fully1 = self.relu(self.fc1(flatten))
-        fully1 = self.batch_norm6(self.drop(fully1))
-        fully2 = self.relu(self.fc2(fully1))
-        fully2 = self.batch_norm7(self.drop(fully2))
-        logits = self.fc3(fully2)
-        # softmax_val = self.soft(logits)
-
-        return logits
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.features(x)
+        x = torch.flatten(x, 1)
+        x = self.classifier(x)
+        return x

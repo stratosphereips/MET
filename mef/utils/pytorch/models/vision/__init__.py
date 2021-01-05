@@ -1,7 +1,6 @@
-from .vgg import Vgg
-from .alexnet import AlexNet
+from .alexnet import AlexNet, AlexNetSmall
 from .at_cnn import AtCnn
+from .half_alexnet import HalfAlexNet, HalfAlexNetSmall
 from .resnet import ResNet
 from .simplenet import SimpleNet
-from .half_alexnet import HalfAlexnet
-from .alexnet_ripper import Alexnet
+from .vgg import Vgg

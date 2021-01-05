@@ -7,7 +7,6 @@ import torch
 import torch.nn.functional as F
 from pytorch_lightning import seed_everything
 from torch.utils.data import ConcatDataset, Subset
-from torchvision.datasets import CIFAR10, STL10
 from torchvision.transforms import transforms as T
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
@@ -15,7 +14,7 @@ sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 from mef.attacks.copycat import CopyCat
 from mef.utils.experiment import train_victim_model
 from mef.utils.ios import mkdir_if_missing
-from mef.utils.pytorch.datasets.vision import ImageNet1000
+from mef.utils.pytorch.datasets.vision import ImageNet1000, Stl10, Cifar10
 from mef.utils.pytorch.models.vision import Vgg
 
 NUM_CLASSES = 9
@@ -41,12 +40,7 @@ class GOCData:
         self.pd_dataset = None
         self.npd_dataset = None
 
-    def prepare_data(self):
-        # download
-        CIFAR10(self.cifar10_dir, download=True)
-        CIFAR10(self.cifar10_dir, train=False, download=True)
-        STL10(self.stl10_dir, download=True)
-        STL10(self.stl10_dir, split="test", download=True)
+        self._setup()
 
     def _remove_class(self, class_to_remove, labels, data, class_to_idx,
                       classes):
@@ -68,15 +62,15 @@ class GOCData:
 
         return labels.tolist(), data, class_to_idx, classes
 
-    def setup(self):
+    def _setup(self):
         cifar10 = dict()
-        cifar10["train"] = CIFAR10(self.cifar10_dir, transform=self.transform)
-        cifar10["test"] = CIFAR10(self.cifar10_dir, train=False,
+        cifar10["train"] = Cifar10(self.cifar10_dir, transform=self.transform)
+        cifar10["test"] = Cifar10(self.cifar10_dir, train=False,
                                   transform=self.transform)
 
         stl10 = dict()
-        stl10["train"] = STL10(self.stl10_dir, transform=self.transform)
-        stl10["test"] = STL10(self.stl10_dir, split="test",
+        stl10["train"] = Stl10(self.stl10_dir, transform=self.transform)
+        stl10["test"] = Stl10(self.stl10_dir, split="test",
                               transform=self.transform)
 
         # Replace car with automobile to make the class name same as in the
@@ -125,8 +119,6 @@ def set_up(args):
 
     print("Preparing data")
     goc = GOCData(args.imagenet_dir, args.cifar10_dir, args.stl10_dir)
-    goc.prepare_data()
-    goc.setup()
 
     optimizer = torch.optim.SGD(victim_model.parameters(), lr=0.1,
                                 momentum=0.5)
@@ -135,9 +127,9 @@ def set_up(args):
     victim_training_epochs = 20
     train_victim_model(victim_model, optimizer, loss, goc.od_dataset,
                        NUM_CLASSES, victim_training_epochs, args.batch_size,
-                       save_loc=args.save_loc, gpus=args.gpus,
-                       deterministic=args.deterministic, debug=args.debug,
-                       precision=args.precision)
+                       args.num_workers, save_loc=args.save_loc,
+                       gpus=args.gpus, deterministic=args.deterministic,
+                       debug=args.debug, precision=args.precision)
 
     return victim_model, substitute_model, [goc.npd_dataset, goc.pd_dataset], \
            goc.test_set

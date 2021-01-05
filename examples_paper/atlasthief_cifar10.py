@@ -6,7 +6,6 @@ import torch
 import torch.nn.functional as F
 from pytorch_lightning import seed_everything
 from torch.utils.data import ConcatDataset
-from torchvision.datasets import CIFAR10
 from torchvision.transforms import transforms as T
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
@@ -14,7 +13,7 @@ sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 from mef.attacks.atlas import AtlasThief
 from mef.utils.experiment import train_victim_model
 from mef.utils.ios import mkdir_if_missing
-from mef.utils.pytorch.datasets.vision import ImageNet1000
+from mef.utils.pytorch.datasets.vision import ImageNet1000, Cifar10
 from mef.utils.pytorch.models.vision import AtCnn
 from mef.utils.pytorch.datasets import split_dataset
 
@@ -42,10 +41,8 @@ def set_up(args):
     std = (0.5,)
     transform = T.Compose([T.Resize(DIMS[-1]), T.ToTensor(),
                            T.Normalize(mean, std)])
-    train_set = CIFAR10(root=args.cifar10_dir, download=True,
-                        transform=transform)
-    test_set = CIFAR10(root=args.cifar10_dir, train=False, download=True,
-                       transform=transform)
+    train_set = Cifar10(root=args.cifar10_dir, transform=transform)
+    test_set = Cifar10(root=args.cifar10_dir, train=False, transform=transform)
 
     transform = T.Compose([T.Resize(DIMS[-1]), T.ToTensor(),
                            T.Normalize(mean, std)])
@@ -58,8 +55,7 @@ def set_up(args):
     thief_dataset = ConcatDataset([imagenet_train, imagenet_val])
 
     train_set, val_set = split_dataset(train_set, 0.2)
-    optimizer = torch.optim.Adam(victim_model.parameters(),
-                                 weight_decay=1e-3)
+    optimizer = torch.optim.Adam(victim_model.parameters(), weight_decay=1e-3)
     loss = F.cross_entropy
 
     victim_training_epochs = 1000

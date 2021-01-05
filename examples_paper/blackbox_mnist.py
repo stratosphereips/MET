@@ -7,7 +7,6 @@ import torch
 import torch.nn.functional as F
 from pytorch_lightning import seed_everything
 from torch.utils.data import Subset
-from torchvision.datasets import MNIST
 from torchvision.transforms import transforms as T
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
@@ -15,6 +14,7 @@ sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 from mef.attacks.blackbox import BlackBox
 from mef.utils.experiment import train_victim_model
 from mef.utils.ios import mkdir_if_missing
+from mef.utils.pytorch.datasets.vision import Mnist
 from mef.utils.pytorch.models.vision import SimpleNet
 
 NUM_CLASSES = 10
@@ -35,9 +35,9 @@ def set_up(args):
     print("Preparing data")
     transform = T.Compose([T.Resize(DIMS[-1]), T.ToTensor()])
     mnist = dict()
-    mnist["train"] = MNIST(root=args.mnist_dir, download=True,
+    mnist["train"] = Mnist(root=args.mnist_dir, download=True,
                            transform=transform)
-    mnist["test"] = MNIST(root=args.mnist_dir, train=False, download=True,
+    mnist["test"] = Mnist(root=args.mnist_dir, train=False, download=True,
                           transform=transform)
 
     idx_test = np.random.permutation(len(mnist["test"]))
@@ -52,7 +52,8 @@ def set_up(args):
 
     train_victim_model(victim_model, optimizer, loss, mnist["train"],
                        NUM_CLASSES, args.training_epochs, args.batch_size,
-                       args.num_workers, save_loc=args.save_loc, gpus=args.gpus,
+                       args.num_workers, save_loc=args.save_loc,
+                       gpus=args.gpus,
                        deterministic=args.deterministic, debug=args.debug,
                        precision=args.precision)
 
