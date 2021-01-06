@@ -47,18 +47,20 @@ def train_victim_model(victim_model: Module,
         if dataset.val_set is not None:
             val_dataloader = dataset.val_dataloader()
 
-        model = TrainableModel(victim_model, num_classes, optimizer, loss,
+        victim = TrainableModel(victim_model, num_classes, optimizer, loss,
                                lr_scheduler)
         if gpus:
-            model.cuda()
+            victim.cuda()
 
-        trainer = get_trainer(Path(save_loc).joinpath("victim"), None,
-                              training_epochs, gpus, dataset.val_set is not
-                              None, evaluation_frequency, patience, accuracy,
-                              debug, deterministic, precision)
-        trainer.fit(model, train_dataloader, val_dataloader)
+        trainer, checkpoint_cb = get_trainer(Path(save_loc).joinpath("victim"), None,
+                                             training_epochs, gpus, dataset.val_set is not
+                                             None, evaluation_frequency, patience, accuracy,
+                                             debug, deterministic, precision)
+        trainer.fit(victim, train_dataloader, val_dataloader)
 
-        torch.save(dict(state_dict=victim_model.state_dict()),
+        # Save state dictionary of the best model from checkpoint
+        victim = victim.load_from_checkpoint(checkpoint_cb.best_model_path)
+        torch.save(dict(state_dict=victim.model.state_dict()),
                    Path(save_loc).joinpath("victim", "final_victim_model.pt"))
 
         return
