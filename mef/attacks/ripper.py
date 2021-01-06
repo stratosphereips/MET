@@ -33,13 +33,15 @@ def optimize(victim_model,
         c = np.inf
         it = 0
         image = None
-        specimens = np.random.uniform(-u, u, size=(pop_size, latent_dim))
+        specimens = np.random.uniform(-u, u,
+                                      size=(pop_size, latent_dim)
+                                      ).astype(np.float32)
         target_label = np.random.randint(num_classes, size=(1, 1))
-        y = np.eye(num_classes)[target_label]
+        y = np.eye(num_classes)[target_label].astype(np.float32)
         while c >= t and it < max_iterations:
             it += 1
             with torch.no_grad():
-                images = generator(torch.from_numpy(specimens).float())
+                images = generator(torch.from_numpy(specimens))
 
                 # The original implementation expects the classifier to
                 # return logits
@@ -53,8 +55,12 @@ def optimize(victim_model,
             specimens = specimens[indexes[:10]]
             specimens = np.concatenate([
                 specimens,
-                specimens + np.random.normal(scale=1, size=(10, latent_dim)),
-                specimens + np.random.normal(scale=1, size=(10, latent_dim))])
+                specimens + np.random.normal(scale=1,
+                                             size=(10, latent_dim)
+                                             ).astype(np.float32),
+                specimens + np.random.normal(scale=1,
+                                             size=(10, latent_dim)
+                                             ).astype(np.float32)])
             c = np.amin(losses)
 
         batch.append(image)
