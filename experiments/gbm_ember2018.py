@@ -26,9 +26,7 @@ class Ember2018(nn.Module):
     def forward(self, x):
         y_preds = self.ember.predict(x.detach().cpu().numpy())
 
-        y_preds = torch.from_numpy(y_preds)
-
-        return y_preds.unsqueeze(dim=-1)
+        return torch.from_numpy(y_preds.astype(np.float32)).to(x.device)
 
 
 class EmberSubsitute(nn.Module):
@@ -56,9 +54,9 @@ class EmberSubsitute(nn.Module):
 
     def forward(self, x):
         # TODO: create pytorch version of scaler
-        x_scaled = self._scaler.transform(x.cpu().numpy())
+        x_scaled = self._scaler.transform(x.cpu().numpy()).astype(np.float32)
 
-        x_scaled = torch.from_numpy(x_scaled).float()
+        x_scaled = torch.from_numpy(x_scaled)
         x_scaled = x_scaled.to(x.device)
 
         hidden = self._layer5(self._layer4(self._layer3(self._layer2(
