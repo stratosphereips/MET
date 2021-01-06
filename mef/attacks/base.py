@@ -114,7 +114,7 @@ class Base(ABC):
         test_set = MefDataset(self.base_settings, test_set=test_set)
         test_dataloader = test_set.test_dataloader()
 
-        trainer = get_trainer_with_settings(self.base_settings,
+        trainer, _ = get_trainer_with_settings(self.base_settings,
                                             self.trainer_settings,
                                             model_name='', iteration=None,
                                             validation=False)
