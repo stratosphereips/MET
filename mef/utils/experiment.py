@@ -32,7 +32,7 @@ def train_victim_model(victim_model: Module,
                        precision=32):
     try:
         saved_model = torch.load(Path(save_loc).joinpath("victim",
-                                                         "final_victim_model.pt"))
+                                                         "final_victim_model-state_dict.pt"))
         victim_model.load_state_dict(saved_model["state_dict"])
         print("Loaded victim model")
     except FileNotFoundError:
@@ -40,7 +40,8 @@ def train_victim_model(victim_model: Module,
         print("Training victim model")
 
         dataset = MefDataset(BaseSettings(batch_size=batch_size, gpus=gpus,
-                             num_workers=num_workers), train_set, val_set)
+                                          num_workers=num_workers), train_set,
+                             val_set)
         train_dataloader = dataset.train_dataloader()
 
         val_dataloader = None
@@ -48,19 +49,26 @@ def train_victim_model(victim_model: Module,
             val_dataloader = dataset.val_dataloader()
 
         victim = TrainableModel(victim_model, num_classes, optimizer, loss,
-                               lr_scheduler)
+                                lr_scheduler)
         if gpus:
             victim.cuda()
 
-        trainer, checkpoint_cb = get_trainer(Path(save_loc).joinpath("victim"), None,
-                                             training_epochs, gpus, dataset.val_set is not
-                                             None, evaluation_frequency, patience, accuracy,
+        trainer, checkpoint_cb = get_trainer(Path(save_loc).joinpath("victim"),
+                                             None,
+                                             training_epochs, gpus,
+                                             dataset.val_set is not
+                                             None, evaluation_frequency,
+                                             patience, accuracy,
                                              debug, deterministic, precision)
         trainer.fit(victim, train_dataloader, val_dataloader)
 
-        # Save state dictionary of the best model from checkpoint
-        victim = victim.load_from_checkpoint(checkpoint_cb.best_model_path)
+        if not isinstance(checkpoint_cb, bool):
+            # Load state dictionary of the best model from checkpoint
+            checkpoint = torch.load(checkpoint_cb.best_model_path)
+            victim.load_state_dict(checkpoint["state_dict"])
+
         torch.save(dict(state_dict=victim.model.state_dict()),
-                   Path(save_loc).joinpath("victim", "final_victim_model.pt"))
+                   Path(save_loc).joinpath("victim",
+                                           "final_victim_model-state_dict.pt"))
 
         return

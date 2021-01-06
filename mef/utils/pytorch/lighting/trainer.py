@@ -15,7 +15,7 @@ def _prepare_callbacks(validation: bool,
                        ):
     callbacks = None
     checkpoint_cb = False
-    if validation:
+    if validation and not debug:
         monitor = "val_acc" if accuracy else "val_f1"
         callbacks = [EarlyStopping(monitor=monitor, verbose=True, mode="max",
                                    patience=patience)]
@@ -47,7 +47,6 @@ def get_trainer(save_loc: Path,
                                                   save_loc, iteration,
                                                   debug, accuracy)
 
-    print(checkpoint_cb)
     # Prepare trainer
     trainer = Trainer(default_root_dir=save_loc.__str__(),
                       gpus=gpus if gpus else None,

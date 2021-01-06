@@ -88,12 +88,19 @@ class Base(ABC):
         if dataset.val_set is not None:
             val_dataloader = dataset.val_dataloader()
 
-        trainer = get_trainer_with_settings(self.base_settings,
-                                            self.trainer_settings,
-                                            "substitute", iteration,
-                                            dataset.val_set is not None)
+        trainer, checkpoint_cb = get_trainer_with_settings(self.base_settings,
+                                                           self.trainer_settings,
+                                                           "substitute",
+                                                           iteration,
+                                                           dataset.val_set
+                                                           is not None)
 
         trainer.fit(self._substitute_model, train_dataloader, val_dataloader)
+
+        if not isinstance(checkpoint_cb, bool):
+            # Load state dict of the best model from checkpoint
+            checkpoint = torch.load(checkpoint_cb.best_model_path)
+            self._substitute_model.load_state_dict(checkpoint["state_dict"])
 
         # For some reason the model after fit is on CPU and not GPU
         if self.base_settings.gpus:
@@ -142,7 +149,7 @@ class Base(ABC):
 
     def _save_final_subsitute(self):
         final_model_loc = self.base_settings.save_loc.joinpath(
-                "final_substitute_model.pt")
+                "final_substitute_model-state_dict.pt")
         self._logger.info(
                 "Saving final substitute model state dictionary to: {}".format(
                         final_model_loc.__str__()))
