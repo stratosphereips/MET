@@ -13,9 +13,11 @@ sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 from mef.attacks.activethief import ActiveThief
 from mef.utils.experiment import train_victim_model
 from mef.utils.ios import mkdir_if_missing
-from mef.utils.pytorch.datasets.vision import ImageNet1000, Cifar10
-from mef.utils.pytorch.models.vision.at_cnn import AtCnn
 from mef.utils.pytorch.datasets import split_dataset
+from mef.utils.pytorch.datasets.vision import ImageNet1000, Cifar10
+from mef.utils.pytorch.functional import soft_cross_entropy
+from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
+from mef.utils.pytorch.models.vision.at_cnn import AtCnn
 
 IMAGENET_TRAIN_SIZE = 100000
 IMAGENET_VAL_SIZE = 20000
@@ -68,6 +70,12 @@ def set_up(args):
                        deterministic=args.deterministic, debug=args.debug,
                        precision=args.precision)
 
+    victim_model = VictimModel(victim_model, NUM_CLASSES)
+    substitute_model = TrainableModel(substitute_model, NUM_CLASSES,
+                                      torch.optim.Adam(
+                                              substitute_model.parameters()),
+                                      soft_cross_entropy)
+
     return victim_model, substitute_model, thief_dataset, test_set
 
 
@@ -81,9 +89,8 @@ if __name__ == "__main__":
     mkdir_if_missing(args.save_loc)
 
     victim_model, substitute_model, thief_dataset, test_set = set_up(args)
-    af = ActiveThief(victim_model, substitute_model, NUM_CLASSES,
-                     args.iterations, args.selection_strategy,
-                     args.victim_output_type, args.budget)
+    af = ActiveThief(victim_model, substitute_model, args.iterations,
+                     args.selection_strategy, args.budget)
 
     # Baset settings
     af.base_settings.save_loc = Path(args.save_loc)

@@ -11,6 +11,7 @@ from sklearn.preprocessing import StandardScaler
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
+from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
 from mef.attacks import ActiveThief, AtlasThief
 from mef.utils.ios import mkdir_if_missing
 
@@ -114,21 +115,23 @@ if __name__ == '__main__':
 
     # Prepare models
     victim_model = Ember2018(args.ember2018_model_dir, args.seed)
+    victim_model = VictimModel(victim_model, NUM_CLASSES, "raw")
     substitute_model = EmberSubsitute(scaler, args.atlasthief)
+    substitute_model = TrainableModel(substitute_model, NUM_CLASSES,
+                                      torch.optim.Adam(
+                                              substitute_model.parameters()),
+                                      torch.nn.BCEWithLogitsLoss())
 
     if args.gpus:
         victim_model.cuda()
         substitute_model.cuda()
 
     if args.atlasthief:
-        af = AtlasThief(victim_model, substitute_model, NUM_CLASSES,
-                        args.iterations, args.victim_output_type,
-                        args.budget, loss=torch.nn.BCEWithLogitsLoss())
+        af = AtlasThief(victim_model, substitute_model, args.iterations,
+                        args.budget)
     else:
-        af = ActiveThief(victim_model, substitute_model, NUM_CLASSES,
-                         args.iterations, args.selection_strategy,
-                         args.victim_output_type, args.budget,
-                         loss=torch.nn.BCEWithLogitsLoss())
+        af = ActiveThief(victim_model, substitute_model, args.iterations,
+                         args.selection_strategy, args.budget)
 
     # Baset settings
     af.base_settings.save_loc = Path(args.save_loc)

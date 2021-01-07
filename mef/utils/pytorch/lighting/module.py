@@ -22,33 +22,17 @@ class _MefModel(pl.LightningModule, ABC):
                                        compute_on_step=False)
         self.test_outputs = None
 
-    def _transform_output(self,
-                          output,
-                          output_type):
-        if output_type == "one_hot":
-            y_hats = F.one_hot(torch.argmax(output, dim=-1),
-                               num_classes=self.num_classes)
-            # to_oneshot returns tensor with uint8 type
-            y_hats = y_hats.float()
-        elif output_type == "prob_dist":
-            y_hats = get_prob_vector(output)
-        elif output_type == "labels":
-            y_hats = get_class_labels(output)
-        else:
-            y_hats = output
-
-        return y_hats
-
-    @abstractmethod
-    def _shared_step_model_output(self, x):
-        pass
-
     def _shared_step(self, batch, step_type):
         x, y = batch
 
-        preds = self._shared_step_model_output(x)
+        preds = self(x)[0]
 
-        # y is expected to be in shape of B
+        # preds is expected to in shape of [B] for binary and [B, C] for
+        # multiclass
+        if preds.size()[-1] == 1:
+            preds = preds.squeeze()
+
+        # y is expected to be in shape of [B]
         if y.ndim != 1:
             y = get_class_labels(y)
             if y.size()[-1] == 1:
@@ -124,11 +108,6 @@ class TrainableModel(_MefModel):
         self.log_dict({"train_loss": loss})
         return loss
 
-    def _shared_step_model_output(self, x):
-        output = self(x)[0]
-
-        return apply_softmax_or_sigmoid(output.to(x.device))
-
     def configure_optimizers(self):
         if self._lr_scheduler is None:
             return self.optimizer
@@ -141,7 +120,29 @@ class VictimModel(_MefModel):
                  num_classes,
                  output_type="prob_dist"):
         super().__init__(model, num_classes)
-        self._output_type = output_type
+
+        if output_type.lower() not in ["one_hot", "prob_dist", "raw",
+                                       "labels", "sigmoid/softmax"]:
+            raise ValueError("VictimModel output type must be one of {"
+                             "one_hot, prob_dist, raw, labels}")
+
+        self._output_type = output_type.lower()
+
+    def _transform_output(self,
+                          output):
+        if self._output_type == "one_hot":
+            y_hats = F.one_hot(torch.argmax(output, dim=-1),
+                               num_classes=self.num_classes)
+            # to_oneshot returns tensor with uint8 type
+            y_hats = y_hats.float()
+        elif self._output_type == "sigmoid/softmax":
+            y_hats = apply_softmax_or_sigmoid(output)
+        elif self._output_type == "labels":
+            y_hats = get_class_labels(output)
+        else:
+            y_hats = output
+
+        return y_hats
 
     @auto_move_data
     def forward(self, x, inference=True):
@@ -151,10 +152,4 @@ class VictimModel(_MefModel):
         if y_hats.ndim == 1:
             y_hats = y_hats.unsqueeze(dim=-1)
 
-        y_hats = self._transform_output(y_hats, self._output_type)
-
-        return [y_hats]
-
-    def _shared_step_model_output(self, x):
-        output = self(x)
-        return output.to(x.device)
+        return [self._transform_output(y_hats)]

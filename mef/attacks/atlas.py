@@ -15,7 +15,7 @@ from tqdm import tqdm
 from mef.attacks.base import Base
 from mef.utils.pytorch.datasets import CustomLabelDataset, MefDataset, \
     NoYDataset
-from mef.utils.pytorch.functional import get_class_labels, soft_cross_entropy
+from mef.utils.pytorch.functional import get_class_labels
 from mef.utils.pytorch.lighting.module import TrainableModel
 from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
 from mef.utils.settings import AttackSettings
@@ -37,7 +37,6 @@ class UncertaintyPredictor(pl.LightningModule):
 @dataclass
 class AtlasThiefSettings(AttackSettings):
     iterations: int
-    output_type: str
     budget: int
     init_seed_size: int
     val_size: int
@@ -60,20 +59,12 @@ class AtlasThief(Base):
     def __init__(self,
                  victim_model,
                  substitute_model,
-                 num_classes,
                  iterations=10,
-                 victim_output_type="prob_dist",
                  budget=20000,
-                 optimizer: torch.optim.Optimizer = None,
-                 loss=None,
-                 lr_scheduler=None):
-        if optimizer is None:
-            optimizer = torch.optim.Adam(substitute_model.parameters())
-        if loss is None:
-            loss = soft_cross_entropy
+                 init_seed_size=0.1,
+                 val_size=0.2):
 
-        super().__init__(victim_model, substitute_model, optimizer, loss,
-                         num_classes, victim_output_type, lr_scheduler)
+        super().__init__(victim_model, substitute_model)
         self.attack_settings = AtlasThiefSettings(iterations, budget)
 
     @classmethod
@@ -83,11 +74,6 @@ class AtlasThief(Base):
                             help="Number of iterations of the attacks ("
                                  "Default: "
                                  "10)")
-        parser.add_argument("--victim_output_type", default="prob_dist",
-                            type=str,
-                            help="Type of output from victim model {"
-                                 "prob_dist, raw, one_hot} (Default: "
-                                 "prob_dist)")
         parser.add_argument("--budget", default=20000, type=int,
                             help="Size of the budget (Default: 20000)")
         parser.add_argument("--training_epochs", default=1000,
@@ -218,7 +204,8 @@ class AtlasThief(Base):
         y_val = self._get_predictions(self._victim_model, val_set)
         val_set = CustomLabelDataset(val_set, y_val)
 
-        val_label_counts = dict(list(enumerate([0] * self._num_classes)))
+        val_label_counts = dict(
+            list(enumerate([0] * self._victim_model.num_classes)))
         if y_val.size()[-1] == 1:
             for class_id in torch.round(y_val):
                 val_label_counts[class_id.item()] += 1

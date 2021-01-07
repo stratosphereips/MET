@@ -8,8 +8,6 @@ from tqdm import tqdm
 from mef.utils.logger import set_up_logger
 from mef.utils.pytorch.datasets import MefDataset
 from mef.utils.pytorch.functional import get_class_labels
-from mef.utils.pytorch.lighting.module import TrainableModel, \
-    VictimModel
 from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
 from mef.utils.settings import BaseSettings, TrainerSettings
 
@@ -21,29 +19,15 @@ class Base(ABC):
 
     def __init__(self,
                  victim_model,
-                 substitute_model,
-                 optimizer,
-                 loss,
-                 num_classes,
-                 victim_output_type,
-                 lr_scheduler=None):
+                 substitute_model):
         self._logger = None
         # Datasets
         self._test_set = None
         self._thief_dataset = None
-        self._num_classes = num_classes
-
-        if victim_output_type.lower() not in ["one_hot", "prob_dist", "raw",
-                                              "labels"]:
-            raise ValueError("Victim output type must be one of {one_hot, "
-                             "prob_dist, raw, labels}")
 
         # Models
-        self._victim_model = VictimModel(victim_model, self._num_classes,
-                                         victim_output_type.lower())
-        self._substitute_model = TrainableModel(substitute_model,
-                                                self._num_classes,
-                                                optimizer, loss, lr_scheduler)
+        self._victim_model = victim_model
+        self._substitute_model = substitute_model
 
     @classmethod
     @abstractmethod
@@ -115,9 +99,9 @@ class Base(ABC):
         test_dataloader = test_set.test_dataloader()
 
         trainer, _ = get_trainer_with_settings(self.base_settings,
-                                            self.trainer_settings,
-                                            model_name='', iteration=None,
-                                            validation=False)
+                                               self.trainer_settings,
+                                               model_name='', iteration=None,
+                                               validation=False)
         metrics = trainer.test(model, test_dataloader)
 
         return 100 * metrics[0]["test_acc"]

@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from .base import Base
 from ..utils.pytorch.datasets import CustomLabelDataset, MefDataset
-from ..utils.pytorch.functional import get_prob_vector, soft_cross_entropy
+from ..utils.pytorch.functional import get_prob_vector
 from ..utils.settings import AttackSettings
 
 
@@ -27,7 +27,9 @@ class ActiveThiefSettings(AttackSettings):
     def __init__(self,
                  iterations: int,
                  selection_strategy: str,
-                 budget: int):
+                 budget: int,
+                 init_seed_size: float,
+                 val_size: float):
         self.iterations = iterations
         self.selection_strategy = selection_strategy.lower()
         self.budget = budget
@@ -39,8 +41,8 @@ class ActiveThiefSettings(AttackSettings):
                     "ActiveThief's selection strategy must be one of {"
                     "random, entropy, k-center, dfal, dfal+k-center}")
 
-        self.init_seed_size = int(self.budget * 0.1)
-        self.val_size = int(self.budget * 0.2)
+        self.init_seed_size = int(self.budget * init_seed_size)
+        self.val_size = int(self.budget * val_size)
         self.k = (self.budget - self.val_size - self.init_seed_size) // \
                  self.iterations
 
@@ -50,23 +52,16 @@ class ActiveThief(Base):
     def __init__(self,
                  victim_model,
                  substitute_model,
-                 num_classes,
                  iterations=10,
                  selection_strategy="entropy",
-                 victim_output_type="raw",
                  budget=20000,
-                 optimizer: torch.optim.Optimizer = None,
-                 loss=None,
-                 lr_scheduler=None):
-        if optimizer is None:
-            optimizer = torch.optim.Adam(substitute_model.parameters())
-        if loss is None:
-            loss = soft_cross_entropy
+                 init_seed_size=0.1,
+                 val_size=0.2):
 
-        super().__init__(victim_model, substitute_model, optimizer, loss,
-                         num_classes, victim_output_type, lr_scheduler)
+        super().__init__(victim_model, substitute_model)
         self.attack_settings = ActiveThiefSettings(iterations,
-                                                   selection_strategy, budget)
+                                                   selection_strategy, budget,
+                                                   init_seed_size, val_size)
 
     @classmethod
     def get_attack_args(cls):
@@ -81,11 +76,6 @@ class ActiveThief(Base):
                             help="Number of iterations of the attacks ("
                                  "Default: "
                                  "10)")
-        parser.add_argument("--victim_output_type", default="prob_dist",
-                            type=str,
-                            help="Type of output from victim model {"
-                                 "prob_dist, raw, one_hot} (Default: "
-                                 "prob_dist)")
         parser.add_argument("--budget", default=20000, type=int,
                             help="Size of the budget (Default: 20000)")
         parser.add_argument("--training_epochs", default=1000,
@@ -275,7 +265,8 @@ class ActiveThief(Base):
         y_val = self._get_predictions(self._victim_model, val_set)
         val_set = CustomLabelDataset(val_set, y_val)
 
-        val_label_counts = dict(list(enumerate([0] * self._num_classes)))
+        val_label_counts = dict(
+                list(enumerate([0] * self._victim_model.num_classes)))
         if y_val.size()[-1] == 1:
             for class_id in torch.round(y_val):
                 val_label_counts[class_id.item()] += 1
