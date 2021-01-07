@@ -55,7 +55,8 @@ def set_up(args):
                        debug=args.debug, precision=args.precision)
 
     # Load generator
-    state_dict = torch.load("./cache/ripper/CIFAR10/generator/"
+    #TODO: removed hardcoded path
+    state_dict = torch.load("./cache/ripper/CIFAR10-logits/generator/"
                             "cifar_100_90_classes_gan.pth")["gen_state_dict"]
     generator.load_state_dict(state_dict)
 

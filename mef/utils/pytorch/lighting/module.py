@@ -130,8 +130,7 @@ class TrainableModel(_MefModel):
         return loss
 
     def _shared_step_model_output(self, x):
-        output = self.model(x)
-        output = self._output_to_list(output)[0]
+        output = self(x)[0]
 
         return apply_softmax_or_sigmoid(output.to(x.device))
 
@@ -158,5 +157,5 @@ class VictimModel(_MefModel):
         return [y_hats]
 
     def _shared_step_model_output(self, x):
-        output = self.model(x)
+        output = self(x)
         return output.to(x.device)

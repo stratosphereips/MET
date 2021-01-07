@@ -141,7 +141,7 @@ class Ripper(Base):
                  latent_dim,
                  num_classes,
                  generated_data="optimized",
-                 victim_output_type="prob_dist",
+                 victim_output_type="raw",
                  optimizer: torch.optim.Optimizer = None,
                  loss=None,
                  lr_scheduler=None):

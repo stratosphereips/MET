@@ -53,7 +53,7 @@ class ActiveThief(Base):
                  num_classes,
                  iterations=10,
                  selection_strategy="entropy",
-                 victim_output_type="prob_dist",
+                 victim_output_type="raw",
                  budget=20000,
                  optimizer: torch.optim.Optimizer = None,
                  loss=None,

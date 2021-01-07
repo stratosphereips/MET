@@ -57,7 +57,7 @@ class KnockOff(Base):
                  num_classes,
                  sampling_strategy="adaptive",
                  reward_type="cert",
-                 victim_output_type="prob_dist",
+                 victim_output_type="raw",
                  budget=20000,
                  optimizer: torch.optim.Optimizer = None,
                  loss=None,
