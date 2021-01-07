@@ -48,8 +48,11 @@ class _MefModel(pl.LightningModule, ABC):
 
         preds = self._shared_step_model_output(x)
 
-        if y.ndim != 1 and y.size()[-1] != 1:
+        # y is expected to be in shape of B
+        if y.ndim != 1:
             y = get_class_labels(y)
+            if y.size()[-1] == 1:
+                y = y.squeeze()
 
         self._val_accuracy(preds, y)
         self._f1_macro(preds, y)
@@ -69,7 +72,8 @@ class _MefModel(pl.LightningModule, ABC):
         return self._shared_step(batch, "test")
 
     def test_epoch_end(self, test_step_outputs):
-        self.test_outputs = torch.cat(test_step_outputs)
+        # Expected shape is [N, C] for multiclass and [N] for binary
+        self.test_outputs = torch.cat(test_step_outputs).squeeze(dim=-1)
 
 
 class TrainableModel(_MefModel):
@@ -83,7 +87,6 @@ class TrainableModel(_MefModel):
         self.optimizer = optimizer
         self._loss = loss
         self._lr_scheduler = lr_scheduler
-        self._train_acc = pl.metrics.Accuracy()
 
     @staticmethod
     def _output_to_list(output):
@@ -120,13 +123,7 @@ class TrainableModel(_MefModel):
 
         loss = self._loss(output[0], y)
 
-        labels = y
-        if y.ndim != 1 and y.size()[-1] != 1:
-            labels = get_class_labels(y)
-
-        acc = self._train_acc(output[0], labels)
-
-        self.log_dict({"train_loss": loss, "train_acc": acc})
+        self.log_dict({"train_loss": loss})
         return loss
 
     def _shared_step_model_output(self, x):
@@ -151,6 +148,10 @@ class VictimModel(_MefModel):
     @auto_move_data
     def forward(self, x, inference=True):
         y_hats = self.model(x)
+
+        # Model output must always be 2-dimensional
+        if y_hats.ndim == 1:
+            y_hats = y_hats.unsqueeze(dim=-1)
 
         y_hats = self._transform_output(y_hats, self._output_type)
 

@@ -28,8 +28,8 @@ def get_prob_vector(logits):
         return torch.softmax(logits, dim=-1)
 
 
-def get_class_labels(output):
-    if output.size()[-1] == 1:
-        return torch.round(output)
+def get_class_labels(input):
+    if input.size()[-1] == 1 or input.ndim == 1:
+        return torch.round(input)
     else:
-        return torch.argmax(output, dim=-1)
+        return torch.argmax(input, dim=-1)
