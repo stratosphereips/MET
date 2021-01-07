@@ -72,7 +72,7 @@ class TrainableModel(_MefModel):
                  optimizer=None,
                  loss=None,
                  lr_scheduler=None):
-        super().__init__(model, num_classes, True)
+        super().__init__(model, num_classes)
         self.optimizer = optimizer
         self._loss = loss
         self._lr_scheduler = lr_scheduler
