@@ -7,7 +7,6 @@ from tqdm import tqdm
 
 from mef.utils.logger import set_up_logger
 from mef.utils.pytorch.datasets import MefDataset
-from mef.utils.pytorch.functional import get_class_labels
 from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
 from mef.utils.settings import BaseSettings, TrainerSettings
 
@@ -118,11 +117,8 @@ class Base(ABC):
         return
 
     def _get_aggreement_score(self):
-        vict_test_labels = get_class_labels(self._victim_model.test_outputs)
-        vict_test_labels = vict_test_labels.numpy()
-
-        sub_test_labels = get_class_labels(self._substitute_model.test_outputs)
-        sub_test_labels = sub_test_labels.numpy()
+        vict_test_labels = self._victim_model.test_labels
+        sub_test_labels = self._substitute_model.test_labels
 
         agreement_count = np.sum((vict_test_labels == sub_test_labels))
         self._logger.info("Agreement score: {}/{} ({:.1f}%)".format(

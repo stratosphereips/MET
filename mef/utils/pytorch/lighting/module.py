@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from pytorch_lightning.core.decorators import auto_move_data
 
 from mef.utils.pytorch.functional import apply_softmax_or_sigmoid, \
-    get_class_labels, get_prob_vector
+    get_class_labels
 
 
 class _MefModel(pl.LightningModule, ABC):
@@ -20,12 +20,16 @@ class _MefModel(pl.LightningModule, ABC):
         self._val_accuracy = pl.metrics.Accuracy(compute_on_step=False)
         self._f1_macro = pl.metrics.F1(self.num_classes, average="macro",
                                        compute_on_step=False)
-        self.test_outputs = None
+        self.test_labels = None
+
+    @abstractmethod
+    def _shared_step_output(self, x):
+        pass
 
     def _shared_step(self, batch, step_type):
         x, y = batch
 
-        preds = self(x)[0]
+        preds = self._shared_step_output(x)
 
         # preds is expected to in shape of [B] for binary and [B, C] for
         # multiclass
@@ -57,7 +61,8 @@ class _MefModel(pl.LightningModule, ABC):
 
     def test_epoch_end(self, test_step_outputs):
         # Expected shape is [N, C] for multiclass and [N] for binary
-        self.test_outputs = torch.cat(test_step_outputs).squeeze(dim=-1)
+        self.test_labels = get_class_labels(
+            torch.cat(test_step_outputs).squeeze(dim=-1)).numpy()
 
 
 class TrainableModel(_MefModel):
@@ -67,7 +72,7 @@ class TrainableModel(_MefModel):
                  optimizer=None,
                  loss=None,
                  lr_scheduler=None):
-        super().__init__(model, num_classes)
+        super().__init__(model, num_classes, True)
         self.optimizer = optimizer
         self._loss = loss
         self._lr_scheduler = lr_scheduler
@@ -86,6 +91,9 @@ class TrainableModel(_MefModel):
         output = self.model(x)
 
         return self._output_to_list(output)
+
+    def _shared_step_output(self, x):
+        return apply_softmax_or_sigmoid(self(x)[0])
 
     def training_step(self,
                       batch,
@@ -153,3 +161,6 @@ class VictimModel(_MefModel):
             y_hats = y_hats.unsqueeze(dim=-1)
 
         return [self._transform_output(y_hats)]
+
+    def _shared_step_output(self, x):
+        return self(x)[0]
