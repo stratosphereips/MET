@@ -118,10 +118,8 @@ class TrainableModel(_MefModel):
         if len(y.size()) == 3 and y.size()[0] == 1:
             y = y.squeeze(dim=0)
 
-        output = self.model(x)
-        output = self._output_to_list(output)
-
-        loss = self._loss(output[0], y)
+        preds = self(x)[0]
+        loss = self._loss(preds, y)
 
         self.log_dict({"train_loss": loss})
         return loss
