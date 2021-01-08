@@ -133,7 +133,8 @@ class VictimModel(_MefModel):
         if output_type.lower() not in ["one_hot", "raw", "logits", "labels",
                                        "sigmoid", "softmax"]:
             raise ValueError("VictimModel output type must be one of {"
-                             "one_hot, raw, labels}")
+                             "one_hot, raw, logits, labels, sigmoid,"
+                             "softmax}")
 
         self.output_type = output_type.lower()
 
