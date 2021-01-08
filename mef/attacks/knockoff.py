@@ -54,25 +54,11 @@ class KnockOff(Base):
     def __init__(self,
                  victim_model,
                  substitute_model,
-                 num_classes,
                  sampling_strategy="adaptive",
                  reward_type="cert",
-                 victim_output_type="raw",
-                 budget=20000,
-                 optimizer: torch.optim.Optimizer = None,
-                 loss=None,
-                 lr_scheduler=None):
-        if optimizer is None:
-            optimizer = torch.optim.SGD(substitute_model.parameters(), lr=0.01,
-                                        momentum=0.5)
-            if lr_scheduler is None:
-                lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
-                                                               step_size=60)
-        if loss is None:
-            loss = soft_cross_entropy
+                 budget=20000):
 
-        super().__init__(victim_model, substitute_model, optimizer,
-                         loss, num_classes, victim_output_type, lr_scheduler)
+        super().__init__(victim_model, substitute_model)
         self.attack_settings = KnockOffSettings(sampling_strategy,
                                                 reward_type, budget)
         self.trainer_settings._validation = False
@@ -80,7 +66,7 @@ class KnockOff(Base):
         # KnockOff's specific attributes
         self._online_optimizer = torch.optim.SGD(
                 self._substitute_model.parameters(), lr=0.0005, momentum=0.5)
-        self._online_loss = loss
+        self._online_loss = self._substitute_model._loss
 
         self._selected_actions = np.array([])
         self._selected_idxs = np.array([])
@@ -195,6 +181,11 @@ class KnockOff(Base):
         """
 
         # Compute reward
+        if self._victim_model.output_type == "logits":
+            if self._victim_model.num_classes == 2:
+                y = torch.sigmoid(y)
+            else:
+                y = torch.softmax(y, dim=-1)
         reward = soft_cross_entropy(y_hat, y)
 
         return reward.numpy()
@@ -250,7 +241,7 @@ class KnockOff(Base):
         # We need to keep an average version of the victim output
         if self.attack_settings.reward_type == "div" or \
                 self.attack_settings.reward_type == "all":
-            self._y_avg = torch.zeros(self._num_classes)
+            self._y_avg = torch.zeros(self._victim_model.num_classes)
 
         # We need to keep an average and variance version of rewards
         if self.attack_settings.reward_type == "all":

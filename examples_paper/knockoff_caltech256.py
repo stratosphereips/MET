@@ -13,6 +13,8 @@ from mef.attacks.knockoff import KnockOff
 from mef.utils.experiment import train_victim_model
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets.vision import ImageNet1000, Caltech256
+from mef.utils.pytorch.functional import soft_cross_entropy
+from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
 from mef.utils.pytorch.models.vision import ResNet
 
 NUM_CLASSES = 256
@@ -53,6 +55,16 @@ def set_up(args):
                        save_loc=args.save_loc, gpus=args.gpus,
                        deterministic=args.deterministic, debug=args.debug,
                        precision=args.precision)
+    victim_model = VictimModel(victim_model, NUM_CLASSES, output_type="logits")
+    substitute_model = TrainableModel(substitute_model, NUM_CLASSES,
+                                      torch.optim.SGD(
+                                              substitute_model.parameters(),
+                                              lr=0.01,
+                                              momentum=0.5),
+                                      soft_cross_entropy,
+                                      torch.optim.lr_scheduler.StepLR(
+                                              optimizer,
+                                              step_size=60))
 
     return victim_model, substitute_model, sub_dataset, test_set
 
@@ -67,9 +79,8 @@ if __name__ == "__main__":
     mkdir_if_missing(args.save_loc)
 
     victim_model, substitute_model, sub_dataset, test_set = set_up(args)
-    ko = KnockOff(victim_model, substitute_model, NUM_CLASSES,
-                  args.sampling_strategy, args.reward_type,
-                  args.victim_output_type, args.budget)
+    ko = KnockOff(victim_model, substitute_model, args.sampling_strategy,
+                  args.reward_type, args.budget)
 
     # Baset settings
     ko.base_settings.save_loc = Path(args.save_loc)
