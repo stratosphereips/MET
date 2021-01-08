@@ -15,6 +15,7 @@ from mef.attacks.blackbox import BlackBox
 from mef.utils.experiment import train_victim_model
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets.vision import Mnist
+from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
 from mef.utils.pytorch.models.vision import SimpleNet
 
 NUM_CLASSES = 10
@@ -35,9 +36,8 @@ def set_up(args):
     print("Preparing data")
     transform = T.Compose([T.Resize(DIMS[-1]), T.ToTensor()])
     mnist = dict()
-    mnist["train"] = Mnist(root=args.mnist_dir, download=True,
-                           transform=transform)
-    mnist["test"] = Mnist(root=args.mnist_dir, train=False, download=True,
+    mnist["train"] = Mnist(root=args.mnist_dir, transform=transform)
+    mnist["test"] = Mnist(root=args.mnist_dir, train=False,
                           transform=transform)
 
     idx_test = np.random.permutation(len(mnist["test"]))
@@ -57,6 +57,12 @@ def set_up(args):
                        deterministic=args.deterministic, debug=args.debug,
                        precision=args.precision)
 
+    victim_model = VictimModel(victim_model, NUM_CLASSES)
+    substitute_model = TrainableModel(substitute_model, NUM_CLASSES,
+                                      torch.optim.Adam(
+                                              substitute_model.parameters()),
+                                      F.cross_entropy)
+
     return victim_model, substitute_model, thief_dataset, test_set
 
 
@@ -72,8 +78,7 @@ if __name__ == "__main__":
     mkdir_if_missing(args.save_loc)
 
     victim_model, substitute_model, thief_dataset, test_set = set_up(args)
-    bb = BlackBox(victim_model, substitute_model, NUM_CLASSES, args.iterations,
-                  args.lmbda)
+    bb = BlackBox(victim_model, substitute_model, args.iterations, args.lmbda)
 
     # Baset settings
     bb.base_settings.save_loc = Path(args.save_loc)

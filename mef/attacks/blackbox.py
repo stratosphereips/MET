@@ -3,13 +3,13 @@ from dataclasses import dataclass
 from typing import Type
 
 import torch
-import torch.nn.functional as F
 from pl_bolts.datamodules.sklearn_datamodule import TensorDataset
 from torch.utils.data import ConcatDataset, Dataset
 from tqdm import tqdm
 
 from mef.attacks.base import Base
 from mef.utils.pytorch.datasets import MefDataset, NoYDataset
+from mef.utils.pytorch.functional import get_class_labels
 from mef.utils.settings import AttackSettings
 
 
@@ -30,20 +30,10 @@ class BlackBox(Base):
     def __init__(self,
                  victim_model,
                  substitute_model,
-                 num_classes,
                  iterations=6,
-                 lmbda=0.1,
-                 optimizer: torch.optim.Optimizer = None,
-                 loss=None,
-                 lr_scheduler=None):
-        if optimizer is None:
-            optimizer = torch.optim.Adam(substitute_model.parameters())
-        if loss is None:
-            loss = F.cross_entropy
+                 lmbda=0.1):
 
-        victim_output_type = "labels"
-        super().__init__(victim_model, substitute_model, optimizer,
-                         loss, num_classes, victim_output_type, lr_scheduler)
+        super().__init__(victim_model, substitute_model)
         self.attack_settings = BlackBoxSettings(iterations, lmbda)
         self.trainer_settings._validation = False
 
@@ -69,7 +59,7 @@ class BlackBox(Base):
         x_var = x.requires_grad_()
 
         predictions = self._substitute_model(x_var)[0]
-        for class_idx in range(self._num_classes):
+        for class_idx in range(self._victim_model.num_classes):
             outputs = predictions[:, class_idx]
             derivative = torch.autograd.grad(
                     outputs,
@@ -152,6 +142,8 @@ class BlackBox(Base):
                 # Adversary has access only to labels
                 y_query_set = self._get_predictions(self._victim_model,
                                                     NoYDataset(x_query_set))
+                y_query_set = get_class_labels(y_query_set)
+
                 query_sets.append(TensorDataset(x_query_set,
                                                 y_query_set.numpy()))
 
