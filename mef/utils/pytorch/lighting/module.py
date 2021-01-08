@@ -93,7 +93,9 @@ class TrainableModel(_MefModel):
         return self._output_to_list(output)
 
     def _shared_step_output(self, x):
-        return apply_softmax_or_sigmoid(self(x)[0])
+        if self.num_classes == 2:
+            return torch.sigmoid(self(x)[0])
+        return torch.softmax(self(x)[0], dim=-1)
 
     def training_step(self,
                       batch,
@@ -126,26 +128,28 @@ class VictimModel(_MefModel):
     def __init__(self,
                  model,
                  num_classes,
-                 output_type="prob_dist"):
+                 output_type):
         super().__init__(model, num_classes)
 
-        if output_type.lower() not in ["one_hot", "prob_dist", "raw",
-                                       "labels", "sigmoid/softmax"]:
+        if output_type.lower() not in ["one_hot", "raw", "logits", "labels",
+                                       "sigmoid", "softmax"]:
             raise ValueError("VictimModel output type must be one of {"
-                             "one_hot, prob_dist, raw, labels}")
+                             "one_hot, raw, labels}")
 
-        self._output_type = output_type.lower()
+        self.output_type = output_type.lower()
 
     def _transform_output(self,
                           output):
-        if self._output_type == "one_hot":
+        if self.output_type == "one_hot":
             y_hats = F.one_hot(torch.argmax(output, dim=-1),
                                num_classes=self.num_classes)
             # to_oneshot returns tensor with uint8 type
             y_hats = y_hats.float()
-        elif self._output_type == "sigmoid/softmax":
-            y_hats = apply_softmax_or_sigmoid(output)
-        elif self._output_type == "labels":
+        elif self.output_type == "sigmoid":
+            y_hats = torch.sigmoid(output)
+        elif self.output_type == "softmax":
+            y_hats = torch.softmax(output, dim=-1)
+        elif self.output_type == "labels":
             y_hats = get_class_labels(output)
         else:
             y_hats = output

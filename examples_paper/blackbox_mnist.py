@@ -57,7 +57,8 @@ def set_up(args):
                        deterministic=args.deterministic, debug=args.debug,
                        precision=args.precision)
 
-    victim_model = VictimModel(victim_model, NUM_CLASSES)
+    victim_model = VictimModel(victim_model, NUM_CLASSES,
+                               output_type="softmax")
     substitute_model = TrainableModel(substitute_model, NUM_CLASSES,
                                       torch.optim.Adam(
                                               substitute_model.parameters()),
