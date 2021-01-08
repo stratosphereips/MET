@@ -4,6 +4,7 @@ from typing import Type
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from torch.utils.data import Dataset, IterableDataset
 
 from mef.attacks.base import Base
@@ -139,20 +140,9 @@ class Ripper(Base):
                  substitute_model,
                  generator,
                  latent_dim,
-                 num_classes,
-                 generated_data="optimized",
-                 victim_output_type="raw",
-                 optimizer: torch.optim.Optimizer = None,
-                 loss=None,
-                 lr_scheduler=None):
-        if optimizer is None:
-            optimizer = torch.optim.Adam(substitute_model.parameters())
-        if loss is None:
-            loss = soft_cross_entropy
+                 generated_data="optimized"):
 
-        # TODO: correct the hardcoded victim_output_type
-        super().__init__(victim_model, substitute_model, optimizer, loss,
-                         num_classes, victim_output_type, lr_scheduler)
+        super().__init__(victim_model, substitute_model)
         self.attack_settings = RipperSettings(latent_dim, generated_data)
 
         # Ripper's specific attributes
@@ -186,7 +176,7 @@ class Ripper(Base):
                                              self.attack_settings.latent_dim,
                                              self._victim_model,
                                              self.base_settings.batch_size,
-                                             self._num_classes)
+                                             self._victim_model.num_classes)
 
     def _check_args(self,
                     test_set: Type[Dataset]):
