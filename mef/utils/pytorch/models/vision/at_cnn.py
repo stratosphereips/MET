@@ -9,12 +9,14 @@ class AtCnn(Base):
 
     def __init__(self, dims, num_classes, conv_kernel_size=(3, 3),
                  pool_kernel_size=(2, 2), conv_out_channels=(32, 64, 128),
-                 fc_layers=(), convs_in_block=2, dropout_keep_prob=0.1):
+                 fc_layers=(), convs_in_block=2, dropout_keep_prob=0.1,
+                 return_hidden=False):
         super().__init__(num_classes)
 
         assert len(conv_kernel_size) == 2
         assert len(pool_kernel_size) == 2
 
+        self._return_hidden = return_hidden
         self._dims = dims
         self._conv_kernel_size = conv_kernel_size
         self._pool_kernel_size = pool_kernel_size
@@ -31,7 +33,7 @@ class AtCnn(Base):
         num_features = test_out.size(1) * test_out.size(2) * test_out.size(3)
         self._fcs, self._fc_final = self._build_fcs(num_features)
 
-    def forward(self, x, return_all_layers=False):
+    def forward(self, x):
         hidden = self._convs(x)
         hidden = hidden.view(hidden.size(0), -1)
 
@@ -40,7 +42,7 @@ class AtCnn(Base):
 
         logits = self._fc_final(hidden)
 
-        if return_all_layers:
+        if self._return_hidden:
             return logits, hidden
 
         return logits

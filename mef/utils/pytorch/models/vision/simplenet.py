@@ -9,9 +9,11 @@ from mef.utils.pytorch.models.vision.base import Base
 class SimpleNet(Base):
     """https://paperswithcode.com/paper/lets-keep-it-simple-using-simple"""
 
-    def __init__(self, dims, num_classes, pool=False, drop=False):
+    def __init__(self, dims, num_classes, pool=False, drop=False,
+                 return_hidden=False):
         super().__init__(num_classes)
 
+        self._return_hidden = return_hidden
         self._layers = self._make_layers(dims[0])
 
         self._pool = lambda a: a
@@ -30,7 +32,7 @@ class SimpleNet(Base):
         num_features = test_out.size(1) * test_out.size(2) * test_out.size(3)
         self._fc_final = nn.Linear(num_features, num_classes)
 
-    def forward(self, x, return_all_layers=False):
+    def forward(self, x):
         x = self._layers(x)
 
         # Global Max Pooling
@@ -40,7 +42,7 @@ class SimpleNet(Base):
         hidden = x.view(x.size(0), -1)
         logits = self._fc_final(hidden)
 
-        if return_all_layers:
+        if self._return_hidden:
             return logits, hidden
 
         return logits
