@@ -105,9 +105,10 @@ class AtlasThief(Base):
         trainer_settings = copy.copy(self.trainer_settings)
         trainer_settings.training_epochs = 25
         trainer_settings.validation = False
-        trainer = get_trainer_with_settings(self.base_settings,
-                                            trainer_settings,
-                                            "correct_model", None, False)
+        trainer, _ = get_trainer_with_settings(self.base_settings,
+                                               trainer_settings,
+                                               "correct_model", None,
+                                               False)
 
         correct_model = UncertaintyPredictor(train_set[0][0].shape[0])
         loss = nn.BCEWithLogitsLoss()
