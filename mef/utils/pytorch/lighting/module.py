@@ -5,8 +5,7 @@ import torch
 import torch.nn.functional as F
 from pytorch_lightning.core.decorators import auto_move_data
 
-from mef.utils.pytorch.functional import apply_softmax_or_sigmoid, \
-    get_class_labels
+from mef.utils.pytorch.functional import get_class_labels
 
 
 class _MefModel(pl.LightningModule, ABC):
