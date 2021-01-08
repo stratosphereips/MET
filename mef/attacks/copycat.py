@@ -7,26 +7,21 @@ from torch.utils.data import Dataset
 
 from mef.utils.pytorch.datasets import CustomLabelDataset
 from .base import Base
+from ..utils.pytorch.functional import get_class_labels
 
 
 class CopyCat(Base):
 
     def __init__(self,
                  victim_model,
-                 substitute_model,
-                 num_classes,
-                 optimizer: torch.optim.Optimizer = None,
-                 loss=None,
-                 lr_scheduler=None):
+                 substitute_model):
         if optimizer is None:
             optimizer = torch.optim.SGD(substitute_model.parameters(), lr=0.01,
                                         momentum=0.8)
         if loss is None:
             loss = F.cross_entropy
 
-        victim_output_type = "labels"
-        super().__init__(victim_model, substitute_model, optimizer, loss,
-                         num_classes, victim_output_type, lr_scheduler)
+        super().__init__(victim_model, substitute_model)
         self.trainer_settings._validation = False
 
     @classmethod
@@ -68,6 +63,8 @@ class CopyCat(Base):
         self._logger.info("Getting stolen labels")
         stolen_labels = self._get_predictions(self._victim_model,
                                               self._thief_dataset)
+        # Following the paper the victim-model only returns labels
+        stolen_labels = get_class_labels(stolen_labels)
 
         synthetic_dataset = CustomLabelDataset(self._thief_dataset,
                                                stolen_labels)

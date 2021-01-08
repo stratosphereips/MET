@@ -15,6 +15,7 @@ from mef.attacks.copycat import CopyCat
 from mef.utils.experiment import train_victim_model
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets.vision import ImageNet1000, Stl10, Cifar10
+from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
 from mef.utils.pytorch.models.vision import Vgg
 
 NUM_CLASSES = 9
@@ -130,6 +131,14 @@ def set_up(args):
                        args.num_workers, save_loc=args.save_loc,
                        gpus=args.gpus, deterministic=args.deterministic,
                        debug=args.debug, precision=args.precision)
+
+    victim_model = VictimModel(victim_model, NUM_CLASSES)
+    substitute_model = TrainableModel(substitute_model, NUM_CLASSES,
+                                      torch.optim.SGD(
+                                              substitute_model.parameters(),
+                                              lr=0.01,
+                                              momentum=0.8),
+                                      F.cross_entropy)
 
     return victim_model, substitute_model, [goc.npd_dataset, goc.pd_dataset], \
            goc.test_set
