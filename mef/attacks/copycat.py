@@ -15,12 +15,6 @@ class CopyCat(Base):
     def __init__(self,
                  victim_model,
                  substitute_model):
-        if optimizer is None:
-            optimizer = torch.optim.SGD(substitute_model.parameters(), lr=0.01,
-                                        momentum=0.8)
-        if loss is None:
-            loss = F.cross_entropy
-
         super().__init__(victim_model, substitute_model)
         self.trainer_settings._validation = False
 

@@ -156,7 +156,7 @@ if __name__ == "__main__":
     mkdir_if_missing(args.save_loc)
 
     victim_model, substitute_model, thief_dataset, test_set = set_up(args)
-    copycat = CopyCat(victim_model, substitute_model, NUM_CLASSES)
+    copycat = CopyCat(victim_model, substitute_model)
 
     # Baset settings
     copycat.base_settings.save_loc = Path(args.save_loc)
