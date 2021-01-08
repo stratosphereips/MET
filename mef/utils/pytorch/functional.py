@@ -12,13 +12,6 @@ def soft_cross_entropy(logits, targets, weights=None):
                                     dim=-1))
 
 
-def apply_softmax_or_sigmoid(logits):
-    if logits.size()[-1] == 1:
-        return torch.sigmoid(logits)
-    else:
-        return torch.softmax(logits, dim=-1)
-
-
 def get_prob_vector(logits):
     if logits.size()[-1] == 1:
         sig_output = torch.sigmoid(logits)
