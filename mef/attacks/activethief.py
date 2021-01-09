@@ -173,7 +173,7 @@ class ActiveThief(Base):
         data_rest = MefDataset(self.base_settings, data_rest)
         loader = data_rest.generic_dataloader()
 
-        deepfool = DeepFool(self._substitute_model, steps=30)
+        deepfool = DeepFool(self._substitute_model.model, steps=30)
 
         scores = []
         for x, y in tqdm(loader, desc="Getting dfal scores"):
@@ -354,8 +354,7 @@ class ActiveThief(Base):
             data_rest = Subset(self._thief_dataset, idxs_rest)
             # Random and dfal strategies dont require predictions for the rest
             # of thief dataset
-            if self.attack_settings.selection_strategy not in {
-                "random", "dfal"}:
+            if self.attack_settings.selection_strategy != "random":
                 self._logger.info("Getting substitute's predictions for the "
                                   "rest of the thief dataset")
                 y_rest = self._get_predictions(self._substitute_model,
