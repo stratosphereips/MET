@@ -2,16 +2,16 @@ import argparse
 from dataclasses import dataclass
 from typing import Type
 
+import foolbox as fb
 import numpy as np
 import torch
 from torch.distributions import Categorical
 from torch.utils.data import ConcatDataset, Dataset, Subset
-from torchattacks import DeepFool
 from tqdm import tqdm
 
 from .base import Base
 from ..utils.pytorch.datasets import CustomLabelDataset, MefDataset
-from ..utils.pytorch.functional import get_prob_vector, get_class_labels
+from ..utils.pytorch.functional import get_class_labels, get_prob_vector
 from ..utils.settings import AttackSettings
 
 
@@ -109,7 +109,7 @@ class ActiveThief(Base):
             scores.append(Categorical(prob_dists).entropy())
 
         scores = torch.cat(scores)
-        return torch.argsort(scores, dim=-1, descending=True)[:k].numpy()
+        return scores.argsort(descending=True)[:k].numpy()
 
     def _kcenter_strategy(self,
                           k,
@@ -173,22 +173,24 @@ class ActiveThief(Base):
         data_rest = MefDataset(self.base_settings, data_rest)
         loader = data_rest.generic_dataloader()
 
-        deepfool = DeepFool(self._substitute_model.model, steps=30)
+        fmodel = fb.PyTorchModel(self._substitute_model.model, bounds=(0, 1))
+        deepfool = fb.attacks.L2DeepFoolAttack(steps=30, candidates=3,
+                                               overshoot=0.01)
 
         scores = []
         for x, y in tqdm(loader, desc="Getting dfal scores"):
             if self.base_settings.gpus:
                 x = x.cuda()
                 y = y.cuda()
-            
+
             labels = get_class_labels(y)
-            x_adv = deepfool(x, labels)
+            x_adv, _, _ = deepfool(fmodel, x, labels, epsilons=0.03)
 
             # difference as L2-norm
-            scores.append(torch.dist(x_adv, x))
+            for el1, el2 in zip(x_adv, x):
+                scores.append(torch.dist(el1, el2).detach().cpu())
 
-        return torch.argsort(torch.cat(scores), dim=-1, descending=True)[
-               :k].deatach().cpu().numpy()
+        return torch.stack(scores).argsort(descending=True)[:k].numpy()
 
     def _select_samples(self,
                         data_rest,
@@ -253,9 +255,6 @@ class ActiveThief(Base):
                 raise TypeError()
         self._val_dataset = val_data
 
-        
-        
-
         return
 
     def _run(self,
@@ -275,17 +274,17 @@ class ActiveThief(Base):
         self._logger.info("Preparing validation dataset")
         if self._val_dataset is None:
             idxs_val = np.random.permutation(idxs_rest)[
-                    : self.attack_settings.val_size]
+                       : self.attack_settings.val_size]
             idxs_rest = np.setdiff1d(idxs_rest, idxs_val)
             val_set = Subset(self._thief_dataset, idxs_val)
             y_val = self._get_predictions(self._victim_model, val_set)
         else:
             idxs_val = np.arange(len(self._val_dataset))
             idxs_val = np.random.permutation(idxs_val)[
-                    : self.attack_settings.val_size]
+                       : self.attack_settings.val_size]
             val_set = Subset(self._val_dataset, idxs_val)
             y_val = self._get_predictions(self._victim_model, val_set)
-        
+
         val_set = CustomLabelDataset(val_set, y_val)
 
         val_label_counts = dict(
