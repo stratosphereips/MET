@@ -56,7 +56,8 @@ def set_up(args):
     imagenet_val = ImageNet1000(root=args.imagenet_dir, train=False,
                                 size=IMAGENET_VAL_SIZE, transform=transform,
                                 seed=args.seed)
-    thief_dataset = ConcatDataset([imagenet_train, imagenet_val])
+    thief_dataset = imagenet_train
+    val_dataset = imagenet_val
 
     train_set, val_set = split_dataset(train_set, 0.2)
     optimizer = torch.optim.Adam(victim_model.parameters(), weight_decay=1e-3)
@@ -77,7 +78,7 @@ def set_up(args):
                                               substitute_model.parameters()),
                                       soft_cross_entropy)
 
-    return victim_model, substitute_model, thief_dataset, test_set
+    return victim_model, substitute_model, thief_dataset, test_set, val_dataset
 
 
 if __name__ == "__main__":
@@ -89,7 +90,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     mkdir_if_missing(args.save_loc)
 
-    victim_model, substitute_model, thief_dataset, test_set = set_up(args)
+    victim_model, substitute_model, thief_dataset, test_set, val_dataset = \
+        set_up(args)
     af = ActiveThief(victim_model, substitute_model, args.iterations,
                      args.selection_strategy, args.budget)
 
@@ -109,4 +111,4 @@ if __name__ == "__main__":
     af.trainer_settings.precision = args.precision
     af.trainer_settings.accuracy = args.accuracy
 
-    af(thief_dataset, test_set)
+    af(thief_dataset, test_set, val_dataset)

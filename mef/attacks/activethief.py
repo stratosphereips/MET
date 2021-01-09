@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from .base import Base
 from ..utils.pytorch.datasets import CustomLabelDataset, MefDataset
-from ..utils.pytorch.functional import get_prob_vector
+from ..utils.pytorch.functional import get_prob_vector, get_class_labels
 from ..utils.settings import AttackSettings
 
 
@@ -62,6 +62,7 @@ class ActiveThief(Base):
         self.attack_settings = ActiveThiefSettings(iterations,
                                                    selection_strategy, budget,
                                                    init_seed_size, val_size)
+        self._val_dataset = None
 
     @classmethod
     def get_attack_args(cls):
@@ -175,11 +176,13 @@ class ActiveThief(Base):
         deepfool = DeepFool(self._substitute_model, steps=30)
 
         scores = []
-        for x, _ in tqdm(loader, desc="Getting dfal scores"):
+        for x, y in tqdm(loader, desc="Getting dfal scores"):
             if self.base_settings.gpus:
                 x = x.cuda()
-
-            x_adv = deepfool(x)
+                y = y.cuda()
+            
+            labels = get_class_labels(y)
+            x_adv = deepfool(x, labels)
 
             # difference as L2-norm
             scores.append(torch.dist(x_adv, x))
@@ -230,24 +233,36 @@ class ActiveThief(Base):
 
     def _check_args(self,
                     sub_data: Type[Dataset],
-                    test_set: Type[Dataset]):
+                    test_set: Type[Dataset],
+                    val_data: Type[Dataset]):
         if not isinstance(sub_data, Dataset):
             self._logger.error("Substitute dataset must be Pytorch's "
                                "dataset.")
             raise TypeError()
+        self._thief_dataset = sub_data
+
         if not isinstance(test_set, Dataset):
             self._logger.error("Test set must be Pytorch's dataset.")
             raise TypeError()
-
-        self._thief_dataset = sub_data
         self._test_set = test_set
+
+        if val_data is not None:
+            if not isinstance(val_data, Dataset):
+                self._logger.error("Validation dataset must be Pytorch's "
+                                   "dataset.")
+                raise TypeError()
+        self._val_dataset = val_data
+
+        
+        
 
         return
 
     def _run(self,
              sub_data: Type[Dataset],
-             test_set: Type[Dataset]):
-        self._check_args(sub_data, test_set)
+             test_set: Type[Dataset],
+             val_data: Type[Dataset] = None):
+        self._check_args(sub_data, test_set, val_data)
         self._logger.info(
                 "########### Starting ActiveThief attack ###########")
         # Get budget of the attack
@@ -258,11 +273,19 @@ class ActiveThief(Base):
 
         # Prepare validation set
         self._logger.info("Preparing validation dataset")
-        idxs_val = np.random.permutation(idxs_rest)[
-                   : self.attack_settings.val_size]
-        idxs_rest = np.setdiff1d(idxs_rest, idxs_val)
-        val_set = Subset(self._thief_dataset, idxs_val)
-        y_val = self._get_predictions(self._victim_model, val_set)
+        if self._val_dataset is None:
+            idxs_val = np.random.permutation(idxs_rest)[
+                    : self.attack_settings.val_size]
+            idxs_rest = np.setdiff1d(idxs_rest, idxs_val)
+            val_set = Subset(self._thief_dataset, idxs_val)
+            y_val = self._get_predictions(self._victim_model, val_set)
+        else:
+            idxs_val = np.arange(len(self._val_dataset))
+            idxs_val = np.random.permutation(idxs_val)[
+                    : self.attack_settings.val_size]
+            val_set = Subset(self._val_dataset, idxs_val)
+            y_val = self._get_predictions(self._victim_model, val_set)
+        
         val_set = CustomLabelDataset(val_set, y_val)
 
         val_label_counts = dict(
