@@ -102,13 +102,7 @@ class ActiveThief(Base):
     def _entropy_strategy(self,
                           k,
                           data_rest):
-        scores = []
-        data_rest = MefDataset(self.base_settings, data_rest)
-        loader = data_rest.generic_dataloader()
-        for _, prob_dists in tqdm(loader, desc="Calculating entropy scores"):
-            scores.append(Categorical(prob_dists).entropy())
-
-        scores = torch.cat(scores)
+        scores = Categorical(data_rest.targets).entropy()
         return scores.argsort(descending=True)[:k].numpy()
 
     def _kcenter_strategy(self,
@@ -136,6 +130,9 @@ class ActiveThief(Base):
 
         min_dists = torch.cat(min_dists)
         selected_points = []
+        # In the paper they are selecting one center in each iteration,
+        # this is however extremely slow even with optimization. We thus
+        # select 5 samples each iteration
         for _ in tqdm(range(k // 5), desc="Selecting best points"):
             min_dists_max_ids = torch.argsort(min_dists, dim=-1,
                                               descending=True)[:5]
@@ -174,7 +171,7 @@ class ActiveThief(Base):
         loader = data_rest.generic_dataloader()
 
         fmodel = fb.PyTorchModel(self._substitute_model.model, bounds=(0, 1))
-        deepfool = fb.attacks.L2DeepFoolAttack(steps=30, candidates=3,
+        deepfool = fb.attacks.L2DeepFoolAttack(steps=50, candidates=3,
                                                overshoot=0.01)
 
         scores = []
@@ -184,12 +181,12 @@ class ActiveThief(Base):
                 y = y.cuda()
 
             labels = get_class_labels(y)
-            x_adv, _, _ = deepfool(fmodel, x, labels, epsilons=0.03)
+            x_adv, _, _ = deepfool(fmodel, x, labels, epsilons=8)
 
             # difference as L2-norm
             for el1, el2 in zip(x_adv, x):
                 scores.append(torch.dist(el1, el2).detach().cpu())
-
+        
         return torch.stack(scores).argsort(descending=True)[:k].numpy()
 
     def _select_samples(self,
@@ -211,6 +208,7 @@ class ActiveThief(Base):
             # Get initial centers
             init_centers = self._get_predictions(self._substitute_model,
                                                  query_sets)
+            # Substitute model returns logits
             init_centers = get_prob_vector(init_centers)
             selected_points = self._kcenter_strategy(k, data_rest,
                                                      init_centers)
@@ -218,12 +216,13 @@ class ActiveThief(Base):
             selected_points = self._deepfool_strategy(k, data_rest)
         elif selection_strategy == "dfal+k-center":
             idxs_dfal_best = self._deepfool_strategy(budget, data_rest)
-            y_dfal_best = data_rest.targets[idxs_dfal_best]
+            data_dfal_best = Subset(data_rest, idxs_dfal_best)
             # Get initial centers
             init_centers = self._get_predictions(self._substitute_model,
                                                  query_sets)
+            # Substitute model returns logits
             init_centers = get_prob_vector(init_centers)
-            idxs_kcenter_best = self._kcenter_strategy(k, y_dfal_best,
+            idxs_kcenter_best = self._kcenter_strategy(k, data_dfal_best,
                                                        init_centers)
             selected_points = idxs_dfal_best[idxs_kcenter_best]
         else:
@@ -351,13 +350,14 @@ class ActiveThief(Base):
             # Step 4: Approximate labels are obtained for remaining samples
             # using the substitute
             data_rest = Subset(self._thief_dataset, idxs_rest)
-            # Random and dfal strategies dont require predictions for the rest
+            # Random strategy doesn't require predictions for the rest
             # of thief dataset
             if self.attack_settings.selection_strategy != "random":
                 self._logger.info("Getting substitute's predictions for the "
                                   "rest of the thief dataset")
                 y_rest = self._get_predictions(self._substitute_model,
                                                data_rest)
+                # Substitute model returns logits
                 y_rest = get_prob_vector(y_rest)
                 data_rest = CustomLabelDataset(data_rest, y_rest)
 

@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 from pytorch_lightning import seed_everything
 from torch.utils.data import ConcatDataset
-from torchvision.transforms import transforms
+from torchvision.transforms import transforms as T
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
@@ -39,17 +39,13 @@ def set_up(args):
 
     # Prepare data
     print("Preparing data")
-    mean = (0.5,)
-    std = (0.5,)
-    transform = transforms.Compose([transforms.Resize(DIMS[-1]),
-                                    transforms.ToTensor(),
-                                    transforms.Normalize(mean, std)])
+    transform = T.Compose([T.Resize(DIMS[1:3]),
+                           T.ToTensor()])
     train_set = Cifar10(root=args.cifar10_dir, transform=transform)
     test_set = Cifar10(root=args.cifar10_dir, train=False, transform=transform)
 
-    transform = transforms.Compose([transforms.CenterCrop(DIMS[1]),
-                                    transforms.ToTensor(),
-                                    transforms.Normalize(mean, std)])
+    transform = T.Compose([T.Resize(DIMS[1:3]),
+                           T.ToTensor()])
     imagenet_train = ImageNet1000(root=args.imagenet_dir,
                                   size=IMAGENET_TRAIN_SIZE,
                                   transform=transform, seed=args.seed)
