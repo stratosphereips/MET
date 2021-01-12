@@ -31,7 +31,7 @@ def set_up(args):
     victim_model = AtCnn(dims=DIMS, num_classes=NUM_CLASSES,
                          dropout_keep_prob=0.2)
     substitute_model = AtCnn(dims=DIMS, num_classes=NUM_CLASSES,
-                             dropout_keep_prob=0.2, return_all_layers=True)
+                             dropout_keep_prob=0.2, return_hidden=True)
 
     if args.gpus:
         victim_model.cuda()
@@ -39,15 +39,11 @@ def set_up(args):
 
     # Prepare data
     print("Preparing data")
-    mean = (0.5,)
-    std = (0.5,)
-    transform = T.Compose([T.Resize(DIMS[-1]), T.ToTensor(),
-                           T.Normalize(mean, std)])
+    transform = T.Compose([T.Resize(DIMS[1:3]), T.ToTensor()])
     train_set = Cifar10(root=args.cifar10_dir, transform=transform)
     test_set = Cifar10(root=args.cifar10_dir, train=False, transform=transform)
 
-    transform = T.Compose([T.Resize(DIMS[-1]), T.ToTensor(),
-                           T.Normalize(mean, std)])
+    transform = T.Compose([T.Resize(DIMS[1:3]), T.ToTensor()])
     imagenet_train = ImageNet1000(root=args.imagenet_dir,
                                   size=IMAGENET_TRAIN_SIZE,
                                   transform=transform, seed=args.seed)
@@ -85,6 +81,11 @@ if __name__ == "__main__":
     parser.add_argument("--imagenet_dir", type=str,
                         help="Path to ImageNet dataset")
     args = parser.parse_args()
+    args.trainining_epochs = 1000
+    args.patience = 100
+    args.evaluation_frequency = 1
+    args.batch_size = 150
+
     mkdir_if_missing(args.save_loc)
 
     victim_model, substitute_model, thief_dataset, test_set = set_up(args)

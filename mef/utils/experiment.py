@@ -4,12 +4,10 @@ import torch
 import torch.nn.functional as F
 from torch.nn import Module
 from torch.optim import lr_scheduler
-from torch.utils.data import Dataset
+from torch.utils.data import DataLoader, Dataset
 
-from mef.utils.pytorch.datasets import MefDataset
 from mef.utils.pytorch.lighting.module import TrainableModel
 from mef.utils.pytorch.lighting.trainer import get_trainer
-from mef.utils.settings import BaseSettings
 
 
 def train_victim_model(victim_model: Module,
@@ -31,22 +29,23 @@ def train_victim_model(victim_model: Module,
                        debug: bool = False,
                        precision=32):
     try:
-        saved_model = torch.load(Path(save_loc).joinpath("victim",
-                                                         "final_victim_model-state_dict.pt"))
+        saved_model = torch.load(Path(save_loc).joinpath(
+                "victim", "final_victim_model-state_dict.pt"))
         victim_model.load_state_dict(saved_model["state_dict"])
         print("Loaded victim model")
     except FileNotFoundError:
         # Prepare secret model
         print("Training victim model")
 
-        dataset = MefDataset(BaseSettings(batch_size=batch_size, gpus=gpus,
-                                          num_workers=num_workers), train_set,
-                             val_set)
-        train_dataloader = dataset.train_dataloader()
+        train_dataloader = DataLoader(dataset=train_set, pin_memory=gpus != 0,
+                                      num_workers=num_workers, shuffle=True,
+                                      batch_size=batch_size)
 
         val_dataloader = None
-        if dataset.val_set is not None:
-            val_dataloader = dataset.val_dataloader()
+        if val_set is not None:
+            val_dataloader = DataLoader(dataset=val_set, pin_memory=gpus != 0,
+                                        num_workers=num_workers,
+                                        batch_size=batch_size)
 
         victim = TrainableModel(victim_model, num_classes, optimizer, loss,
                                 lr_scheduler)
@@ -54,12 +53,11 @@ def train_victim_model(victim_model: Module,
             victim.cuda()
 
         trainer, checkpoint_cb = get_trainer(Path(save_loc).joinpath("victim"),
-                                             None,
-                                             training_epochs, gpus,
-                                             dataset.val_set is not
-                                             None, evaluation_frequency,
-                                             patience, accuracy,
-                                             debug, deterministic, precision)
+                                             None, training_epochs, gpus,
+                                             val_set is not None,
+                                             evaluation_frequency, patience,
+                                             accuracy, debug, deterministic,
+                                             precision, logger=True)
         trainer.fit(victim, train_dataloader, val_dataloader)
 
         if not isinstance(checkpoint_cb, bool):

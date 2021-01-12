@@ -1,6 +1,5 @@
 import torch
-from torch.utils.data import ConcatDataset, DataLoader, Dataset, \
-    IterableDataset, random_split
+from torch.utils.data import Dataset, random_split
 
 
 def split_dataset(dataset, split_size):
@@ -8,59 +7,6 @@ def split_dataset(dataset, split_size):
     rest_set_size = len(dataset) - split_set_size
 
     return random_split(dataset, [rest_set_size, split_set_size])
-
-
-class MefDataset:
-    def __init__(self,
-                 base_settings,
-                 train_set=None,
-                 val_set=None,
-                 test_set=None):
-        self.train_set = train_set
-        self.val_set = val_set
-        self.test_set = test_set
-        self._base_settings = base_settings
-
-    def generic_dataloader(self):
-        dataset = []
-        for set in [self.train_set, self.val_set, self.test_set]:
-            if set is not None:
-                dataset.append(set)
-
-        if len(dataset) == 1:
-            dataset = dataset[0]
-        else:
-            dataset = ConcatDataset(dataset)
-
-        return DataLoader(dataset=dataset,
-                          pin_memory=self._base_settings.gpus != 0,
-                          num_workers=self._base_settings.num_workers,
-                          batch_size=self._base_settings.batch_size)
-
-    def train_dataloader(self):
-        if isinstance(self.train_set, IterableDataset):
-            return DataLoader(dataset=self.train_set)
-        return DataLoader(dataset=self.train_set,
-                          pin_memory=self._base_settings.gpus != 0,
-                          num_workers=self._base_settings.num_workers,
-                          shuffle=True,
-                          batch_size=self._base_settings.batch_size)
-
-    def val_dataloader(self):
-        if isinstance(self.val_set, IterableDataset):
-            return DataLoader(dataset=self.val_set)
-        return DataLoader(dataset=self.val_set,
-                          pin_memory=self._base_settings.gpus != 0,
-                          num_workers=self._base_settings.num_workers,
-                          batch_size=self._base_settings.batch_size)
-
-    def test_dataloader(self):
-        if isinstance(self.test_set, IterableDataset):
-            return DataLoader(dataset=self.test_set)
-        return DataLoader(dataset=self.test_set,
-                          pin_memory=self._base_settings.gpus != 0,
-                          num_workers=self._base_settings.num_workers,
-                          batch_size=self._base_settings.batch_size)
 
 
 class CustomLabelDataset(Dataset):

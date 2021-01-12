@@ -42,7 +42,8 @@ def get_trainer(save_loc: Path,
                 accuracy: bool,
                 debug: bool,
                 deterministic: bool,
-                precision: int):
+                precision: int,
+                logger: bool):
     callbacks, checkpoint_cb = _prepare_callbacks(validation, patience,
                                                   save_loc, iteration,
                                                   debug, accuracy)
@@ -58,20 +59,22 @@ def get_trainer(save_loc: Path,
                       callbacks=callbacks,
                       fast_dev_run=debug,
                       weights_summary=None,
-                      precision=precision if gpus else 32)
+                      precision=precision if gpus else 32,
+                      logger=logger)
 
     return trainer, checkpoint_cb
 
 
 def get_trainer_with_settings(base_settings: BaseSettings,
                               trainer_settings: TrainerSettings,
-                              model_name: str,
-                              iteration: int,
-                              validation: bool):
+                              model_name: str = None,
+                              iteration: int = None,
+                              validation: bool = False,
+                              logger: bool = True):
     return get_trainer(Path(base_settings.save_loc).joinpath(model_name),
                        iteration, trainer_settings.training_epochs,
                        base_settings.gpus, validation,
                        trainer_settings.evaluation_frequency,
                        trainer_settings.patience, trainer_settings.accuracy,
                        base_settings.debug, base_settings.deterministic,
-                       trainer_settings.precision)
+                       trainer_settings.precision, logger)

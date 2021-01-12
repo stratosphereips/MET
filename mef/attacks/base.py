@@ -3,10 +3,10 @@ from abc import ABC, abstractmethod
 import numpy as np
 import torch
 from pytorch_lightning import seed_everything
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from mef.utils.logger import set_up_logger
-from mef.utils.pytorch.datasets import MefDataset
 from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
 from mef.utils.settings import BaseSettings, TrainerSettings
 
@@ -64,19 +64,22 @@ class Base(ABC):
                                 train_set,
                                 val_set=None,
                                 iteration=None):
-        dataset = MefDataset(self.base_settings, train_set, val_set)
-        train_dataloader = dataset.train_dataloader()
+        train_dataloader = DataLoader(
+                dataset=train_set, pin_memory=self.base_settings.gpus != 0,
+                num_workers=self.base_settings.num_workers, shuffle=True,
+                batch_size=self.base_settings.batch_size)
 
         val_dataloader = None
-        if dataset.val_set is not None:
-            val_dataloader = dataset.val_dataloader()
+        if val_set is not None:
+            val_dataloader = DataLoader(
+                    dataset=val_set, pin_memory=self.base_settings.gpus != 0,
+                    num_workers=self.base_settings.num_workers,
+                    batch_size=self.base_settings.batch_size)
 
-        trainer, checkpoint_cb = get_trainer_with_settings(self.base_settings,
-                                                           self.trainer_settings,
-                                                           "substitute",
-                                                           iteration,
-                                                           dataset.val_set
-                                                           is not None)
+        trainer, checkpoint_cb = get_trainer_with_settings(
+                self.base_settings, self.trainer_settings,
+                model_name="substitute", iteration=iteration,
+                validation=val_set is not None)
 
         trainer.fit(self._substitute_model, train_dataloader, val_dataloader)
 
@@ -94,13 +97,14 @@ class Base(ABC):
     def _test_model(self,
                     model,
                     test_set):
-        test_set = MefDataset(self.base_settings, test_set=test_set)
-        test_dataloader = test_set.test_dataloader()
+        test_dataloader = DataLoader(
+                dataset=test_set, pin_memory=self.base_settings.gpus != 0,
+                num_workers=self.base_settings.num_workers,
+                batch_size=self.base_settings.batch_size)
 
         trainer, _ = get_trainer_with_settings(self.base_settings,
                                                self.trainer_settings,
-                                               model_name='', iteration=None,
-                                               validation=False)
+                                               logger=False)
         metrics = trainer.test(model, test_dataloader)
 
         return 100 * metrics[0]["test_acc"]
@@ -142,8 +146,10 @@ class Base(ABC):
                          model,
                          data):
         model.eval()
-        data = MefDataset(self.base_settings, data)
-        loader = data.generic_dataloader()
+        loader = DataLoader(dataset=data,
+                            pin_memory=self.base_settings.gpus != 0,
+                            num_workers=self.base_settings.num_workers,
+                            batch_size=self.base_settings.batch_size)
         hidden_layer_outputs = []
         y_hats = []
         with torch.no_grad():

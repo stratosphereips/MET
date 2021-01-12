@@ -79,16 +79,12 @@ class ActiveThief(Base):
                                  "10)")
         parser.add_argument("--budget", default=20000, type=int,
                             help="Size of the budget (Default: 20000)")
-        parser.add_argument("--training_epochs", default=1000,
-                            type=int,
-                            help="Number of training epochs for substitute "
-                                 "model (Default: 1000)")
-        parser.add_argument("--patience", default=100, type=int,
-                            help="Number of epochs without improvement for "
-                                 "early "
-                                 "stop (Default: 100)")
-        parser.add_argument("--evaluation_frequency", default=1, type=int,
-                            help="Epochs interval of validation (Default: 1)")
+        parser.add_argument("--init_seed_size", default=0.1, type=float,
+                            help="Fraction of budget that should be used for "
+                                 "initial random query (Default: 0.1)")
+        parser.add_argument("--val_size", default=0.2, type=float,
+                            help="Fraction of budget that should be used for "
+                                 "validation set (Default: 0.2)")
 
         cls._add_base_args(parser)
 
@@ -186,7 +182,7 @@ class ActiveThief(Base):
             # difference as L2-norm
             for el1, el2 in zip(x_adv, x):
                 scores.append(torch.dist(el1, el2).detach().cpu())
-        
+
         return torch.stack(scores).argsort(descending=True)[:k].numpy()
 
     def _select_samples(self,

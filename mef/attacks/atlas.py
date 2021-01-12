@@ -9,12 +9,11 @@ import torch
 import torch.nn as nn
 from pl_bolts.datamodules.sklearn_datamodule import TensorDataset
 from pytorch_lightning.core.decorators import auto_move_data
-from torch.utils.data import ConcatDataset, Dataset, Subset
+from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset
 from tqdm import tqdm
 
 from mef.attacks.base import Base
-from mef.utils.pytorch.datasets import CustomLabelDataset, MefDataset, \
-    NoYDataset
+from mef.utils.pytorch.datasets import CustomLabelDataset, NoYDataset
 from mef.utils.pytorch.functional import get_class_labels
 from mef.utils.pytorch.lighting.module import TrainableModel
 from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
@@ -107,8 +106,8 @@ class AtlasThief(Base):
         trainer_settings.validation = False
         trainer, _ = get_trainer_with_settings(self.base_settings,
                                                trainer_settings,
-                                               "correct_model", None,
-                                               False)
+                                               model_name="correct_model",
+                                               logger=False)
 
         correct_model = UncertaintyPredictor(train_set[0][0].shape[0])
         loss = nn.BCEWithLogitsLoss()
@@ -118,9 +117,13 @@ class AtlasThief(Base):
         if self.base_settings.gpus:
             correct_model.cuda()
 
-        train_set = MefDataset(self.base_settings, train_set)
-        train_loader = train_set.train_dataloader()
-        trainer.fit(correct_model, train_loader)
+        train_dataloader = DataLoader(dataset=train_set,
+                                      pin_memory=self.base_settings.gpus != 0,
+                                      num_workers=self.base_settings.num_workers,
+                                      shuffle=True,
+                                      batch_size=self.base_settings.batch_size)
+
+        trainer.fit(correct_model, train_dataloader)
 
         return correct_model
 
@@ -206,7 +209,7 @@ class AtlasThief(Base):
         val_set = CustomLabelDataset(val_set, y_val)
 
         val_label_counts = dict(
-            list(enumerate([0] * self._victim_model.num_classes)))
+                list(enumerate([0] * self._victim_model.num_classes)))
         if y_val.size()[-1] == 1:
             for class_id in torch.round(y_val):
                 val_label_counts[class_id.item()] += 1

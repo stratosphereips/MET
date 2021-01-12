@@ -5,7 +5,6 @@ from pathlib import Path
 import torch
 import torch.nn.functional as F
 from pytorch_lightning import seed_everything
-from torch.utils.data import ConcatDataset
 from torchvision.transforms import transforms as T
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
@@ -39,13 +38,11 @@ def set_up(args):
 
     # Prepare data
     print("Preparing data")
-    transform = T.Compose([T.Resize(DIMS[1:3]),
-                           T.ToTensor()])
+    transform = T.Compose([T.Resize(DIMS[1:3]), T.ToTensor()])
     train_set = Cifar10(root=args.cifar10_dir, transform=transform)
     test_set = Cifar10(root=args.cifar10_dir, train=False, transform=transform)
 
-    transform = T.Compose([T.Resize(DIMS[1:3]),
-                           T.ToTensor()])
+    transform = T.Compose([T.Resize(DIMS[1:3]), T.ToTensor()])
     imagenet_train = ImageNet1000(root=args.imagenet_dir,
                                   size=IMAGENET_TRAIN_SIZE,
                                   transform=transform, seed=args.seed)
@@ -84,6 +81,12 @@ if __name__ == "__main__":
     parser.add_argument("--imagenet_dir", type=str,
                         help="Path to ImageNet dataset")
     args = parser.parse_args()
+    # Values from the ActiveThief paper
+    args.trainining_epochs = 1000
+    args.patience = 100
+    args.evaluation_frequency = 1
+    args.batch_size = 150
+
     mkdir_if_missing(args.save_loc)
 
     victim_model, substitute_model, thief_dataset, test_set, val_dataset = \
