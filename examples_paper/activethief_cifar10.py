@@ -82,7 +82,7 @@ if __name__ == "__main__":
                         help="Path to ImageNet dataset")
     args = parser.parse_args()
     # Values from the ActiveThief paper
-    args.trainining_epochs = 1000
+    args.training_epochs = 1000
     args.patience = 100
     args.evaluation_frequency = 1
     args.batch_size = 150

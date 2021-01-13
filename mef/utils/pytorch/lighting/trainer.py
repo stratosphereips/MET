@@ -67,7 +67,7 @@ def get_trainer(save_loc: Path,
 
 def get_trainer_with_settings(base_settings: BaseSettings,
                               trainer_settings: TrainerSettings,
-                              model_name: str = None,
+                              model_name: str = "",
                               iteration: int = None,
                               validation: bool = False,
                               logger: bool = True):

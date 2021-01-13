@@ -132,7 +132,7 @@ class Base(ABC):
         return
 
     def _save_final_subsitute(self):
-        final_model_loc = self.base_settings.save_loc.joinpath(
+        final_model_loc = self.base_settings.save_loc.joinpath("substitute",
                 "final_substitute_model-state_dict.pt")
         self._logger.info(
                 "Saving final substitute model state dictionary to: {}".format(

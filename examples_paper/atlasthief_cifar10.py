@@ -81,7 +81,7 @@ if __name__ == "__main__":
     parser.add_argument("--imagenet_dir", type=str,
                         help="Path to ImageNet dataset")
     args = parser.parse_args()
-    args.trainining_epochs = 1000
+    args.training_epochs = 1000
     args.patience = 100
     args.evaluation_frequency = 1
     args.batch_size = 150

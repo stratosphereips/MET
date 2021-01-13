@@ -6,11 +6,11 @@ import foolbox as fb
 import numpy as np
 import torch
 from torch.distributions import Categorical
-from torch.utils.data import ConcatDataset, Dataset, Subset
+from torch.utils.data import ConcatDataset, Dataset, Subset, DataLoader
 from tqdm import tqdm
 
 from .base import Base
-from ..utils.pytorch.datasets import CustomLabelDataset, MefDataset
+from ..utils.pytorch.datasets import CustomLabelDataset, NoYDataset
 from ..utils.pytorch.functional import get_class_labels, get_prob_vector
 from ..utils.settings import AttackSettings
 
@@ -103,24 +103,26 @@ class ActiveThief(Base):
 
     def _kcenter_strategy(self,
                           k,
-                          data_rest,
+                          preds_sub_rest,
                           init_centers):
-        data_rest = MefDataset(self.base_settings, data_rest)
-        loader = data_rest.generic_dataloader()
+        loader = DataLoader(dataset=NoYDataset(preds_sub_rest),
+                            pin_memory=self.base_settings.gpus != 0,
+                            num_workers=self.base_settings.num_workers,
+                            batch_size=self.base_settings.batch_size)
 
         if self.base_settings.gpus:
             init_centers = init_centers.cuda()
 
         min_dists = []
         with torch.no_grad():
-            for _, y_rest_batch in tqdm(loader, desc="Calculating distance "
-                                                     "from initial centers"):
+            for preds_rest_batch, _ in tqdm(loader, desc="Calculating distance "
+                                                      "from initial centers"):
                 if self.base_settings.gpus:
-                    y_rest_batch = y_rest_batch.cuda()
+                    preds_rest_batch = preds_rest_batch.cuda()
 
                 # To save memory we are only keeping the minimal distance
                 # for each y from initial centers
-                batch_dists = torch.cdist(y_rest_batch, init_centers, p=2)
+                batch_dists = torch.cdist(preds_rest_batch, init_centers, p=2)
                 batch_dists_min_vals, _ = torch.min(batch_dists, dim=-1)
                 min_dists.append(batch_dists_min_vals)
 
@@ -134,19 +136,20 @@ class ActiveThief(Base):
                                               descending=True)[:5]
 
             selected_points.append(min_dists_max_ids)
-            new_centers = data_rest.train_set.targets[min_dists_max_ids]
+            new_centers = preds_sub_rest[min_dists_max_ids]
 
             if self.base_settings.gpus:
                 new_centers = new_centers.cuda()
 
             new_centers_dists_min_vals = []
             with torch.no_grad():
-                for _, y_rest_batch in loader:
+                for preds_rest_batch, _ in loader:
 
                     if self.base_settings.gpus:
-                        y_rest_batch = y_rest_batch.cuda()
+                        preds_rest_batch = preds_rest_batch.cuda()
 
-                    batch_dists = torch.cdist(y_rest_batch, new_centers, p=2)
+                    batch_dists = torch.cdist(preds_rest_batch, new_centers,
+                                              p=2)
                     batch_dists_min_vals, _ = torch.min(batch_dists, dim=-1)
 
                     new_centers_dists_min_vals.append(batch_dists_min_vals)
@@ -163,12 +166,13 @@ class ActiveThief(Base):
                            k,
                            data_rest):
         self._substitute_model.eval()
-        data_rest = MefDataset(self.base_settings, data_rest)
-        loader = data_rest.generic_dataloader()
+        loader = DataLoader(dataset=data_rest,
+                            pin_memory=self.base_settings.gpus != 0,
+                            num_workers=self.base_settings.num_workers,
+                            batch_size=self.base_settings.batch_size)
 
         fmodel = fb.PyTorchModel(self._substitute_model.model, bounds=(0, 1))
-        deepfool = fb.attacks.L2DeepFoolAttack(steps=50, candidates=3,
-                                               overshoot=0.01)
+        deepfool = fb.attacks.L2DeepFoolAttack(steps=50, overshoot=0.01)
 
         scores = []
         for x, y in tqdm(loader, desc="Getting dfal scores"):
@@ -177,17 +181,17 @@ class ActiveThief(Base):
                 y = y.cuda()
 
             labels = get_class_labels(y)
-            x_adv, _, _ = deepfool(fmodel, x, labels, epsilons=8)
+            x_adv, _, _ = deepfool(fmodel, x, labels, epsilons=1)
 
             # difference as L2-norm
             for el1, el2 in zip(x_adv, x):
                 scores.append(torch.dist(el1, el2).detach().cpu())
 
-        return torch.stack(scores).argsort(descending=True)[:k].numpy()
+        return torch.stack(scores).argsort()[:k].numpy()
 
     def _select_samples(self,
-                        data_rest,
-                        query_sets):
+                        data_rest: Type[CustomLabelDataset],
+                        query_sets: Type[ConcatDataset]):
         selection_strategy = self.attack_settings.selection_strategy
         budget = self.attack_settings.budget
         k = self.attack_settings.k
@@ -206,19 +210,21 @@ class ActiveThief(Base):
                                                  query_sets)
             # Substitute model returns logits
             init_centers = get_prob_vector(init_centers)
-            selected_points = self._kcenter_strategy(k, data_rest,
+            selected_points = self._kcenter_strategy(k,
+                                                     data_rest.targets,
                                                      init_centers)
         elif selection_strategy == "dfal":
             selected_points = self._deepfool_strategy(k, data_rest)
         elif selection_strategy == "dfal+k-center":
             idxs_dfal_best = self._deepfool_strategy(budget, data_rest)
-            data_dfal_best = Subset(data_rest, idxs_dfal_best)
+            preds_sub_dfal_best = data_rest.targets[idxs_dfal_best]
             # Get initial centers
             init_centers = self._get_predictions(self._substitute_model,
                                                  query_sets)
             # Substitute model returns logits
             init_centers = get_prob_vector(init_centers)
-            idxs_kcenter_best = self._kcenter_strategy(k, data_dfal_best,
+            idxs_kcenter_best = self._kcenter_strategy(k,
+                                                       preds_sub_dfal_best,
                                                        init_centers)
             selected_points = idxs_dfal_best[idxs_kcenter_best]
         else:
