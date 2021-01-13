@@ -9,11 +9,11 @@ from typing import Type
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import ConcatDataset, Dataset, Subset
+from torch.utils.data import ConcatDataset, Dataset, Subset, DataLoader
 from tqdm import tqdm
 
 from mef.attacks.base import Base
-from mef.utils.pytorch.datasets import CustomLabelDataset, MefDataset
+from mef.utils.pytorch.datasets import CustomLabelDataset
 from mef.utils.pytorch.functional import get_prob_vector, soft_cross_entropy
 from mef.utils.settings import AttackSettings
 
@@ -133,8 +133,10 @@ class KnockOff(Base):
 
     def _online_train(self, data):
         self._substitute_model.train()
-        data = MefDataset(self.base_settings, data)
-        loader = data.generic_dataloader()
+        loader = DataLoader(dataset=data,
+                    pin_memory=self.base_settings.gpus != 0,
+                    num_workers=self.base_settings.num_workers,
+                    batch_size=self.base_settings.batch_size)
 
         for x, y_output in tqdm(loader, desc="Online training"):
             if self.base_settings.gpus:

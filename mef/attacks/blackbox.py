@@ -4,11 +4,11 @@ from typing import Type
 
 import torch
 from pl_bolts.datamodules.sklearn_datamodule import TensorDataset
-from torch.utils.data import ConcatDataset, Dataset
+from torch.utils.data import ConcatDataset, Dataset, DataLoader
 from tqdm import tqdm
 
 from mef.attacks.base import Base
-from mef.utils.pytorch.datasets import MefDataset, NoYDataset
+from mef.utils.pytorch.datasets import NoYDataset
 from mef.utils.pytorch.functional import get_class_labels
 from mef.utils.settings import AttackSettings
 
@@ -72,9 +72,10 @@ class BlackBox(Base):
 
     def _jacobian_augmentation(self, query_sets, lmbda):
         thief_dataset = ConcatDataset(query_sets)
-        thief_dataset = MefDataset(self.base_settings,
-                                   thief_dataset)
-        loader = thief_dataset.generic_dataloader()
+        loader = DataLoader(dataset=thief_dataset,
+                            pin_memory=self.base_settings.gpus != 0,
+                            num_workers=self.base_settings.num_workers,
+                            batch_size=self.base_settings.batch_size)
 
         x_query_set = []
         for x_thief, y_thief in tqdm(loader, desc="Jacobian augmentation",
