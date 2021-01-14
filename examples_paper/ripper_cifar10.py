@@ -15,6 +15,8 @@ from mef.attacks.ripper import Ripper
 from mef.utils.experiment import train_victim_model
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets.vision import Cifar10
+from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
+from mef.utils.pytorch.functional import soft_cross_entropy
 from mef.utils.pytorch.models.vision import AlexNetSmall, HalfAlexNetSmall
 
 IMAGENET_TRAIN_SIZE = 100000
@@ -55,10 +57,16 @@ def set_up(args):
                        debug=args.debug, precision=args.precision)
 
     # Load generator
-    #TODO: removed hardcoded path
-    state_dict = torch.load("./cache/ripper/CIFAR10-logits/generator/"
+    # TODO: removed hardcoded path
+    state_dict = torch.load("./cache/ripper/CIFAR10/generator/"
                             "cifar_100_90_classes_gan.pth")["gen_state_dict"]
     generator.load_state_dict(state_dict)
+
+    victim_model = VictimModel(victim_model, NUM_CLASSES, output_type="logits")
+    substitute_model = TrainableModel(substitute_model, NUM_CLASSES,
+                                      torch.optim.Adam(
+                                              substitute_model.parameters()),
+                                      soft_cross_entropy)
 
     return victim_model, substitute_model, generator, test_set
 
