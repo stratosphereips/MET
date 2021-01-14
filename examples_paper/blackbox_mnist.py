@@ -76,6 +76,8 @@ if __name__ == "__main__":
     parser.add_argument("--holdout_size", default=150, type=int,
                         help="Hold out size from MNIST test (Default: 150)")
     args = parser.parse_args()
+    args.training_epochs = 5
+
     mkdir_if_missing(args.save_loc)
 
     victim_model, substitute_model, thief_dataset, test_set = set_up(args)

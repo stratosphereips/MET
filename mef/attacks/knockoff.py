@@ -9,11 +9,11 @@ from typing import Type
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import ConcatDataset, Dataset, Subset
+from torch.utils.data import ConcatDataset, Dataset, Subset, DataLoader
 from tqdm import tqdm
 
 from mef.attacks.base import Base
-from mef.utils.pytorch.datasets import CustomLabelDataset, MefDataset
+from mef.utils.pytorch.datasets import CustomLabelDataset
 from mef.utils.pytorch.functional import get_prob_vector, soft_cross_entropy
 from mef.utils.settings import AttackSettings
 
@@ -64,6 +64,7 @@ class KnockOff(Base):
         self.trainer_settings._validation = False
 
         # KnockOff's specific attributes
+        # TODO: make it changable
         self._online_optimizer = torch.optim.SGD(
                 self._substitute_model.parameters(), lr=0.0005, momentum=0.5)
         self._online_loss = self._substitute_model._loss
@@ -76,7 +77,7 @@ class KnockOff(Base):
         self._reward_var = None
 
     @classmethod
-    def get_attack_args(cls):
+    def _get_attack_paser(cls):
         parser = argparse.ArgumentParser(description="KnockOff attack")
         parser.add_argument("--sampling_strategy", default="adaptive",
                             type=str,
@@ -87,17 +88,8 @@ class KnockOff(Base):
                             help="Type of reward for adaptive strategy, "
                                  "can be one of {cert, div, loss, all} "
                                  "(Default: all)")
-        parser.add_argument("--victim_output_type", default="prob_dist",
-                            type=str,
-                            help="Type of output from victim model {"
-                                 "prob_dist, raw, one_hot, labels} (Default: "
-                                 "prob_dist)")
         parser.add_argument("--budget", default=20000, type=int,
                             help="Size of the budget (Default: 20000)")
-        parser.add_argument("--training_epochs", default=100, type=int,
-                            help="Number of training epochs for substitute "
-                                 "model (Default: 100)")
-        cls._add_base_args(parser)
 
         return parser
 
@@ -133,8 +125,10 @@ class KnockOff(Base):
 
     def _online_train(self, data):
         self._substitute_model.train()
-        data = MefDataset(self.base_settings, data)
-        loader = data.generic_dataloader()
+        loader = DataLoader(dataset=data,
+                    pin_memory=self.base_settings.gpus != 0,
+                    num_workers=self.base_settings.num_workers,
+                    batch_size=self.base_settings.batch_size)
 
         for x, y_output in tqdm(loader, desc="Online training"):
             if self.base_settings.gpus:

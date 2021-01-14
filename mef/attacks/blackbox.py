@@ -4,11 +4,11 @@ from typing import Type
 
 import torch
 from pl_bolts.datamodules.sklearn_datamodule import TensorDataset
-from torch.utils.data import ConcatDataset, Dataset
+from torch.utils.data import ConcatDataset, Dataset, DataLoader
 from tqdm import tqdm
 
 from mef.attacks.base import Base
-from mef.utils.pytorch.datasets import MefDataset, NoYDataset
+from mef.utils.pytorch.datasets import NoYDataset
 from mef.utils.pytorch.functional import get_class_labels
 from mef.utils.settings import AttackSettings
 
@@ -38,7 +38,7 @@ class BlackBox(Base):
         self.trainer_settings._validation = False
 
     @classmethod
-    def get_attack_args(cls):
+    def _get_attack_paser(cls):
         parser = argparse.ArgumentParser(description="BlackBox attack")
         parser.add_argument("--iterations", default=6, type=int,
                             help="Number of iterations of the attacks ("
@@ -46,11 +46,6 @@ class BlackBox(Base):
         parser.add_argument("--lmbda", default=0.1, type=float,
                             help="Value of lambda in Jacobian augmentation ("
                                  "Default: 0.1)")
-        parser.add_argument("--training_epochs", default=10, type=int,
-                            help="Number of training epochs for substitute "
-                                 "model (Default: 10)")
-
-        cls._add_base_args(parser)
 
         return parser
 
@@ -72,9 +67,10 @@ class BlackBox(Base):
 
     def _jacobian_augmentation(self, query_sets, lmbda):
         thief_dataset = ConcatDataset(query_sets)
-        thief_dataset = MefDataset(self.base_settings,
-                                   thief_dataset)
-        loader = thief_dataset.generic_dataloader()
+        loader = DataLoader(dataset=thief_dataset,
+                            pin_memory=self.base_settings.gpus != 0,
+                            num_workers=self.base_settings.num_workers,
+                            batch_size=self.base_settings.batch_size)
 
         x_query_set = []
         for x_thief, y_thief in tqdm(loader, desc="Jacobian augmentation",

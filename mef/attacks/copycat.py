@@ -19,15 +19,8 @@ class CopyCat(Base):
         self.trainer_settings._validation = False
 
     @classmethod
-    def get_attack_args(cls):
-        parser = argparse.ArgumentParser(description="CopyCat attack")
-        parser.add_argument("--training_epochs", default=5, type=int,
-                            help="Number of training epochs for substitute "
-                                 "model (Default: 5)")
-
-        cls._add_base_args(parser)
-
-        return parser
+    def _get_attack_paser(cls):
+        return argparse.ArgumentParser(description="CopyCat attack")
 
     def _check_args(self,
                     sub_data: Type[Dataset],
