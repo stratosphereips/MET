@@ -70,12 +70,12 @@ class Base(ABC):
 
     @classmethod
     @abstractmethod
-    def _get_attack_paser(cls):
+    def _get_attack_parser(cls):
         pass
 
     @classmethod
     def get_attack_args(cls):
-        parser = cls._get_attack_paser()
+        parser = cls._get_attack_parser()
         cls._add_base_args(parser)
         cls._add_trainer_args(parser)
 

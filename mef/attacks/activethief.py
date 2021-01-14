@@ -65,7 +65,7 @@ class ActiveThief(Base):
         self._val_dataset = None
 
     @classmethod
-    def _get_attack_paser(cls):
+    def _get_attack_parser(cls):
         parser = argparse.ArgumentParser(description="ActiveThief attack")
         parser.add_argument("--selection_strategy", default="entropy",
                             type=str,

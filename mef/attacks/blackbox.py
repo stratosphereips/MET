@@ -38,7 +38,7 @@ class BlackBox(Base):
         self.trainer_settings._validation = False
 
     @classmethod
-    def _get_attack_paser(cls):
+    def _get_attack_parser(cls):
         parser = argparse.ArgumentParser(description="BlackBox attack")
         parser.add_argument("--iterations", default=6, type=int,
                             help="Number of iterations of the attacks ("

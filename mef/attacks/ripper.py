@@ -149,7 +149,7 @@ class Ripper(Base):
         self._generator = generator
 
     @classmethod
-    def _get_attack_paser(cls):
+    def _get_attack_parser(cls):
         parser = argparse.ArgumentParser(description="Ripper attack")
         parser.add_argument("--generated_data", default="optimized", type=str,
                             help="Type of generated data from generator. Can "

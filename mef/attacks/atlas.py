@@ -43,12 +43,14 @@ class AtlasThiefSettings(AttackSettings):
 
     def __init__(self,
                  iterations: int,
-                 budget: int):
+                 budget: int,
+                 init_seed_size: float,
+                 val_size: float):
         self.iterations = iterations
         self.budget = budget
 
-        self.init_seed_size = int(self.budget * 0.1)
-        self.val_size = int(self.budget * 0.2)
+        self.init_seed_size = int(self.budget * init_seed_size)
+        self.val_size = int(self.budget * val_size)
         self.k = (self.budget - self.val_size - self.init_seed_size) // \
                  self.iterations
 
@@ -64,10 +66,11 @@ class AtlasThief(Base):
                  val_size=0.2):
 
         super().__init__(victim_model, substitute_model)
-        self.attack_settings = AtlasThiefSettings(iterations, budget)
+        self.attack_settings = AtlasThiefSettings(iterations, budget,
+                                                  init_seed_size, val_size)
 
     @classmethod
-    def _get_attack_paser(self):
+    def _get_attack_parser(cls):
         parser = argparse.ArgumentParser(description="Atlas attack")
         parser.add_argument("--iterations", default=10, type=int,
                             help="Number of iterations of the attacks ("

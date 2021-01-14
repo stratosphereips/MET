@@ -77,7 +77,7 @@ class KnockOff(Base):
         self._reward_var = None
 
     @classmethod
-    def _get_attack_paser(cls):
+    def _get_attack_parser(cls):
         parser = argparse.ArgumentParser(description="KnockOff attack")
         parser.add_argument("--sampling_strategy", default="adaptive",
                             type=str,

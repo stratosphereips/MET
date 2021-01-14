@@ -19,7 +19,7 @@ class CopyCat(Base):
         self.trainer_settings._validation = False
 
     @classmethod
-    def _get_attack_paser(cls):
+    def _get_attack_parser(cls):
         return argparse.ArgumentParser(description="CopyCat attack")
 
     def _check_args(self,
