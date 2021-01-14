@@ -31,10 +31,7 @@ class GOCData:
         self.dims = (3, 224, 224)
 
         # Imagenet values
-        mean = [0.485, 0.456, 0.406]
-        std = [0.229, 0.224, 0.225]
-        self.transform = T.Compose([T.Resize((224, 224)), T.ToTensor(),
-                                    T.Normalize(mean, std)])
+        self.transform = T.Compose([T.Resize((224, 224)), T.ToTensor()])
 
         self.test_set = None
         self.od_dataset = None
@@ -154,6 +151,8 @@ if __name__ == "__main__":
     parser.add_argument("--imagenet_dir", type=str,
                         help="Path to ImageNet dataset")
     args = parser.parse_args()
+    args.training_epochs = 5
+
     mkdir_if_missing(args.save_loc)
 
     victim_model, substitute_model, thief_dataset, test_set = set_up(args)

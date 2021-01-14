@@ -65,7 +65,7 @@ class ActiveThief(Base):
         self._val_dataset = None
 
     @classmethod
-    def get_attack_args(cls):
+    def _get_attack_paser(cls):
         parser = argparse.ArgumentParser(description="ActiveThief attack")
         parser.add_argument("--selection_strategy", default="entropy",
                             type=str,
@@ -85,8 +85,6 @@ class ActiveThief(Base):
         parser.add_argument("--val_size", default=0.2, type=float,
                             help="Fraction of budget that should be used for "
                                  "validation set (Default: 0.2)")
-
-        cls._add_base_args(parser)
 
         return parser
 

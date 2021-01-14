@@ -149,17 +149,12 @@ class Ripper(Base):
         self._generator = generator
 
     @classmethod
-    def get_attack_args(cls):
+    def _get_attack_paser(cls):
         parser = argparse.ArgumentParser(description="Ripper attack")
         parser.add_argument("--generated_data", default="optimized", type=str,
                             help="Type of generated data from generator. Can "
                                  "be one of {random, optimized} (Default: "
                                  "optimized)")
-        parser.add_argument("--training_epochs", default=200, type=int,
-                            help="Number of training epochs for substitute "
-                                 "model (Default: 200)")
-
-        cls._add_base_args(parser)
 
         return parser
 

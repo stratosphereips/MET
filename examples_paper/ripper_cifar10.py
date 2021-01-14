@@ -37,10 +37,7 @@ def set_up(args):
 
     # Prepare data
     print("Preparing data")
-    mean = (0.5,)
-    std = (0.5,)
-    transform = T.Compose([T.Resize(DIMS[-1]), T.ToTensor(),
-                           T.Normalize(mean, std)])
+    transform = T.Compose([T.Resize(DIMS[-1]), T.ToTensor()])
     train_set = Cifar10(root=args.cifar10_dir, transform=transform)
     test_set = Cifar10(root=args.cifar10_dir, train=False, transform=transform)
 
@@ -50,7 +47,7 @@ def set_up(args):
     victim_training_epochs = 200
     train_victim_model(victim_model, optimizer, loss, train_set,
                        NUM_CLASSES, victim_training_epochs, args.batch_size,
-                       args.num_workers, test_set, save_loc=args.save_loc,
+                       args.num_workers, save_loc=args.save_loc,
                        gpus=args.gpus, deterministic=args.deterministic,
                        debug=args.debug, precision=args.precision)
 
@@ -70,6 +67,8 @@ if __name__ == "__main__":
     parser.add_argument("--imagenet_dir", type=str,
                         help="Path to ImageNet dataset")
     args = parser.parse_args()
+    args.training_epochs = 200
+    
     mkdir_if_missing(args.save_loc)
 
     victim_model, substitute_model, generator, test_set = set_up(args)

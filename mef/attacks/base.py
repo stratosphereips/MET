@@ -29,11 +29,6 @@ class Base(ABC):
         self._substitute_model = substitute_model
 
     @classmethod
-    @abstractmethod
-    def get_attack_args(cls):
-        pass
-
-    @classmethod
     def _add_base_args(cls, parser):
         parser.add_argument("--seed", default=0, type=int,
                             help="Random seed to be used (Default: 0)")
@@ -59,6 +54,32 @@ class Base(ABC):
                                  "early stopping. If False F1-macro is used "
                                  "instead. (Default: False)")
         return
+
+    @classmethod
+    def _add_trainer_args(cls, parser):
+        parser.add_argument("--training_epochs", default=100, type=int,
+                    help="Number of training epochs for substitute "
+                            "model (Default: 100)")
+        parser.add_argument("--patience", default=10, type=int,
+                            help="Number of epochs without improvement for "
+                                 "early stop (Default: 10)")
+        parser.add_argument("--evaluation_frequency", default=1, type=int,
+                            help="Epochs interval of validation (Default: 1)")
+
+        return
+
+    @classmethod
+    @abstractmethod
+    def _get_attack_paser(cls):
+        pass
+
+    @classmethod
+    def get_attack_args(cls):
+        parser = cls._get_attack_paser()
+        cls._add_base_args(parser)
+        cls._add_trainer_args(parser)
+
+        return parser
 
     def _train_substitute_model(self,
                                 train_set,
