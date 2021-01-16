@@ -2,6 +2,7 @@ import os
 import sys
 from pathlib import Path
 
+from torch.utils.data import ConcatDataset
 import torch
 import torch.nn.functional as F
 from pytorch_lightning import seed_everything
@@ -64,6 +65,17 @@ def set_up(args):
                                       torch.optim.lr_scheduler.StepLR(
                                               sub_optimizer,
                                               step_size=60))
+
+    # Because we are using adaptive_flat we are using the same experiment setup as int
+    # the paper, where it assumed that the attacker has access to all available data 
+    sub_dataset = ConcatDataset([sub_dataset, train_set, test_set])
+    sub_dataset.num_classes = 1256
+    sub_dataset.datasets[1].targets = [y + 1000 for y in sub_dataset.datasets[1].targets]
+    sub_dataset.datasets[2].targets = [y + 1000 for y in sub_dataset.datasets[2].targets]
+    sub_dataset.targets = []
+    sub_dataset.targets.extend(sub_dataset.datasets[0].targets)
+    sub_dataset.targets.extend(sub_dataset.datasets[1].targets)
+    sub_dataset.targets.extend(sub_dataset.datasets[2].targets)
 
     return victim_model, substitute_model, sub_dataset, test_set
 

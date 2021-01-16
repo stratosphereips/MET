@@ -27,6 +27,7 @@ class ImageNet1000(ImageFolder):
 
         if size is not None:
             self._subset_idxs = self._get_subset_idxs()
+            self.targets = [self.targets[i] for i in self._subset_idxs]
             self.samples = [self.samples[i] for i in self._subset_idxs]
             self.imgs = self.samples
 
