@@ -228,12 +228,7 @@ class KnockOff(Base):
 
     def _adaptive_strategy(self) -> ConcatDataset:
         # Number of actions
-        if isinstance(self._thief_dataset, Subset):
-            self._num_actions = len(
-                    np.unique(self._thief_dataset.dataset.targets))
-        else:
-            self._num_actions = len(
-                    np.unique(self._thief_dataset.targets))
+        self._num_actions = self._thief_dataset.num_classes
 
         # We need to keep an average version of the victim output
         if self.attack_settings.reward_type == "div" or \

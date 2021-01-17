@@ -44,7 +44,7 @@ class _MefModel(pl.LightningModule, ABC):
                      step_type: str) -> torch.Tensor:
         x, y = batch
 
-        preds = self._shared_step_output(x)
+        preds = self._shared_step_output(x).float()
 
         # preds is expected to in shape of [B] for binary and [B, C] for
         # multiclass

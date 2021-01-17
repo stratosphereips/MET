@@ -37,8 +37,9 @@ class Caltech256(ImageFolder):
         self._pruned_idxs = self._partition_to_idxs[
             "train" if train else "test"]
 
-        # Prune (self.imgs, self.samples to only include examples_paper from
-        # the required train/test partition
+        # Prune (self.imgs, self.samples to only include examples_paper from the
+        # required train/test partition
+        self.targets = [self.targets[i] for i in self._pruned_idxs]
         self.samples = [self.samples[i] for i in self._pruned_idxs]
         self.imgs = self.samples
 
