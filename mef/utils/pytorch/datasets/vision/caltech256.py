@@ -3,6 +3,7 @@
 
 from collections import defaultdict as dd
 from pathlib import Path
+from typing import Callable, Dict, List, Optional
 
 import numpy as np
 from torchvision.datasets import ImageFolder
@@ -10,8 +11,12 @@ from torchvision.datasets import ImageFolder
 
 class Caltech256(ImageFolder):
 
-    def __init__(self, root, train=True, transform=None,
-                 target_transform=None, seed=0):
+    def __init__(self,
+                 root: str,
+                 train: bool = True,
+                 transform: Optional[Callable] = None,
+                 target_transform: Optional[Callable] = None,
+                 seed: int = 0):
         root = Path(root)
         if "256_ObjectCategories" not in str(root):
             root = Path(root).joinpath("256_ObjectCategories")
@@ -32,8 +37,8 @@ class Caltech256(ImageFolder):
         self._pruned_idxs = self._partition_to_idxs[
             "train" if train else "test"]
 
-        # Prune (self.imgs, self.samples to only include examples_paper from the
-        # required train/test partition
+        # Prune (self.imgs, self.samples to only include examples_paper from
+        # the required train/test partition
         self.samples = [self.samples[i] for i in self._pruned_idxs]
         self.imgs = self.samples
 
@@ -42,13 +47,13 @@ class Caltech256(ImageFolder):
                                                       "test",
                                                       len(self.samples)))
 
-    def _delete_clutter_class(self):
+    def _delete_clutter_class(self) -> None:
         idx_clutter = self.class_to_idx["257.clutter"]
         self.samples = [s for s in self.samples if s[1] != idx_clutter]
         self.class_to_idx.pop("257.clutter")
         self.classes = self.classes[:-1]
 
-    def _get_partition_to_idxs(self):
+    def _get_partition_to_idxs(self) -> Dict[str, List[int]]:
         partition_to_idxs = {
             "train": [],
             "test": []

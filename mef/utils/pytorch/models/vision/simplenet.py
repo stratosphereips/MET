@@ -1,3 +1,5 @@
+from typing import Tuple, Union
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,8 +11,12 @@ from mef.utils.pytorch.models.vision.base import Base
 class SimpleNet(Base):
     """https://paperswithcode.com/paper/lets-keep-it-simple-using-simple"""
 
-    def __init__(self, dims, num_classes, pool=False, drop=False,
-                 return_hidden=False):
+    def __init__(self,
+                 dims: Tuple[int, int, int],
+                 num_classes: int,
+                 pool: bool = False,
+                 drop: bool = False,
+                 return_hidden: bool = False):
         super().__init__(num_classes)
 
         self._return_hidden = return_hidden
@@ -32,7 +38,9 @@ class SimpleNet(Base):
         num_features = test_out.size(1) * test_out.size(2) * test_out.size(3)
         self._fc_final = nn.Linear(num_features, num_classes)
 
-    def forward(self, x):
+    def forward(self,
+                x: torch.Tensor) -> Union[torch.Tensor,
+                                          Tuple[torch.Tensor, torch.Tensor]]:
         x = self._layers(x)
 
         # Global Max Pooling
@@ -47,7 +55,8 @@ class SimpleNet(Base):
 
         return logits
 
-    def _make_layers(self, channels):
+    def _make_layers(self,
+                     channels: int) -> nn.Sequential:
 
         # Conv1/64 (3x3/1/1)
         layers = [

@@ -1,17 +1,18 @@
-import argparse
+from argparse import ArgumentParser
 from dataclasses import dataclass
-from typing import Type
+from typing import Optional
 
 import foolbox as fb
 import numpy as np
 import torch
 from torch.distributions import Categorical
-from torch.utils.data import ConcatDataset, Dataset, Subset, DataLoader
+from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset
 from tqdm import tqdm
 
 from .base import Base
 from ..utils.pytorch.datasets import CustomLabelDataset, NoYDataset
 from ..utils.pytorch.functional import get_class_labels, get_prob_vector
+from ..utils.pytorch.lighting.module import TrainableModel, VictimModel
 from ..utils.settings import AttackSettings
 
 
@@ -50,13 +51,13 @@ class ActiveThiefSettings(AttackSettings):
 class ActiveThief(Base):
 
     def __init__(self,
-                 victim_model,
-                 substitute_model,
-                 iterations=10,
-                 selection_strategy="entropy",
-                 budget=20000,
-                 init_seed_size=0.1,
-                 val_size=0.2):
+                 victim_model: VictimModel,
+                 substitute_model: TrainableModel,
+                 iterations: int = 10,
+                 selection_strategy: str = "entropy",
+                 budget: int = 20000,
+                 init_seed_size: float = 0.1,
+                 val_size: float = 0.2):
 
         super().__init__(victim_model, substitute_model)
         self.attack_settings = ActiveThiefSettings(iterations,
@@ -65,8 +66,8 @@ class ActiveThief(Base):
         self._val_dataset = None
 
     @classmethod
-    def _get_attack_parser(cls):
-        parser = argparse.ArgumentParser(description="ActiveThief attack")
+    def _get_attack_parser(cls) -> ArgumentParser:
+        parser = ArgumentParser(description="ActiveThief attack")
         parser.add_argument("--selection_strategy", default="entropy",
                             type=str,
                             help="Activethief selection strategy can "
@@ -89,20 +90,20 @@ class ActiveThief(Base):
         return parser
 
     def _random_strategy(self,
-                         k,
-                         data_rest):
+                         k: int,
+                         data_rest: CustomLabelDataset) -> np.ndarray:
         return np.random.permutation(len(data_rest))[:k]
 
     def _entropy_strategy(self,
-                          k,
-                          data_rest):
+                          k: int,
+                          data_rest: CustomLabelDataset) -> np.ndarray:
         scores = Categorical(data_rest.targets).entropy()
         return scores.argsort(descending=True)[:k].numpy()
 
     def _kcenter_strategy(self,
-                          k,
-                          preds_sub_rest,
-                          init_centers):
+                          k: int,
+                          preds_sub_rest: torch.Tensor,
+                          init_centers: torch.Tensor) -> np.ndarray:
         loader = DataLoader(dataset=NoYDataset(preds_sub_rest),
                             pin_memory=self.base_settings.gpus != 0,
                             num_workers=self.base_settings.num_workers,
@@ -113,8 +114,9 @@ class ActiveThief(Base):
 
         min_dists = []
         with torch.no_grad():
-            for preds_rest_batch, _ in tqdm(loader, desc="Calculating distance "
-                                                      "from initial centers"):
+            for preds_rest_batch, _ in tqdm(loader,
+                                            desc="Calculating distance "
+                                                 "from initial centers"):
                 if self.base_settings.gpus:
                     preds_rest_batch = preds_rest_batch.cuda()
 
@@ -161,8 +163,8 @@ class ActiveThief(Base):
         return torch.stack(selected_points).detach().cpu().numpy()
 
     def _deepfool_strategy(self,
-                           k,
-                           data_rest):
+                           k: int,
+                           data_rest: CustomLabelDataset) -> np.ndarray:
         self._substitute_model.eval()
         loader = DataLoader(dataset=data_rest,
                             pin_memory=self.base_settings.gpus != 0,
@@ -188,8 +190,8 @@ class ActiveThief(Base):
         return torch.stack(scores).argsort()[:k].numpy()
 
     def _select_samples(self,
-                        data_rest: Type[CustomLabelDataset],
-                        query_sets: Type[ConcatDataset]):
+                        data_rest: CustomLabelDataset,
+                        query_sets: ConcatDataset) -> np.ndarray:
         selection_strategy = self.attack_settings.selection_strategy
         budget = self.attack_settings.budget
         k = self.attack_settings.k
@@ -233,9 +235,9 @@ class ActiveThief(Base):
         return selected_points
 
     def _check_args(self,
-                    sub_data: Type[Dataset],
-                    test_set: Type[Dataset],
-                    val_data: Type[Dataset]):
+                    sub_data: Dataset,
+                    test_set: Dataset,
+                    val_data: Dataset) -> None:
         if not isinstance(sub_data, Dataset):
             self._logger.error("Substitute dataset must be Pytorch's "
                                "dataset.")
@@ -257,9 +259,9 @@ class ActiveThief(Base):
         return
 
     def _run(self,
-             sub_data: Type[Dataset],
-             test_set: Type[Dataset],
-             val_data: Type[Dataset] = None):
+             sub_data: Dataset,
+             test_set: Dataset,
+             val_data: Optional[Dataset] = None) -> None:
         self._check_args(sub_data, test_set, val_data)
         self._logger.info(
                 "########### Starting ActiveThief attack ###########")

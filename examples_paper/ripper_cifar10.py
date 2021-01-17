@@ -15,7 +15,8 @@ from mef.attacks.ripper import Ripper
 from mef.utils.experiment import train_victim_model
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets.vision import Cifar10
-from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
+from mef.utils.pytorch.lighting.module import Generator, TrainableModel, \
+    VictimModel
 from mef.utils.pytorch.functional import soft_cross_entropy
 from mef.utils.pytorch.models.vision import AlexNetSmall, HalfAlexNetSmall
 
@@ -58,6 +59,7 @@ def set_up(args):
     state_dict = torch.load("./cache/ripper/CIFAR10/generator/"
                             "cifar_100_90_classes_gan.pth")["gen_state_dict"]
     generator.load_state_dict(state_dict)
+    generator = Generator(generator, LATENT_DIM)
 
     victim_model = VictimModel(victim_model, NUM_CLASSES, output_type="logits")
     substitute_model = TrainableModel(substitute_model, NUM_CLASSES,
@@ -76,12 +78,11 @@ if __name__ == "__main__":
                         help="Path to ImageNet dataset")
     args = parser.parse_args()
     args.training_epochs = 200
-    
+
     mkdir_if_missing(args.save_loc)
 
     victim_model, substitute_model, generator, test_set = set_up(args)
-    rp = Ripper(victim_model, substitute_model, generator, LATENT_DIM,
-                NUM_CLASSES, args.generated_data)
+    rp = Ripper(victim_model, substitute_model, generator, args.generated_data)
 
     # Baset settings
     rp.base_settings.save_loc = Path(args.save_loc)

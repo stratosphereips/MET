@@ -1,33 +1,31 @@
 from pathlib import Path
+from typing import Callable, Optional
 
 import torch
-import torch.nn.functional as F
-from torch.nn import Module
-from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader, Dataset
 
 from mef.utils.pytorch.lighting.module import TrainableModel
 from mef.utils.pytorch.lighting.trainer import get_trainer
 
 
-def train_victim_model(victim_model: Module,
+def train_victim_model(victim_model: TrainableModel,
                        optimizer: torch.optim.Optimizer,
-                       loss: F,
+                       loss: Callable,
                        train_set: Dataset,
                        num_classes: int,
                        training_epochs: int,
                        batch_size: int,
                        num_workers: int,
-                       val_set: Dataset = None,
+                       val_set: Optional[Dataset] = None,
                        evaluation_frequency: int = 1,
                        patience: int = 100,
                        accuracy: bool = False,
-                       lr_scheduler: lr_scheduler = None,
+                       lr_scheduler: Optional[Callable] = None,
                        save_loc: str = "./cache/",
                        gpus: int = 0,
                        deterministic: bool = True,
                        debug: bool = False,
-                       precision=32):
+                       precision=32) -> None:
     try:
         saved_model = torch.load(Path(save_loc).joinpath(
                 "victim", "final_victim_model-state_dict.pt"))

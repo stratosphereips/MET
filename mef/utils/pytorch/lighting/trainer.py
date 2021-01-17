@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import List, Optional, Tuple, Union
 
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
@@ -12,7 +13,8 @@ def _prepare_callbacks(validation: bool,
                        iteration: int,
                        debug: bool,
                        accuracy: bool
-                       ):
+                       ) -> Tuple[Optional[List[EarlyStopping]],
+                                  Union[ModelCheckpoint, bool]]:
     callbacks = None
     checkpoint_cb = False
     if validation and not debug:
@@ -43,7 +45,7 @@ def get_trainer(save_loc: Path,
                 debug: bool,
                 deterministic: bool,
                 precision: int,
-                logger: bool):
+                logger: bool) -> Tuple[Trainer, Union[ModelCheckpoint, bool]]:
     callbacks, checkpoint_cb = _prepare_callbacks(validation, patience,
                                                   save_loc, iteration,
                                                   debug, accuracy)
@@ -70,7 +72,8 @@ def get_trainer_with_settings(base_settings: BaseSettings,
                               model_name: str = "",
                               iteration: int = None,
                               validation: bool = False,
-                              logger: bool = True):
+                              logger: bool = True) -> \
+        Tuple[Trainer, Union[ModelCheckpoint, bool]]:
     return get_trainer(Path(base_settings.save_loc).joinpath(model_name),
                        iteration, trainer_settings.training_epochs,
                        base_settings.gpus, validation,

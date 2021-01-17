@@ -1,20 +1,20 @@
 # Based on https://github.com/Trusted-AI/adversarial-robustness-toolbox/blob
 # /main/art/attacks/extraction/knockoff_nets.py
-import argparse
 import pickle
+from argparse import ArgumentParser
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Type
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import ConcatDataset, Dataset, Subset, DataLoader
+from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset
 from tqdm import tqdm
 
 from mef.attacks.base import Base
 from mef.utils.pytorch.datasets import CustomLabelDataset
 from mef.utils.pytorch.functional import get_prob_vector, soft_cross_entropy
+from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
 from mef.utils.settings import AttackSettings
 
 
@@ -52,11 +52,11 @@ class KnockOffSettings(AttackSettings):
 class KnockOff(Base):
 
     def __init__(self,
-                 victim_model,
-                 substitute_model,
-                 sampling_strategy="adaptive",
-                 reward_type="cert",
-                 budget=20000):
+                 victim_model: VictimModel,
+                 substitute_model: TrainableModel,
+                 sampling_strategy: str = "adaptive",
+                 reward_type: str = "cert",
+                 budget: int = 20000):
 
         super().__init__(victim_model, substitute_model)
         self.attack_settings = KnockOffSettings(sampling_strategy,
@@ -77,8 +77,8 @@ class KnockOff(Base):
         self._reward_var = None
 
     @classmethod
-    def _get_attack_parser(cls):
-        parser = argparse.ArgumentParser(description="KnockOff attack")
+    def _get_attack_parser(cls) -> ArgumentParser:
+        parser = ArgumentParser(description="KnockOff attack")
         parser.add_argument("--sampling_strategy", default="adaptive",
                             type=str,
                             help="KnockOff-Nets sampling strategy can "
@@ -93,7 +93,7 @@ class KnockOff(Base):
 
         return parser
 
-    def _random_strategy(self):
+    def _random_strategy(self) -> CustomLabelDataset:
         self._logger.info("Selecting random sample from thief dataset of "
                           "size {}".format(self.attack_settings.budget))
         idx_x = np.arange(len(self._thief_dataset))
@@ -106,7 +106,8 @@ class KnockOff(Base):
 
         return CustomLabelDataset(selected_data, y_output)
 
-    def _sample_data(self, action):
+    def _sample_data(self,
+                     action: int) -> Subset:
         if isinstance(self._thief_dataset, Subset):
             idx_sub = np.array(self._thief_dataset.indices)
             y = np.array(self._thief_dataset.dataset.targets)
@@ -123,12 +124,13 @@ class KnockOff(Base):
 
         return Subset(self._thief_dataset, idx_sampled)
 
-    def _online_train(self, data):
+    def _online_train(self,
+                      data: Dataset) -> None:
         self._substitute_model.train()
         loader = DataLoader(dataset=data,
-                    pin_memory=self.base_settings.gpus != 0,
-                    num_workers=self.base_settings.num_workers,
-                    batch_size=self.base_settings.batch_size)
+                            pin_memory=self.base_settings.gpus != 0,
+                            num_workers=self.base_settings.num_workers,
+                            batch_size=self.base_settings.batch_size)
 
         for x, y_output in tqdm(loader, desc="Online training"):
             if self.base_settings.gpus:
@@ -144,7 +146,8 @@ class KnockOff(Base):
 
         return
 
-    def _reward_cert(self, y_output):
+    def _reward_cert(self,
+                     y_output: torch.Tensor) -> np.ndarray:
         """
         Compute `cert` reward value.
         """
@@ -154,8 +157,8 @@ class KnockOff(Base):
         return reward.numpy()
 
     def _reward_div(self,
-                    y,
-                    n):
+                    y: torch.Tensor,
+                    n: int) -> np.ndarray:
         """
         Compute `div` reward value.
         """
@@ -168,8 +171,8 @@ class KnockOff(Base):
         return reward.numpy()
 
     def _reward_loss(self,
-                     y_hat,
-                     y):
+                     y_hat: torch.Tensor,
+                     y: torch.Tensor) -> np.ndarray:
         """
         Compute `loss` reward value.
         """
@@ -185,9 +188,9 @@ class KnockOff(Base):
         return reward.numpy()
 
     def _reward_all(self,
-                    y_hat,
-                    y,
-                    n):
+                    y_hat: torch.Tensor,
+                    y: torch.Tensor,
+                    n: int) -> np.ndarray:
         """
         Compute `all` reward value.
         """
@@ -210,9 +213,9 @@ class KnockOff(Base):
         return np.mean(reward)
 
     def _reward(self,
-                y_hat,
-                y,
-                iteration):
+                y_hat: torch.Tensor,
+                y: torch.Tensor,
+                iteration: int) -> np.ndarray:
         reward_type = self.attack_settings.reward_type
         if reward_type == "cert":
             return self._reward_cert(y)
@@ -223,7 +226,7 @@ class KnockOff(Base):
         else:
             return self._reward_all(y_hat, y, iteration)
 
-    def _adaptive_strategy(self):
+    def _adaptive_strategy(self) -> ConcatDataset:
         # Number of actions
         if isinstance(self._thief_dataset, Subset):
             self._num_actions = len(
@@ -300,8 +303,8 @@ class KnockOff(Base):
         return ConcatDataset(query_sets)
 
     def _check_args(self,
-                    sub_data: Type[Dataset],
-                    test_set: Type[Dataset]):
+                    sub_data: Dataset,
+                    test_set: Dataset) -> None:
         if not isinstance(sub_data, Dataset):
             self._logger.error("Substitute dataset must be Pytorch's "
                                "dataset.")
@@ -316,8 +319,8 @@ class KnockOff(Base):
         return
 
     def _run(self,
-             sub_data: Type[Dataset],
-             test_set: Type[Dataset]):
+             sub_data: Dataset,
+             test_set: Dataset) -> None:
         self._check_args(sub_data, test_set)
         self._logger.info(
                 "########### Starting KnockOff attack ###########")

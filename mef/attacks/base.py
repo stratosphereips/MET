@@ -1,12 +1,15 @@
 from abc import ABC, abstractmethod
+from argparse import ArgumentParser
+from typing import Optional, Tuple, Union
 
 import numpy as np
 import torch
 from pytorch_lightning import seed_everything
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset, IterableDataset
 from tqdm import tqdm
 
 from mef.utils.logger import set_up_logger
+from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
 from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
 from mef.utils.settings import BaseSettings, TrainerSettings
 
@@ -17,8 +20,8 @@ class Base(ABC):
     trainer_settings = TrainerSettings()
 
     def __init__(self,
-                 victim_model,
-                 substitute_model):
+                 victim_model: VictimModel,
+                 substitute_model: TrainableModel):
         self._logger = None
         # Datasets
         self._test_set = None
@@ -29,7 +32,8 @@ class Base(ABC):
         self._substitute_model = substitute_model
 
     @classmethod
-    def _add_base_args(cls, parser):
+    def _add_base_args(cls,
+                       parser: ArgumentParser) -> None:
         parser.add_argument("--seed", default=0, type=int,
                             help="Random seed to be used (Default: 0)")
         parser.add_argument("--batch_size", type=int, default=32,
@@ -56,10 +60,11 @@ class Base(ABC):
         return
 
     @classmethod
-    def _add_trainer_args(cls, parser):
+    def _add_trainer_args(cls,
+                          parser: ArgumentParser) -> None:
         parser.add_argument("--training_epochs", default=100, type=int,
-                    help="Number of training epochs for substitute "
-                            "model (Default: 100)")
+                            help="Number of training epochs for substitute "
+                                 "model (Default: 100)")
         parser.add_argument("--patience", default=10, type=int,
                             help="Number of epochs without improvement for "
                                  "early stop (Default: 10)")
@@ -70,11 +75,11 @@ class Base(ABC):
 
     @classmethod
     @abstractmethod
-    def _get_attack_parser(cls):
+    def _get_attack_parser(cls) -> ArgumentParser:
         pass
 
     @classmethod
-    def get_attack_args(cls):
+    def get_attack_args(cls) -> ArgumentParser:
         parser = cls._get_attack_parser()
         cls._add_base_args(parser)
         cls._add_trainer_args(parser)
@@ -82,13 +87,17 @@ class Base(ABC):
         return parser
 
     def _train_substitute_model(self,
-                                train_set,
-                                val_set=None,
-                                iteration=None):
-        train_dataloader = DataLoader(
-                dataset=train_set, pin_memory=self.base_settings.gpus != 0,
-                num_workers=self.base_settings.num_workers, shuffle=True,
-                batch_size=self.base_settings.batch_size)
+                                train_set: Dataset,
+                                val_set: Optional[Dataset] = None,
+                                iteration: Optional[int] = None) -> None:
+        # For ripper attack
+        if isinstance(train_set, IterableDataset):
+            train_dataloader = DataLoader(dataset=train_set)
+        else:
+            train_dataloader = DataLoader(
+                    dataset=train_set, pin_memory=self.base_settings.gpus != 0,
+                    num_workers=self.base_settings.num_workers, shuffle=True,
+                    batch_size=self.base_settings.batch_size)
 
         val_dataloader = None
         if val_set is not None:
@@ -116,8 +125,8 @@ class Base(ABC):
         return
 
     def _test_model(self,
-                    model,
-                    test_set):
+                    model: Union[TrainableModel, VictimModel],
+                    test_set: Dataset) -> float:
         test_dataloader = DataLoader(
                 dataset=test_set, pin_memory=self.base_settings.gpus != 0,
                 num_workers=self.base_settings.num_workers,
@@ -130,7 +139,7 @@ class Base(ABC):
 
         return 100 * metrics[0]["test_acc"]
 
-    def _get_test_set_metrics(self):
+    def _get_test_set_metrics(self) -> None:
         self._logger.info("Test set metrics")
         vict_test_acc = self._test_model(self._victim_model, self._test_set)
         sub_test_acc = self._test_model(self._substitute_model, self._test_set)
@@ -141,7 +150,7 @@ class Base(ABC):
 
         return
 
-    def _get_aggreement_score(self):
+    def _get_aggreement_score(self) -> None:
         vict_test_labels = self._victim_model.test_labels
         sub_test_labels = self._substitute_model.test_labels
 
@@ -153,8 +162,8 @@ class Base(ABC):
         return
 
     def _save_final_subsitute(self):
-        final_model_loc = self.base_settings.save_loc.joinpath("substitute",
-                "final_substitute_model-state_dict.pt")
+        final_model_loc = self.base_settings.save_loc.joinpath(
+                "substitute", "final_substitute_model-state_dict.pt")
         self._logger.info(
                 "Saving final substitute model state dictionary to: {}".format(
                         final_model_loc.__str__()))
@@ -164,8 +173,10 @@ class Base(ABC):
         return
 
     def _get_predictions(self,
-                         model,
-                         data):
+                         model: Union[TrainableModel, VictimModel],
+                         data: Dataset) -> Union[torch.Tensor,
+                                                 Tuple[torch.Tensor,
+                                                       torch.Tensor]]:
         model.eval()
         loader = DataLoader(dataset=data,
                             pin_memory=self.base_settings.gpus != 0,
@@ -187,14 +198,15 @@ class Base(ABC):
 
         return y_hats
 
-    def _finalize_attack(self):
+    def _finalize_attack(self) -> None:
         self._logger.info("########### Final attack metrics ###########")
         self._get_test_set_metrics()
         self._get_aggreement_score()
         self._save_final_subsitute()
         return
 
-    def __call__(self, *args, **kwargs):
+    # TODO: rework this
+    def __call__(self, *args, **kwargs) -> None:
         """
         Starts the attack, the expected input is either (sub_dataset,
         test_set) or (test_set), where each parameter type is either
@@ -223,5 +235,5 @@ class Base(ABC):
         return
 
     @abstractmethod
-    def _run(self, *args, **kwargs):
+    def _run(self, *args, **kwargs) -> None:
         pass

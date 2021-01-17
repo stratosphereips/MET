@@ -1,15 +1,16 @@
-import argparse
+from argparse import ArgumentParser
 from dataclasses import dataclass
-from typing import Type
+from typing import List
 
 import torch
 from pl_bolts.datamodules.sklearn_datamodule import TensorDataset
-from torch.utils.data import ConcatDataset, Dataset, DataLoader
+from torch.utils.data import ConcatDataset, DataLoader, Dataset
 from tqdm import tqdm
 
 from mef.attacks.base import Base
 from mef.utils.pytorch.datasets import NoYDataset
 from mef.utils.pytorch.functional import get_class_labels
+from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
 from mef.utils.settings import AttackSettings
 
 
@@ -28,18 +29,18 @@ class BlackBoxSettings(AttackSettings):
 class BlackBox(Base):
 
     def __init__(self,
-                 victim_model,
-                 substitute_model,
-                 iterations=6,
-                 lmbda=0.1):
+                 victim_model: VictimModel,
+                 substitute_model: TrainableModel,
+                 iterations: int = 6,
+                 lmbda: float = 0.1):
 
         super().__init__(victim_model, substitute_model)
         self.attack_settings = BlackBoxSettings(iterations, lmbda)
         self.trainer_settings._validation = False
 
     @classmethod
-    def _get_attack_parser(cls):
-        parser = argparse.ArgumentParser(description="BlackBox attack")
+    def _get_attack_parser(cls) -> ArgumentParser:
+        parser = ArgumentParser(description="BlackBox attack")
         parser.add_argument("--iterations", default=6, type=int,
                             help="Number of iterations of the attacks ("
                                  "Default: 6)")
@@ -49,7 +50,8 @@ class BlackBox(Base):
 
         return parser
 
-    def _jacobian(self, x):
+    def _jacobian(self,
+                  x: torch.Tensor) -> List[torch.Tensor]:
         list_derivatives = []
         x_var = x.requires_grad_()
 
@@ -65,7 +67,9 @@ class BlackBox(Base):
 
         return list_derivatives
 
-    def _jacobian_augmentation(self, query_sets, lmbda):
+    def _jacobian_augmentation(self,
+                               query_sets: List[Dataset],
+                               lmbda: float) -> torch.Tensor:
         thief_dataset = ConcatDataset(query_sets)
         loader = DataLoader(dataset=thief_dataset,
                             pin_memory=self.base_settings.gpus != 0,
@@ -93,8 +97,8 @@ class BlackBox(Base):
         return torch.stack(x_query_set)
 
     def _check_args(self,
-                    sub_data: Type[Dataset],
-                    test_set: Type[Dataset]):
+                    sub_data: Dataset,
+                    test_set: Dataset) -> None:
         if not isinstance(sub_data, Dataset):
             self._logger.error("Substitute dataset must be Pytorch's "
                                "dataset.")
@@ -109,8 +113,8 @@ class BlackBox(Base):
         return
 
     def _run(self,
-             sub_data: Type[Dataset],
-             test_set: Type[Dataset]):
+             sub_data: Dataset,
+             test_set: Dataset) -> None:
         self._check_args(sub_data, test_set)
         self._logger.info("########### Starting BlackBox attack ###########")
 
@@ -131,8 +135,8 @@ class BlackBox(Base):
             if it < self.attack_settings.iterations - 1:
                 self._substitute_model.eval()
                 self._logger.info("Augmenting training data")
-                x_query_set = self._jacobian_augmentation(query_sets,
-                                                          self.attack_settings.lmbda)
+                x_query_set = self._jacobian_augmentation(
+                        query_sets, self.attack_settings.lmbda)
 
                 self._logger.info("Labeling substitute training data")
                 # Adversary has access only to labels

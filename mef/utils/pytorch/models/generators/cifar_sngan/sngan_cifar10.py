@@ -1,27 +1,35 @@
+import pytorch_lightning as pl
 import torch.nn as nn
 from pytorch_lightning.core.decorators import auto_move_data
 
 from .gen_resblock import GenBlock
-import pytorch_lightning as pl
+
 
 class Args():
     pass
+
+
 args = Args()
 args.latent_dim = 128
 args.gf_dim = 256
 args.bottom_width = 4
 
+
 class Generator(pl.LightningModule):
-    def __init__(self, args = args, activation=nn.ReLU(), n_classes=0):
+    def __init__(self, args=args, activation=nn.ReLU(), n_classes=0):
         super(Generator, self).__init__()
         self.bottom_width = args.bottom_width
         self.activation = activation
         self.n_classes = n_classes
         self.ch = args.gf_dim
-        self.l1 = nn.Linear(args.latent_dim, (self.bottom_width ** 2) * self.ch)
-        self.block2 = GenBlock(self.ch, self.ch, activation=activation, upsample=True, n_classes=n_classes)
-        self.block3 = GenBlock(self.ch, self.ch, activation=activation, upsample=True, n_classes=n_classes)
-        self.block4 = GenBlock(self.ch, self.ch, activation=activation, upsample=True, n_classes=n_classes)
+        self.l1 = nn.Linear(args.latent_dim,
+                            (self.bottom_width ** 2) * self.ch)
+        self.block2 = GenBlock(self.ch, self.ch, activation=activation,
+                               upsample=True, n_classes=n_classes)
+        self.block3 = GenBlock(self.ch, self.ch, activation=activation,
+                               upsample=True, n_classes=n_classes)
+        self.block4 = GenBlock(self.ch, self.ch, activation=activation,
+                               upsample=True, n_classes=n_classes)
         self.b5 = nn.BatchNorm2d(self.ch)
         self.c5 = nn.Conv2d(self.ch, 3, kernel_size=3, stride=1, padding=1)
 
@@ -30,7 +38,6 @@ class Generator(pl.LightningModule):
 
     @auto_move_data
     def forward(self, z):
-
         h = z
         h = self.l1(h).view(-1, self.ch, self.bottom_width, self.bottom_width)
         h = self.block2(h)
@@ -51,13 +58,17 @@ def _downsample(x):
 
 
 class OptimizedDisBlock(nn.Module):
-    def __init__(self, args, in_channels, out_channels, ksize=3, pad=1, activation=nn.ReLU()):
+    def __init__(self, args, in_channels, out_channels, ksize=3, pad=1,
+                 activation=nn.ReLU()):
         super(OptimizedDisBlock, self).__init__()
         self.activation = activation
 
-        self.c1 = nn.Conv2d(in_channels, out_channels, kernel_size=ksize, padding=pad)
-        self.c2 = nn.Conv2d(out_channels, out_channels, kernel_size=ksize, padding=pad)
-        self.c_sc = nn.Conv2d(in_channels, out_channels, kernel_size=1, padding=0)
+        self.c1 = nn.Conv2d(in_channels, out_channels, kernel_size=ksize,
+                            padding=pad)
+        self.c2 = nn.Conv2d(out_channels, out_channels, kernel_size=ksize,
+                            padding=pad)
+        self.c_sc = nn.Conv2d(in_channels, out_channels, kernel_size=1,
+                              padding=0)
         if args.d_spectral_norm:
             self.c1 = nn.utils.spectral_norm(self.c1)
             self.c2 = nn.utils.spectral_norm(self.c2)
@@ -79,21 +90,26 @@ class OptimizedDisBlock(nn.Module):
 
 
 class DisBlock(nn.Module):
-    def __init__(self, args, in_channels, out_channels, hidden_channels=None, ksize=3, pad=1,
+    def __init__(self, args, in_channels, out_channels, hidden_channels=None,
+                 ksize=3, pad=1,
                  activation=nn.ReLU(), downsample=False):
         super(DisBlock, self).__init__()
         self.activation = activation
         self.downsample = downsample
         self.learnable_sc = (in_channels != out_channels) or downsample
-        hidden_channels = in_channels if hidden_channels is None else hidden_channels
-        self.c1 = nn.Conv2d(in_channels, hidden_channels, kernel_size=ksize, padding=pad)
-        self.c2 = nn.Conv2d(hidden_channels, out_channels, kernel_size=ksize, padding=pad)
+        hidden_channels = in_channels if hidden_channels is None else \
+            hidden_channels
+        self.c1 = nn.Conv2d(in_channels, hidden_channels, kernel_size=ksize,
+                            padding=pad)
+        self.c2 = nn.Conv2d(hidden_channels, out_channels, kernel_size=ksize,
+                            padding=pad)
         if args.d_spectral_norm:
             self.c1 = nn.utils.spectral_norm(self.c1)
             self.c2 = nn.utils.spectral_norm(self.c2)
 
         if self.learnable_sc:
-            self.c_sc = nn.Conv2d(in_channels, out_channels, kernel_size=1, padding=0)
+            self.c_sc = nn.Conv2d(in_channels, out_channels, kernel_size=1,
+                                  padding=0)
             if args.d_spectral_norm:
                 self.c_sc = nn.utils.spectral_norm(self.c_sc)
 
@@ -127,9 +143,12 @@ class Discriminator(nn.Module):
         self.ch = args.df_dim
         self.activation = activation
         self.block1 = OptimizedDisBlock(args, 3, self.ch)
-        self.block2 = DisBlock(args, self.ch, self.ch, activation=activation, downsample=True)
-        self.block3 = DisBlock(args, self.ch, self.ch, activation=activation, downsample=False)
-        self.block4 = DisBlock(args, self.ch, self.ch, activation=activation, downsample=False)
+        self.block2 = DisBlock(args, self.ch, self.ch, activation=activation,
+                               downsample=True)
+        self.block3 = DisBlock(args, self.ch, self.ch, activation=activation,
+                               downsample=False)
+        self.block4 = DisBlock(args, self.ch, self.ch, activation=activation,
+                               downsample=False)
         self.l5 = nn.Linear(self.ch, 1, bias=False)
         if args.d_spectral_norm:
             self.l5 = nn.utils.spectral_norm(self.l5)

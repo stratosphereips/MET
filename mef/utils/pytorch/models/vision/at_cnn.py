@@ -1,3 +1,5 @@
+from typing import Tuple, Union
+
 import torch
 import torch.nn as nn
 
@@ -33,7 +35,9 @@ class AtCnn(Base):
         num_features = test_out.size(1) * test_out.size(2) * test_out.size(3)
         self._fcs, self._fc_final = self._build_fcs(num_features)
 
-    def forward(self, x):
+    def forward(self,
+                x: torch.Tensor) -> Union[torch.Tensor,
+                                          Tuple[torch.Tensor, torch.Tensor]]:
         hidden = self._convs(x)
         hidden = hidden.view(hidden.size(0), -1)
 

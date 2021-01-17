@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Callable, List, Optional, Tuple, Union
 
 import pytorch_lightning as pl
 import torch
@@ -8,10 +9,22 @@ from pytorch_lightning.core.decorators import auto_move_data
 from mef.utils.pytorch.functional import get_class_labels
 
 
+class Generator(pl.LightningModule):
+    def __init__(self,
+                 generator: torch.nn.Module,
+                 latent_dim: int):
+        super().__init__()
+        self._generator = generator
+        self.latent_dim = latent_dim
+
+    def forward(self, z):
+        return self._generator(z)
+
+
 class _MefModel(pl.LightningModule, ABC):
     def __init__(self,
-                 model,
-                 num_classes):
+                 model: torch.nn.Module,
+                 num_classes: int):
         super().__init__()
         self.model = model
         self.num_classes = num_classes
@@ -22,10 +35,13 @@ class _MefModel(pl.LightningModule, ABC):
         self.test_labels = None
 
     @abstractmethod
-    def _shared_step_output(self, x):
+    def _shared_step_output(self,
+                            x: torch.Tensor) -> torch.Tensor:
         pass
 
-    def _shared_step(self, batch, step_type):
+    def _shared_step(self,
+                     batch: Tuple[torch.Tensor, torch.Tensor],
+                     step_type: str) -> torch.Tensor:
         x, y = batch
 
         preds = self._shared_step_output(x)
@@ -49,35 +65,37 @@ class _MefModel(pl.LightningModule, ABC):
         return preds.detach().cpu()
 
     def validation_step(self,
-                        batch,
-                        batch_idx):
+                        batch: Tuple[torch.Tensor, torch.Tensor],
+                        batch_idx: int) -> torch.Tensor:
         return self._shared_step(batch, "val")
 
     def test_step(self,
                   batch,
-                  batch_idx):
+                  batch_idx: int) -> torch.Tensor:
         return self._shared_step(batch, "test")
 
-    def test_epoch_end(self, test_step_outputs):
+    def test_epoch_end(self,
+                       test_step_outputs: List[torch.Tensor]) -> None:
         # Expected shape is [N, C] for multiclass and [N] for binary
         self.test_labels = get_class_labels(
-            torch.cat(test_step_outputs).squeeze(dim=-1)).numpy()
+                torch.cat(test_step_outputs).squeeze(dim=-1)).numpy()
+        return
 
 
 class TrainableModel(_MefModel):
     def __init__(self,
-                 model,
-                 num_classes,
-                 optimizer=None,
-                 loss=None,
-                 lr_scheduler=None):
+                 model: torch.nn.Module,
+                 num_classes: int,
+                 optimizer: torch.optim.Optimizer,
+                 loss: Callable,
+                 lr_scheduler: Optional[Callable] = None):
         super().__init__(model, num_classes)
         self.optimizer = optimizer
         self._loss = loss
         self._lr_scheduler = lr_scheduler
 
     @staticmethod
-    def _output_to_list(output):
+    def _output_to_list(output: torch.Tensor) -> List[torch.Tensor]:
         if isinstance(output, tuple):
             # (logits, hidden_layer)
             return list(output)
@@ -86,19 +104,21 @@ class TrainableModel(_MefModel):
             return list([output])
 
     @auto_move_data
-    def forward(self, x):
+    def forward(self,
+                x: torch.Tensor) -> Union[List[torch.Tensor]]:
         output = self.model(x)
 
         return self._output_to_list(output)
 
-    def _shared_step_output(self, x):
+    def _shared_step_output(self,
+                            x: torch.Tensor) -> torch.Tensor:
         if self.num_classes == 2:
             return torch.sigmoid(self(x)[0])
         return torch.softmax(self(x)[0], dim=-1)
 
     def training_step(self,
-                      batch,
-                      batch_idx):
+                      batch: Tuple[torch.Tensor, torch.Tensor],
+                      batch_idx: int) -> torch.Tensor:
         x, y = batch
 
         # Dataloader adds one more dimension corresponding to batch size,
@@ -117,7 +137,9 @@ class TrainableModel(_MefModel):
         self.log_dict({"train_loss": loss})
         return loss
 
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> Union[torch.optim.Optimizer,
+                                            Tuple[List[torch.optim.Optimizer],
+                                                  List[Callable]]]:
         if self._lr_scheduler is None:
             return self.optimizer
         return [self.optimizer], [self._lr_scheduler]
@@ -125,9 +147,9 @@ class TrainableModel(_MefModel):
 
 class VictimModel(_MefModel):
     def __init__(self,
-                 model,
-                 num_classes,
-                 output_type):
+                 model: torch.nn.Module,
+                 num_classes: int,
+                 output_type: str):
         super().__init__(model, num_classes)
 
         if output_type.lower() not in ["one_hot", "raw", "logits", "labels",
@@ -139,7 +161,7 @@ class VictimModel(_MefModel):
         self.output_type = output_type.lower()
 
     def _transform_output(self,
-                          output):
+                          output: torch.Tensor) -> torch.Tensor:
         if self.output_type == "one_hot":
             y_hats = F.one_hot(torch.argmax(output, dim=-1),
                                num_classes=self.num_classes)
@@ -157,7 +179,8 @@ class VictimModel(_MefModel):
         return y_hats
 
     @auto_move_data
-    def forward(self, x, inference=True):
+    def forward(self,
+                x: torch.Tensor) -> List[torch.Tensor]:
         y_hats = self.model(x)
 
         # Model output must always be 2-dimensional
@@ -166,5 +189,6 @@ class VictimModel(_MefModel):
 
         return [self._transform_output(y_hats)]
 
-    def _shared_step_output(self, x):
+    def _shared_step_output(self,
+                            x: torch.Tensor) -> torch.Tensor:
         return self(x)[0]

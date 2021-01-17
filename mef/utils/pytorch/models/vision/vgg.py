@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torchvision
 
@@ -15,7 +16,10 @@ VGG_TYPES = {"vgg_11": torchvision.models.vgg11,
 
 class Vgg(Base):
 
-    def __init__(self, vgg_type, num_classes, feature_extraction=False):
+    def __init__(self,
+                 vgg_type: str,
+                 num_classes: int,
+                 feature_extraction: bool = False):
         super().__init__(num_classes, feature_extraction)
 
         if vgg_type not in VGG_TYPES:
@@ -33,5 +37,6 @@ class Vgg(Base):
             self._vgg.classifier[6] = nn.Linear(in_features=in_features,
                                                 out_features=num_classes)
 
-    def forward(self, x):
+    def forward(self,
+                x: torch.Tensor) -> torch.Tensor:
         return self._vgg(x)

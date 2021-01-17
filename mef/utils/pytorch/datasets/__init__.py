@@ -1,8 +1,11 @@
+from typing import Any, Tuple, Type
+
 import torch
 from torch.utils.data import Dataset, random_split
 
 
-def split_dataset(dataset, split_size):
+def split_dataset(dataset: Type[Dataset],
+                  split_size: float):
     split_set_size = int(len(dataset) * split_size)
     rest_set_size = len(dataset) - split_set_size
 
@@ -14,7 +17,9 @@ class CustomLabelDataset(Dataset):
     Dataset that uses existing dataset with custom labels
     """
 
-    def __init__(self, dataset, targets):
+    def __init__(self,
+                 dataset: Type[Dataset],
+                 targets: torch.Tensor):
         self.dataset = dataset
         self.targets = targets
         super().__init__()
@@ -27,7 +32,8 @@ class CustomLabelDataset(Dataset):
 
 
 class NoYDataset(Dataset):
-    def __init__(self, data):
+    def __init__(self,
+                 data: torch.Tensor):
         self.data = data
 
     def __getitem__(self, index):

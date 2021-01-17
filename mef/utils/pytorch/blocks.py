@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 
 
@@ -26,6 +27,7 @@ def return_batch_norm(type, input_channels, eps, momentum, affine=True):
     return batch_norm
 
 
+# TODO: refactor this ugly shit
 class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1,
                  padding=0, dilation=1, groups=1, bias=True,
@@ -44,7 +46,8 @@ class ConvBlock(nn.Module):
                                                 affine=affine)
         self.act = return_act(activation, inplace=True)
 
-    def forward(self, x):
+    def forward(self,
+                x: torch.Tensor) -> torch.Tensor:
         x = self.conv(x)
         if self._use_batch_norm:
             x = self.batch_norm(x)

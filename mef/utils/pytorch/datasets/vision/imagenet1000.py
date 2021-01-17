@@ -1,5 +1,6 @@
 from collections import defaultdict as dd
 from pathlib import Path
+from typing import Callable, Dict, List, Optional
 
 import numpy as np
 from torchvision.datasets import ImageFolder
@@ -7,8 +8,13 @@ from torchvision.datasets import ImageFolder
 
 class ImageNet1000(ImageFolder):
 
-    def __init__(self, root, size=None, train=True, transform=None,
-                 target_transform=None, seed=None):
+    def __init__(self,
+                 root: str,
+                 size: Optional[int] = None,
+                 train: bool = True,
+                 transform: Optional[Callable] = None,
+                 target_transform: Optional[Callable] = None,
+                 seed: int = 0):
         root = Path(root)
         if train and "train" not in str(root):
             root = root.joinpath("train")
@@ -35,7 +41,7 @@ class ImageNet1000(ImageFolder):
                                                       "validation",
                                                       len(self.samples)))
 
-    def _get_subset_idxs(self):
+    def _get_subset_idxs(self) -> List[int]:
         samples_per_class = self._size // 1000
         partition_to_idxs = []
 

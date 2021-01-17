@@ -1,30 +1,28 @@
-import argparse
-from typing import Type
+from argparse import ArgumentParser
 
-import torch
-import torch.nn.functional as F
 from torch.utils.data import Dataset
 
 from mef.utils.pytorch.datasets import CustomLabelDataset
 from .base import Base
 from ..utils.pytorch.functional import get_class_labels
+from ..utils.pytorch.lighting.module import TrainableModel, VictimModel
 
 
 class CopyCat(Base):
 
     def __init__(self,
-                 victim_model,
-                 substitute_model):
+                 victim_model: VictimModel,
+                 substitute_model: TrainableModel):
         super().__init__(victim_model, substitute_model)
         self.trainer_settings._validation = False
 
     @classmethod
-    def _get_attack_parser(cls):
-        return argparse.ArgumentParser(description="CopyCat attack")
+    def _get_attack_parser(cls) -> ArgumentParser:
+        return ArgumentParser(description="CopyCat attack")
 
     def _check_args(self,
-                    sub_data: Type[Dataset],
-                    test_set: Type[Dataset]):
+                    sub_data: Dataset,
+                    test_set: Dataset):
         if not isinstance(sub_data, Dataset):
             self._logger.error("Substitute dataset must be Pytorch's "
                                "dataset.")
@@ -39,8 +37,8 @@ class CopyCat(Base):
         return
 
     def _run(self,
-             sub_data: Type[Dataset],
-             test_set: Type[Dataset]):
+             sub_data: Dataset,
+             test_set: Dataset) -> None:
         self._check_args(sub_data, test_set)
         self._logger.info("########### Starting CopyCat attack ###########")
         self._logger.info(

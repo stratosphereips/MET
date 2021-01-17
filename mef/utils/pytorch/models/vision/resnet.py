@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torchvision
 
@@ -12,7 +13,10 @@ RESNET_TYPES = {"resnet_18": torchvision.models.resnet18,
 
 class ResNet(Base):
 
-    def __init__(self, resnet_type, num_classes, feature_extraction=False):
+    def __init__(self,
+                 resnet_type: str,
+                 num_classes: int,
+                 feature_extraction: bool = False):
         super().__init__(num_classes, feature_extraction)
 
         if resnet_type not in RESNET_TYPES:
@@ -29,5 +33,6 @@ class ResNet(Base):
             self._resnet.fc = nn.Linear(in_features=in_features,
                                         out_features=num_classes)
 
-    def forward(self, x):
+    def forward(self,
+                x: torch.Tensor) -> torch.Tensor:
         return self._resnet(x)
