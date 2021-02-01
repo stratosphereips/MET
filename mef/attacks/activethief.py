@@ -1,4 +1,6 @@
+import pickle
 from argparse import ArgumentParser
+from collections import defaultdict as dd
 from dataclasses import dataclass
 from typing import Optional
 
@@ -24,16 +26,19 @@ class ActiveThiefSettings(AttackSettings):
     init_seed_size: int
     val_size: int
     k: int
+    idxs: bool
 
     def __init__(self,
                  iterations: int,
                  selection_strategy: str,
                  budget: int,
                  init_seed_size: float,
-                 val_size: float):
+                 val_size: float,
+                 idxs: bool):
         self.iterations = iterations
         self.selection_strategy = selection_strategy.lower()
         self.budget = budget
+        self.idxs = idxs
 
         # Check configuration
         if self.selection_strategy not in ["random", "entropy", "k-center",
@@ -57,13 +62,16 @@ class ActiveThief(Base):
                  selection_strategy: str = "entropy",
                  budget: int = 20000,
                  init_seed_size: float = 0.1,
-                 val_size: float = 0.2):
+                 val_size: float = 0.2,
+                 idxs: bool = False):
 
         super().__init__(victim_model, substitute_model)
         self.attack_settings = ActiveThiefSettings(iterations,
                                                    selection_strategy, budget,
-                                                   init_seed_size, val_size)
+                                                   init_seed_size, val_size,
+                                                   idxs)
         self._val_dataset = None
+        self._selected_idxs = dd(list)
 
     @classmethod
     def _get_attack_parser(cls) -> ArgumentParser:
@@ -86,6 +94,9 @@ class ActiveThief(Base):
         parser.add_argument("--val_size", default=0.2, type=float,
                             help="Fraction of budget that should be used for "
                                  "validation set (Default: 0.2)")
+        parser.add_argument("--idxs", action="store_true",
+                            help="Whether to save idxs of samples selected "
+                                 "during the attacks. (Default: False)")
 
         return parser
 
@@ -287,6 +298,8 @@ class ActiveThief(Base):
             y_val = self._get_predictions(self._victim_model, val_set)
 
         val_set = CustomLabelDataset(val_set, y_val)
+        if self.base_settings.idxs:
+            self._selected_idxs["val_data"].extend(idxs_val)
 
         val_label_counts = dict(
                 list(enumerate([0] * self._victim_model.num_classes)))
@@ -310,6 +323,8 @@ class ActiveThief(Base):
         query_set = Subset(self._thief_dataset, idxs_query)
         y_query = self._get_predictions(self._victim_model, query_set)
         query_sets.append(CustomLabelDataset(query_set, y_query))
+        if self.base_settings.idxs:
+            self._selected_idxs["sub_data"].extend(idxs_query)
 
         # Get victim model metrics on test set
         self._logger.info("Getting victim model's metrics for test set")
@@ -370,6 +385,8 @@ class ActiveThief(Base):
             idxs_query = idxs_rest[np.unique(idxs_query)]
             idxs_rest = np.setdiff1d(idxs_rest, idxs_query)
             query_set = Subset(self._thief_dataset, idxs_query)
+            if self.base_settings.idxs:
+                self._selected_idxs["sub_data"].extend(idxs_query)
 
             # Step 2: Attacker queries current picked samples to secret
             # model for labeling
@@ -377,5 +394,10 @@ class ActiveThief(Base):
                               "from the victim model")
             y_query = self._get_predictions(self._victim_model, query_set)
             query_sets.append(CustomLabelDataset(query_set, y_query))
+
+        if self.attack_settings.idxs:
+            filepath = self.base_settings.save_loc.joinpath("selected_idxs.pl")
+            with open(filepath, 'wb') as f:
+                pickle.dump(self._selected_idxs, f)
 
         return

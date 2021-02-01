@@ -2,8 +2,8 @@
 # /main/art/attacks/extraction/knockoff_nets.py
 import pickle
 from argparse import ArgumentParser
+from collections import defaultdict as dd
 from dataclasses import dataclass
-from pathlib import Path
 
 import numpy as np
 import torch
@@ -26,16 +26,19 @@ class KnockOffSettings(AttackSettings):
     init_seed_size: int
     val_size: int
     k: int
+    idxs: bool
 
     def __init__(self,
                  sampling_strategy: str,
                  reward_type: str,
-                 budget: int):
+                 budget: int,
+                 idxs: bool):
         self.sampling_strategy = sampling_strategy.lower()
         self.reward_type = reward_type.lower()
         self.budget = budget
         self.k = 4
         self.iterations = self.budget // self.k
+        idxs = idxs
 
         # Check configuration
         if self.sampling_strategy not in ["random", "adaptive"]:
@@ -56,11 +59,12 @@ class KnockOff(Base):
                  substitute_model: TrainableModel,
                  sampling_strategy: str = "adaptive",
                  reward_type: str = "cert",
-                 budget: int = 20000):
+                 budget: int = 20000,
+                 idxs: bool = False):
 
         super().__init__(victim_model, substitute_model)
-        self.attack_settings = KnockOffSettings(sampling_strategy,
-                                                reward_type, budget)
+        self.attack_settings = KnockOffSettings(sampling_strategy, reward_type,
+                                                budget, idxs)
         self.trainer_settings._validation = False
 
         # KnockOff's specific attributes
@@ -70,7 +74,7 @@ class KnockOff(Base):
         self._online_loss = self._substitute_model._loss
 
         self._selected_actions = np.array([])
-        self._selected_idxs = np.array([])
+        self._selected_idxs = dd(list)
         self._num_actions = None
         self._y_avg = None
         self._reward_avg = None
@@ -90,6 +94,9 @@ class KnockOff(Base):
                                  "(Default: all)")
         parser.add_argument("--budget", default=20000, type=int,
                             help="Size of the budget (Default: 20000)")
+        parser.add_argument("--idxs", action="store_true",
+                            help="Whether to save idxs of samples selected "
+                                 "during the attacks. (Default: False)")
 
         return parser
 
@@ -108,6 +115,7 @@ class KnockOff(Base):
 
     def _sample_data(self,
                      action: int) -> Subset:
+        # TODO: correct this abomination
         if isinstance(self._thief_dataset, Subset):
             idx_sub = np.array(self._thief_dataset.indices)
             y = np.array(self._thief_dataset.dataset.targets)
@@ -119,8 +127,9 @@ class KnockOff(Base):
 
         idx_sampled = np.random.permutation(idx_action)[
                       :self.attack_settings.k]
-        self._selected_idxs = np.append(self._selected_idxs,
-                                        idx_sampled)
+
+        if self.attack_settings.idxs:
+            self._selected_idxs["sub_data"].extend(idx_sampled)
 
         return Subset(self._thief_dataset, idx_sampled)
 
@@ -252,7 +261,7 @@ class KnockOff(Base):
             self._logger.info("---------- Iteration: {} ----------".format(it))
             # Sample an action
             action = np.random.choice(np.arange(0, self._num_actions), p=probs)
-            self._selected_actions = np.append(self._selected_idxs, action)
+            self._selected_actions = np.append(self._selected_actions, action)
             self._logger.info("Action {} selected".format(action))
 
             # Select sample to attack
@@ -323,8 +332,6 @@ class KnockOff(Base):
                 "KnockOff's attack budget: {}".format(
                         self.attack_settings.budget))
 
-        base_path = Path(self.base_settings.save_loc)
-
         if self.attack_settings.sampling_strategy == "random":
             self._logger.info("Starting random sampling strategy")
             transfer_data = self._random_strategy()
@@ -336,9 +343,13 @@ class KnockOff(Base):
             transfer_data = self._adaptive_strategy()
             self._substitute_model.load_state_dict(original_state_dict)
 
-        with open(base_path.joinpath("selected_actions.pl"), 'wb') as f:
+        acitons_filepath = self.base_settings.save_loc.joinpath(
+                "selected_actions.pl")
+        with open(acitons_filepath, 'wb') as f:
             pickle.dump(self._selected_actions, f)
-        with open(base_path.joinpath("selected_idxs.pl"), 'wb') as f:
+        idxs_filepath = self.base_settings.save_loc.joinpath(
+                "selected_idxs.pl")
+        with open(idxs_filepath, 'wb') as f:
             pickle.dump(self._selected_idxs, f)
 
         self._logger.info("Offline training of substitute model")
