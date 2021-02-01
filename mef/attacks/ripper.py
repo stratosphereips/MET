@@ -84,6 +84,7 @@ class GeneratorOptimizedDataset(IterableDataset):
                 indexes = np.argsort(losses)
                 image = images[indexes[0]]
                 label = y_hats[indexes[0]]
+
                 # select k (elite size) fittest specimens
                 specimens = specimens[indexes[:10]]
                 specimens = np.concatenate([
@@ -96,8 +97,8 @@ class GeneratorOptimizedDataset(IterableDataset):
                     ).astype(np.float32)])
                 c = np.amin(losses)
 
-                batch.append(image)
-                labels.append(torch.from_numpy(label))
+            batch.append(image)
+            labels.append(torch.from_numpy(label))
 
         return torch.stack(batch), torch.stack(labels)
 

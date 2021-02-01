@@ -40,7 +40,10 @@ def set_up(args):
 
     # Prepare data
     print("Preparing data")
-    transform = T.Compose([T.Resize(DIMS[-1]), T.ToTensor()])
+    # The GANs created by the authors of the attack are pretrained on CIFAR100 scaled to
+    # [-1, 1]
+    transform = T.Compose([T.Resize(DIMS[-1]), T.ToTensor(),
+                           T.Normalize((0.5,), (0.5,))])
     train_set = Cifar10(root=args.cifar10_dir, transform=transform)
     test_set = Cifar10(root=args.cifar10_dir, train=False, transform=transform)
 
@@ -61,7 +64,7 @@ def set_up(args):
     generator.load_state_dict(state_dict)
     generator = Generator(generator, LATENT_DIM)
 
-    victim_model = VictimModel(victim_model, NUM_CLASSES, output_type="logits")
+    victim_model = VictimModel(victim_model, NUM_CLASSES, output_type="softmax")
     substitute_model = TrainableModel(substitute_model, NUM_CLASSES,
                                       torch.optim.Adam(
                                               substitute_model.parameters()),
