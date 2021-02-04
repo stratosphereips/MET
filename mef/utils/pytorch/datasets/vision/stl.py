@@ -11,7 +11,7 @@ class Stl10(STL10):
                  folds: Optional[int] = None,
                  transform: Optional[Callable] = None,
                  target_transform: Optional[Callable] = None,
-                 download: bool = 0):
+                 download: bool = False):
         root = Path(root).joinpath("stl10")
         super().__init__(root, split, folds, transform, target_transform,
                          download)

@@ -2,13 +2,14 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
 from mef.utils.pytorch.lighting.module import TrainableModel
 from mef.utils.pytorch.lighting.trainer import get_trainer
 
 
-def train_victim_model(victim_model: TrainableModel,
+def train_victim_model(victim_model: nn.Module,
                        optimizer: torch.optim.Optimizer,
                        loss: Callable,
                        train_set: Dataset,
