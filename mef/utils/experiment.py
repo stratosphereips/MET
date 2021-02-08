@@ -17,6 +17,7 @@ def train_victim_model(victim_model: TrainableModel,
                        batch_size: int,
                        num_workers: int,
                        val_set: Optional[Dataset] = None,
+                       test_set: Optional[Dataset] = None,
                        evaluation_frequency: int = 1,
                        patience: int = 100,
                        accuracy: bool = False,
@@ -26,11 +27,22 @@ def train_victim_model(victim_model: TrainableModel,
                        deterministic: bool = True,
                        debug: bool = False,
                        precision=32) -> None:
+    trainer, checkpoint_cb = get_trainer(Path(save_loc).joinpath("victim"),
+                                            None, training_epochs, gpus,
+                                            val_set is not None,
+                                            evaluation_frequency, patience,
+                                            accuracy, debug, deterministic,
+                                            precision, logger=True)
+    
     try:
         saved_model = torch.load(Path(save_loc).joinpath(
                 "victim", "final_victim_model-state_dict.pt"))
         victim_model.load_state_dict(saved_model["state_dict"])
         print("Loaded victim model")
+        victim = TrainableModel(victim_model, num_classes, optimizer, loss,
+                                lr_scheduler)
+        if gpus:
+            victim.cuda()
     except FileNotFoundError:
         # Prepare secret model
         print("Training victim model")
@@ -38,7 +50,6 @@ def train_victim_model(victim_model: TrainableModel,
         train_dataloader = DataLoader(dataset=train_set, pin_memory=gpus != 0,
                                       num_workers=num_workers, shuffle=True,
                                       batch_size=batch_size)
-
         val_dataloader = None
         if val_set is not None:
             val_dataloader = DataLoader(dataset=val_set, pin_memory=gpus != 0,
@@ -49,13 +60,6 @@ def train_victim_model(victim_model: TrainableModel,
                                 lr_scheduler)
         if gpus:
             victim.cuda()
-
-        trainer, checkpoint_cb = get_trainer(Path(save_loc).joinpath("victim"),
-                                             None, training_epochs, gpus,
-                                             val_set is not None,
-                                             evaluation_frequency, patience,
-                                             accuracy, debug, deterministic,
-                                             precision, logger=True)
         trainer.fit(victim, train_dataloader, val_dataloader)
 
         if not isinstance(checkpoint_cb, bool):
@@ -67,4 +71,11 @@ def train_victim_model(victim_model: TrainableModel,
                    Path(save_loc).joinpath("victim",
                                            "final_victim_model-state_dict.pt"))
 
-        return
+    test_dataloader = None
+    if test_set is not None:
+        test_dataloader = DataLoader(dataset=test_set, pin_memory=gpus != 0,
+                                        num_workers=num_workers,
+                                        batch_size=batch_size)
+        trainer.test(victim, test_dataloader)
+
+    return
