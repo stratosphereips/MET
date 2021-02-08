@@ -1,29 +1,57 @@
+import os
+import sys
+from argparse import ArgumentParser
+
 import torch
 import torchvision.transforms as T
+
+sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.utils.experiment import train_victim_model
 from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.datasets.vision.oimodular import OIModular
-from mef.utils.pytorch.models.vision import ResNet
+from mef.utils.pytorch.models.vision import SimpleNet, ResNet
+
+def getr_args():
+    parser = ArgumentParser(description="OImodular experiment")
+    parser.add_argument("--simplenet", action="store_true",
+                        description="Use SimpleNet instead of Resnet34")
+    parser.add_argument("--resolution", default=224, type=int,
+                        description="Resolution of samples")
+    parser.add_argument("--num_classes", default=5, type=int,
+                        description="Which number of classes to use. Can"
+                        "be one of {5, 17, 51} (Default: 5)")
+    parser.add_argument("--batch_size", default=64, type=int,
+                        description="Batch size which should be used"
+                        " (Default: 64)")
+    parser.add_argument("--oi-dir", default="./cache/data", type=str,
+                        description="Location where OpenImagesModular dataset"
+                        " is or should be located (Default: ./cache/data)")
+
+    return parser.parse_args()
 
 if __name__ == "__main__":
-    train_set = OIModular("E:\Datasets\OpenImagesv6", 5, download=True,
-                          transform=T.Compose(
-                                  [T.Grayscale(num_output_channels=3),
-                                   T.Resize((224, 224)),
-                                   T.ToTensor()]))
-    test_set = OIModular("E:\Datasets\OpenImagesv6", 5, train=False,
-                         download=True,
-                         transform=T.Compose([
-                             T.Grayscale(num_output_channels=3),
-                             T.Resize((224, 224)),
-                             T.ToTensor()]))
+    args = getr_args()
+
+    transform = T.Compose([T.Grayscale(num_output_channels=3),
+                           T.Resize((args.resolution,)), T.ToTensor()])
+    train_set = OIModular("/data/vit/openimagesv6", args.num_classes,
+                          download=True, transform=transform)
+    test_set = OIModular("/data/vit/openimagesv6", args.num_classes,
+                         train=False, download=True,
+                         transform=transform)
 
     train_set, val_set = split_dataset(train_set, 0.2)
 
-    test_model = ResNet("resnet_34", 5)
+    if args.simplenet:
+        test_model = SimpleNet((3, 224, 224), args.num_classes)
+    else:
+        test_model = ResNet("resnet_34", args.num_classes)
+    
     optimizer = torch.optim.Adam(test_model.parameters())
     loss = torch.nn.functional.cross_entropy
 
     train_victim_model(test_model, optimizer, loss, train_set,
-                       5, 1000, 64, 4, val_set, gpus=1)
+                       args.num_classes, 1000, arg.batch_size, 16,
+                       val_set, test_set, gpus=1,
+                       save_loc=f"./cache/OIModular{args.num_classes}/")
