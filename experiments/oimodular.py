@@ -16,19 +16,17 @@ from mef.utils.pytorch.models.vision import SimpleNet, ResNet
 def getr_args():
     parser = ArgumentParser(description="OImodular experiment")
     parser.add_argument("--simplenet", action="store_true",
-                        description="Use SimpleNet instead of Resnet34")
+                        help="Use SimpleNet instead of Resnet34")
     parser.add_argument("--resolution", default=224, type=int,
-                        description="Resolution of samples")
+                        help="Resolution of samples")
     parser.add_argument("--num_classes", default=5, type=int,
-                        description="Which number of classes to use. Can"
-                                    "be one of {5, 17, 51} (Default: 5)")
+                        help="Which number of classes to use. Can be one of "
+                             "{5, 17, 51} (Default: 5)")
     parser.add_argument("--batch_size", default=64, type=int,
-                        description="Batch size which should be used"
-                                    " (Default: 64)")
+                        help="Batch size which should be used (Default: 64)")
     parser.add_argument("--oi-dir", default="./cache/data", type=str,
-                        description="Location where OpenImagesModular dataset"
-                                    " is or should be located (Default: "
-                                    "./cache/data)")
+                        help="Location where OpenImagesModular dataset is or "
+                             "should be located (Default: ./cache/data)")
 
     return parser.parse_args()
 
