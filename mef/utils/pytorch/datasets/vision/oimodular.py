@@ -89,7 +89,7 @@ class OIModular(Dataset):
                 self._root.joinpath("complete").touch()
 
         if num_classes == 5:
-            self._test_size = 1200
+            self._test_size = 1020
             self._class_type = "Superclass"
             class_names = list(self._openimages_classes.keys())
         elif num_classes == 17:
@@ -140,6 +140,9 @@ class OIModular(Dataset):
 
     def _class_label_codes(self) -> Dict:
         classes_csv = "oidv6-class-descriptions.csv"
+
+        if not self._root.exists():
+            self._root.mkdir(parents=True)
 
         # download the class descriptions CSV file to the specified
         # directory if not present
@@ -225,9 +228,6 @@ class OIModular(Dataset):
                     if downloaded_images == limit:
                         break
         progress_bar.close()
-
-        print(f"Downloaded {downloaded_images}/{num_samples} images of "
-              f"{subsubclass_dir.stem}")
 
         return pd.concat(dfs_imgs)
 
