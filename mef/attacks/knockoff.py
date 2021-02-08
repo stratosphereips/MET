@@ -73,7 +73,6 @@ class KnockOff(Base):
                 self._substitute_model.parameters(), lr=0.0005, momentum=0.5)
         self._online_loss = self._substitute_model._loss
 
-        self._selected_actions = np.array([])
         self._selected_idxs = dd(list)
         self._num_actions = None
         self._y_avg = None
@@ -261,7 +260,6 @@ class KnockOff(Base):
             self._logger.info("---------- Iteration: {} ----------".format(it))
             # Sample an action
             action = np.random.choice(np.arange(0, self._num_actions), p=probs)
-            self._selected_actions = np.append(self._selected_actions, action)
             self._logger.info("Action {} selected".format(action))
 
             # Select sample to attack
@@ -343,14 +341,11 @@ class KnockOff(Base):
             transfer_data = self._adaptive_strategy()
             self._substitute_model.load_state_dict(original_state_dict)
 
-        acitons_filepath = self.base_settings.save_loc.joinpath(
-                "selected_actions.pl")
-        with open(acitons_filepath, 'wb') as f:
-            pickle.dump(self._selected_actions, f)
-        idxs_filepath = self.base_settings.save_loc.joinpath(
-                "selected_idxs.pl")
-        with open(idxs_filepath, 'wb') as f:
-            pickle.dump(self._selected_idxs, f)
+        if self._attack_settings.idxs:
+            idxs_filepath = self.base_settings.save_loc.joinpath(
+                    "selected_idxs.pl")
+            with open(idxs_filepath, 'wb') as f:
+                pickle.dump(self._selected_idxs, f)
 
         self._logger.info("Offline training of substitute model")
         self._train_substitute_model(transfer_data)

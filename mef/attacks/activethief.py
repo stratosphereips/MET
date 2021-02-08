@@ -298,7 +298,7 @@ class ActiveThief(Base):
             y_val = self._get_predictions(self._victim_model, val_set)
 
         val_set = CustomLabelDataset(val_set, y_val)
-        if self.base_settings.idxs:
+        if self.attack_settings.idxs:
             self._selected_idxs["val_data"].extend(idxs_val)
 
         val_label_counts = dict(
@@ -323,7 +323,7 @@ class ActiveThief(Base):
         query_set = Subset(self._thief_dataset, idxs_query)
         y_query = self._get_predictions(self._victim_model, query_set)
         query_sets.append(CustomLabelDataset(query_set, y_query))
-        if self.base_settings.idxs:
+        if self.attack_settings.idxs:
             self._selected_idxs["sub_data"].extend(idxs_query)
 
         # Get victim model metrics on test set
@@ -385,7 +385,7 @@ class ActiveThief(Base):
             idxs_query = idxs_rest[np.unique(idxs_query)]
             idxs_rest = np.setdiff1d(idxs_rest, idxs_query)
             query_set = Subset(self._thief_dataset, idxs_query)
-            if self.base_settings.idxs:
+            if self.attack_settings.idxs:
                 self._selected_idxs["sub_data"].extend(idxs_query)
 
             # Step 2: Attacker queries current picked samples to secret
