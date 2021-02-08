@@ -11,7 +11,7 @@ class Mnist(MNIST):
                  train: bool = True,
                  transform: Optional[Callable] = None,
                  target_transform: Optional[Callable] = None,
-                 download: bool = 0):
+                 download: bool = False):
         root = Path(root).joinpath("mnist")
         super().__init__(root, train, transform, target_transform, download)
 
@@ -22,6 +22,6 @@ class FashionMnist(FashionMNIST):
                  train: bool = True,
                  transform: Optional[Callable] = None,
                  target_transform: Optional[Callable] = None,
-                 download: bool = 0):
+                 download: bool = False):
         root = Path(root).joinpath("fashion_mnist")
         super().__init__(root, train, transform, target_transform, download)

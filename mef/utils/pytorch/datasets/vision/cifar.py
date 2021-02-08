@@ -10,7 +10,7 @@ class Cifar10(CIFAR10):
                  train: bool = True,
                  transform: Optional[Callable] = None,
                  target_transform: Optional[Callable] = None,
-                 download: bool = 0):
+                 download: bool = False):
         root = Path(root).joinpath("cifar10")
         super().__init__(root, train, transform, target_transform, download)
 
@@ -21,6 +21,6 @@ class Cifar100(CIFAR100):
                  train: bool = True,
                  transform: Optional[Callable] = None,
                  target_transform: Optional[Callable] = None,
-                 download: bool = 0):
+                 download: bool = False):
         root = Path(root).joinpath("cifar100")
         super().__init__(root, train, transform, target_transform, download)

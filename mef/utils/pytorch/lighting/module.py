@@ -59,9 +59,9 @@ class _MefModel(pl.LightningModule, ABC):
 
         self._val_accuracy(preds, y)
         self._f1_macro(preds, y)
-        self.log_dict({"{}_acc".format(step_type): self._val_accuracy,
-                       "{}_f1".format(step_type): self._f1_macro},
-                      prog_bar=True, on_epoch=True)
+        self.log_dict({f"{step_type}_acc": self._val_accuracy,
+                       f"{step_type}_f1": self._f1_macro}, prog_bar=True,
+                      on_epoch=True)
         return preds.detach().cpu()
 
     def validation_step(self,
