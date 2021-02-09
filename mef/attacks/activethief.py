@@ -34,11 +34,11 @@ class ActiveThiefSettings(AttackSettings):
                  budget: int,
                  init_seed_size: float,
                  val_size: float,
-                 idxs: bool):
+                 save_samples: bool):
         self.iterations = iterations
         self.selection_strategy = selection_strategy.lower()
         self.budget = budget
-        self.idxs = idxs
+        self.save_samples = save_samples
 
         # Check configuration
         if self.selection_strategy not in ["random", "entropy", "k-center",
@@ -63,7 +63,7 @@ class ActiveThief(Base):
                  budget: int = 20000,
                  init_seed_size: float = 0.1,
                  val_size: float = 0.2,
-                 idxs: bool = False):
+                 save_samples: bool = False):
 
         super().__init__(victim_model, substitute_model)
         self.attack_settings = ActiveThiefSettings(iterations,
@@ -71,7 +71,7 @@ class ActiveThief(Base):
                                                    init_seed_size, val_size,
                                                    idxs)
         self._val_dataset = None
-        self._selected_idxs = dd(list)
+        self._selected_samples = dd(list)
 
     @classmethod
     def _get_attack_parser(cls) -> ArgumentParser:
@@ -298,7 +298,7 @@ class ActiveThief(Base):
             y_val = self._get_predictions(self._victim_model, val_set)
 
         val_set = CustomLabelDataset(val_set, y_val)
-        if self.attack_settings.idxs:
+        if self.attack_settings.save_samples:
             self._selected_idxs["val_data"].extend(idxs_val)
 
         val_label_counts = dict(
@@ -323,8 +323,9 @@ class ActiveThief(Base):
         query_set = Subset(self._thief_dataset, idxs_query)
         y_query = self._get_predictions(self._victim_model, query_set)
         query_sets.append(CustomLabelDataset(query_set, y_query))
-        if self.attack_settings.idxs:
-            self._selected_idxs["sub_data"].extend(idxs_query)
+        if self.attack_settings.save_samples:
+            self._selected_samples["idxs"].extend(idxs_query)
+            self._selected_samples["labels"].append(y_query)
 
         # Get victim model metrics on test set
         self._logger.info("Getting victim model's metrics for test set")
@@ -385,8 +386,6 @@ class ActiveThief(Base):
             idxs_query = idxs_rest[np.unique(idxs_query)]
             idxs_rest = np.setdiff1d(idxs_rest, idxs_query)
             query_set = Subset(self._thief_dataset, idxs_query)
-            if self.attack_settings.idxs:
-                self._selected_idxs["sub_data"].extend(idxs_query)
 
             # Step 2: Attacker queries current picked samples to secret
             # model for labeling
@@ -395,9 +394,14 @@ class ActiveThief(Base):
             y_query = self._get_predictions(self._victim_model, query_set)
             query_sets.append(CustomLabelDataset(query_set, y_query))
 
-        if self.attack_settings.idxs:
-            filepath = self.base_settings.save_loc.joinpath("selected_idxs.pl")
+            if self.attack_settings.save_samples:
+                self._selected_samples["idxs"].extend(idxs_query)
+                self._selected_samples["labels"].append(y_query)
+
+        if self.attack_settings.save_samples:
+            filepath = self.base_settings.save_loc.joinpath("selected_samples.pl")
+            self._selected_samples["labels"] = torch.cat(self._selected_samples["labels"])
             with open(filepath, 'wb') as f:
-                pickle.dump(self._selected_idxs, f)
+                pickle.dump(self._selected_samples, f)
 
         return

@@ -26,19 +26,19 @@ class KnockOffSettings(AttackSettings):
     init_seed_size: int
     val_size: int
     k: int
-    idxs: bool
+    save_samples: bool
 
     def __init__(self,
                  sampling_strategy: str,
                  reward_type: str,
                  budget: int,
-                 idxs: bool):
+                 save_samples: bool):
         self.sampling_strategy = sampling_strategy.lower()
         self.reward_type = reward_type.lower()
         self.budget = budget
         self.k = 4
         self.iterations = self.budget // self.k
-        idxs = idxs
+        self.save_samples = save_samples
 
         # Check configuration
         if self.sampling_strategy not in ["random", "adaptive"]:
@@ -60,7 +60,7 @@ class KnockOff(Base):
                  sampling_strategy: str = "adaptive",
                  reward_type: str = "cert",
                  budget: int = 20000,
-                 idxs: bool = False):
+                 save_samples: bool = False):
 
         super().__init__(victim_model, substitute_model)
         self.attack_settings = KnockOffSettings(sampling_strategy, reward_type,
@@ -73,7 +73,7 @@ class KnockOff(Base):
                 self._substitute_model.parameters(), lr=0.0005, momentum=0.5)
         self._online_loss = self._substitute_model._loss
 
-        self._selected_idxs = dd(list)
+        self._selected_samples = dd(list)
         self._num_actions = None
         self._y_avg = None
         self._reward_avg = None
@@ -103,14 +103,18 @@ class KnockOff(Base):
         self._logger.info("Selecting random sample from thief dataset of "
                           "size {}".format(self.attack_settings.budget))
         idx_x = np.arange(len(self._thief_dataset))
-        self._selected_idxs = np.random.permutation(idx_x)[
-                              :self.attack_settings.budget]
+        idx_smapled = np.random.permutation(idx_x)[:
+                            self.attack_settings.budget]
         selected_data = Subset(self._thief_dataset, self._selected_idxs)
 
         self._logger.info("Getting fake labels from victim model")
-        y_output = self._get_predictions(self._victim_model, selected_data)
+        y = self._get_predictions(self._victim_model, selected_data)
 
-        return CustomLabelDataset(selected_data, y_output)
+        if self.attack_settings.save_samples:
+            self._selected_samples["idxs"].extend(idx_sampled)
+            self._selected_samples["labels"].append(y)
+
+        return CustomLabelDataset(selected_data, y)
 
     def _sample_data(self,
                      action: int) -> Subset:
@@ -127,8 +131,8 @@ class KnockOff(Base):
         idx_sampled = np.random.permutation(idx_action)[
                       :self.attack_settings.k]
 
-        if self.attack_settings.idxs:
-            self._selected_idxs["sub_data"].extend(idx_sampled)
+        if self.attack_settings.save_samples:
+            self._selected_samples["idxs"].extend(idx_sampled)
 
         return Subset(self._thief_dataset, idx_sampled)
 
@@ -270,6 +274,9 @@ class KnockOff(Base):
             self._logger.info("Getting victim predictions on sampled data")
             y = self._get_predictions(self._victim_model, sampled_data)
 
+            if self._attack_settings.save_samples:
+                self._selected_samples["labels"].append(y)
+
             # Train the thieved classifier
             query_set = CustomLabelDataset(sampled_data, y)
             query_sets.append(query_set)
@@ -341,11 +348,13 @@ class KnockOff(Base):
             transfer_data = self._adaptive_strategy()
             self._substitute_model.load_state_dict(original_state_dict)
 
-        if self._attack_settings.idxs:
+        if self._attack_settings.save_samples:
             idxs_filepath = self.base_settings.save_loc.joinpath(
-                    "selected_idxs.pl")
+                    "selected_samples.pl")
+            self._selected_samples["labels"] = torch.cat(
+                    self._selected_samples["labels"])
             with open(idxs_filepath, 'wb') as f:
-                pickle.dump(self._selected_idxs, f)
+                pickle.dump(self._selected_samples, f)
 
         self._logger.info("Offline training of substitute model")
         self._train_substitute_model(transfer_data)
