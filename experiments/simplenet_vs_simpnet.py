@@ -27,27 +27,31 @@ def getr_args():
 if __name__ == "__main__":
     args = getr_args()
 
-    transform = T.Compose([T.Grayscale(num_output_channels=3), T.ToTensor(),
-                           T.Normalize((0.5,), (0.5,))])
-    train_set = Cifar10(args.cifar10_dir, download=True,
-                        transform=transform)
-    test_set = Cifar10(args.cifar10_dir, train=False, download=True,
-                       transform=transform)
+    train_transform = T.Compose([T.RandomCrop(32, padding=4),
+                                 T.RandomHorizontalFlip(), T.ToTensor(),
+                                 T.Normalize((0.5,), (0.5,))])
+    test_transform = T.Compose([T.ToTensor(),
+                               T.Normalize((0.5,), (0.5,))])
 
-    train_set, val_set = split_dataset(train_set, 0.2)
+    train_set = Cifar10(args.cifar10_dir, download=True,
+                        transform=train_transform)
+    test_set = Cifar10(args.cifar10_dir, train=False, download=True,
+                       transform=test_transform)
 
     simplenet = SimpleNet(num_classes=10)
-    optimizer = torch.optim.Adam(simplenet.parameters())
+    optimizer = torch.optim.SGD(simplenet.parameters(), lr=0.01, momentum=0.9,
+                                weight_decay=0.005,)
     loss = torch.nn.functional.cross_entropy
-    train_victim_model(simplenet, optimizer, loss, train_set, 10, 1000, 64, 16,
-                       val_set, test_set, gpus=args.gpus,
+    train_victim_model(simplenet, optimizer, loss, train_set, 10, 100, 64, 16,
+                       test_set=test_set, gpus=args.gpus,
                        save_loc="./cache/Simplenet-vs-Simpnet-cifar10"
                                 "/Simplenet")
 
     simpnet = SimpNet(num_classes=10)
-    optimizer = torch.optim.Adam(simpnet.parameters())
+    optimizer = torch.optim.SGD(simpnet.parameters(), lr=0.01, momentum=0.9,
+                                weight_decay=0.005,)
     loss = torch.nn.functional.cross_entropy
-    train_victim_model(simplenet, optimizer, loss, train_set, 10, 1000, 64, 16,
-                       val_set, test_set, gpus=args.gpus,
+    train_victim_model(simplenet, optimizer, loss, train_set, 10, 100, 64, 16,
+                       test_set=test_set, gpus=args.gpus,
                        save_loc="./cache/Simplenet-vs-Simpnet-cifar10"
                                 "/Simpnet")
