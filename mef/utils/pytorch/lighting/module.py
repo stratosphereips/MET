@@ -17,6 +17,7 @@ class Generator(pl.LightningModule):
         self._generator = generator
         self.latent_dim = latent_dim
 
+    @auto_move_data
     def forward(self, z):
         return self._generator(z)
 

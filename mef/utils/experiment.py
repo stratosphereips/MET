@@ -61,6 +61,7 @@ def train_victim_model(victim_model: nn.Module,
                                 lr_scheduler)
         if gpus:
             victim.cuda()
+
         trainer.fit(victim, train_dataloader, val_dataloader)
 
         if not isinstance(checkpoint_cb, bool):

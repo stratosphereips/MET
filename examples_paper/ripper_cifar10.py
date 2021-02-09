@@ -9,8 +9,7 @@ from torchvision.transforms import transforms as T
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
-from mef.utils.pytorch.models.generators.cifar_sngan.sngan_cifar10 import \
-    Generator as SNGAN
+from mef.utils.pytorch.models.generators import Sngan
 from mef.attacks.ripper import Ripper
 from mef.utils.experiment import train_victim_model
 from mef.utils.ios import mkdir_if_missing
@@ -31,16 +30,13 @@ def set_up(args):
 
     victim_model = AlexNetSmall(DIMS, NUM_CLASSES)
     substitute_model = HalfAlexNetSmall(DIMS, NUM_CLASSES)
-    generator = SNGAN()
-
-    if args.gpus:
-        victim_model.cuda()
-        substitute_model.cuda()
-        generator.cuda()
+    generator = Sngan(args.generator_checkpoint, resolution=DIMS[2],
+                      gpu=args.gpus)
 
     # Prepare data
     print("Preparing data")
-    # The GANs created by the authors of the attack are pretrained on CIFAR100 scaled to
+    # The GANs created by the authors of the attack are pretrained on
+    # CIFAR100 scaled to
     # [-1, 1]
     transform = T.Compose([T.Resize(DIMS[-1]), T.ToTensor(),
                            T.Normalize((0.5,), (0.5,))])
@@ -57,24 +53,28 @@ def set_up(args):
                        gpus=args.gpus, deterministic=args.deterministic,
                        debug=args.debug, precision=args.precision)
 
-    # Load generator
-    # TODO: removed hardcoded path
-    state_dict = torch.load("./cache/ripper/CIFAR10/generator/"
-                            "cifar_100_90_classes_gan.pth")["gen_state_dict"]
-    generator.load_state_dict(state_dict)
     generator = Generator(generator, LATENT_DIM)
 
-    victim_model = VictimModel(victim_model, NUM_CLASSES, output_type="softmax")
+    victim_model = VictimModel(victim_model, NUM_CLASSES,
+                               output_type="softmax")
     substitute_model = TrainableModel(substitute_model, NUM_CLASSES,
                                       torch.optim.Adam(
                                               substitute_model.parameters()),
                                       soft_cross_entropy)
+
+    if args.gpus:
+        victim_model.cuda()
+        substitute_model.cuda()
+        generator.cuda()
 
     return victim_model, substitute_model, generator, test_set
 
 
 if __name__ == "__main__":
     parser = Ripper.get_attack_args()
+    parser.add_argument("generator_checkpoint", type=str,
+                        help="Location of torch_mimicry checkpoint "
+                             "for SNGAN.")
     parser.add_argument("--cifar10_dir", default="./data/", type=str,
                         help="Path to CIFAR10 dataset (Default: ./data/)")
     parser.add_argument("--imagenet_dir", type=str,
