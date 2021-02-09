@@ -8,8 +8,7 @@ import torch.nn.functional as F
 from mef.utils.pytorch.models.vision.base import Base
 
 
-class SimpleNet(Base):
-    """https://paperswithcode.com/paper/lets-keep-it-simple-using-simple"""
+class SimpNet(Base):
 
     def __init__(self,
                  num_classes: int,
@@ -20,9 +19,9 @@ class SimpleNet(Base):
         self._layers = self._make_layers()
 
         self._pool = lambda a: F.max_pool2d(a, kernel_size=a.size()[2:])
-        self._drop = nn.Dropout(p=0.1)
+        self._drop = nn.Dropout(p=0.2)
 
-        self._fc_final = nn.Linear(256, num_classes)
+        self._fc_final = nn.Linear(432, num_classes)
 
     def forward(self,
                 x: torch.Tensor) -> Union[torch.Tensor,
@@ -48,15 +47,14 @@ class SimpleNet(Base):
                                              "padding"])
         MaxPoolLayer = namedtuple("MaxPoolLayer", ["kernel_size", "stride"])
 
-        layers = [ConvBlock(3, 64, 3, 1, 1), ConvBlock(64, 128, 3, 1, 1),
+        layers = [ConvBlock(3, 66, 3, 1, 1), ConvBlock(66, 128, 3, 1, 1),
                   ConvBlock(128, 128, 3, 1, 1), ConvBlock(128, 128, 3, 1, 1),
-                  MaxPoolLayer(2, 2), ConvBlock(128, 128, 3, 1, 1),
-                  ConvBlock(128, 128, 3, 1, 1), ConvBlock(128, 256, 3, 1, 1),
-                  MaxPoolLayer(2, 2), ConvBlock(256, 256, 3, 1, 1),
-                  ConvBlock(256, 256, 3, 1, 1), MaxPoolLayer(2, 2),
-                  ConvBlock(256, 512, 3, 1, 1), MaxPoolLayer(2, 2),
-                  ConvBlock(512, 2048, 1, 1, 0), ConvBlock(2048, 256, 1, 1, 0),
-                  MaxPoolLayer(2, 2), ConvBlock(256, 256, 3, 1, 1)]
+                  ConvBlock(128, 192, 3, 1, 1), MaxPoolLayer(2, 2),
+                  ConvBlock(192, 192, 3, 1, 1), ConvBlock(192, 192, 3, 1, 1),
+                  ConvBlock(192, 192, 3, 1, 1), ConvBlock(192, 192, 3, 1, 1),
+                  ConvBlock(192, 288, 3, 1, 1), MaxPoolLayer(2, 2),
+                  ConvBlock(288, 288, 3, 1, 1), ConvBlock(288, 355, 3, 1, 1),
+                  ConvBlock(355, 432, 3, 1, 1)]
 
         model = []
         for layer in layers:
@@ -66,10 +64,10 @@ class SimpleNet(Base):
                                         layer.padding),
                               nn.BatchNorm2d(layer.out_channels,
                                              momentum=0.05),
-                              nn.ReLU(inplace=True)])
+                              nn.ReLU(inplace=True), nn.Dropout2d(p=0.2)])
             else:
                 model.extend([nn.MaxPool2d(layer.kernel_size, layer.stride),
-                              nn.Dropout2d(p=0.1)])
+                              nn.Dropout2d(p=0.2)])
 
         model = nn.Sequential(*model)
 

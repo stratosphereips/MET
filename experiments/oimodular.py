@@ -27,6 +27,8 @@ def getr_args():
     parser.add_argument("--oi-dir", default="./cache/data", type=str,
                         help="Location where OpenImagesModular dataset is or "
                              "should be located (Default: ./cache/data)")
+    parser.add_argument("--gpus", type=int, default=0,
+                        help="Number of gpus to be used (Default: 0)")
 
     return parser.parse_args()
 
@@ -36,10 +38,10 @@ if __name__ == "__main__":
 
     transform = T.Compose([T.Grayscale(num_output_channels=3),
                            T.Resize((args.resolution,)), T.ToTensor()])
-    train_set = OIModular("/data/vit/openimagesv6", args.num_classes,
-                          download=True, transform=transform)
-    test_set = OIModular("/data/vit/openimagesv6", args.num_classes,
-                         train=False, download=True, transform=transform)
+    train_set = OIModular(args.oi_dir, args.num_classes, download=True,
+                          transform=transform)
+    test_set = OIModular(args.oi_dir, args.num_classes, train=False,
+                         download=True, transform=transform)
 
     train_set, val_set = split_dataset(train_set, 0.2)
 
@@ -54,5 +56,5 @@ if __name__ == "__main__":
 
     train_victim_model(test_model, optimizer, loss, train_set,
                        args.num_classes, 1000, args.batch_size, 16,
-                       val_set, test_set, gpus=1,
+                       val_set, test_set, gpus=args.gpus,
                        save_loc=f"./cache/OIModular{args.num_classes}/")

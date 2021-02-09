@@ -2,10 +2,10 @@ import os
 import sys
 from pathlib import Path
 
-from torch.utils.data import ConcatDataset
 import torch
 import torch.nn.functional as F
 from pytorch_lightning import seed_everything
+from torch.utils.data import ConcatDataset
 from torchvision.transforms import transforms as T
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
@@ -55,7 +55,8 @@ def set_up(args):
                        save_loc=args.save_loc, gpus=args.gpus,
                        deterministic=args.deterministic, debug=args.debug,
                        precision=args.precision)
-    victim_model = VictimModel(victim_model, NUM_CLASSES, output_type="softmax")
+    victim_model = VictimModel(victim_model, NUM_CLASSES,
+                               output_type="softmax")
 
     sub_optimizer = torch.optim.SGD(substitute_model.parameters(), lr=0.01,
                                     momentum=0.5)
@@ -63,15 +64,17 @@ def set_up(args):
                                       sub_optimizer,
                                       soft_cross_entropy,
                                       torch.optim.lr_scheduler.StepLR(
-                                              sub_optimizer,
-                                              step_size=60))
+                                              sub_optimizer, step_size=60))
 
-    # Because we are using adaptive_flat we are using the same experiment setup as int
-    # the paper, where it assumed that the attacker has access to all available data 
+    # Because we are using adaptive_flat we are using the same experiment
+    # setup as in the paper, where it is assumed that the attacker has access
+    # to all available data
     sub_dataset = ConcatDataset([sub_dataset, train_set, test_set])
     sub_dataset.num_classes = 1256
-    sub_dataset.datasets[1].targets = [y + 1000 for y in sub_dataset.datasets[1].targets]
-    sub_dataset.datasets[2].targets = [y + 1000 for y in sub_dataset.datasets[2].targets]
+    sub_dataset.datasets[1].targets = [y + 1000 for y in
+                                       sub_dataset.datasets[1].targets]
+    sub_dataset.datasets[2].targets = [y + 1000 for y in
+                                       sub_dataset.datasets[2].targets]
     sub_dataset.targets = []
     sub_dataset.targets.extend(sub_dataset.datasets[0].targets)
     sub_dataset.targets.extend(sub_dataset.datasets[1].targets)
