@@ -45,7 +45,7 @@ if __name__ == "__main__":
     train_victim_model(simplenet, optimizer, loss, train_set, 10, 100, 64, 16,
                        test_set=test_set, gpus=args.gpus,
                        save_loc="./cache/Simplenet-vs-Simpnet-cifar10"
-                                "/Simplenet")
+                                "/SimpleNet")
 
     simpnet = SimpNet(num_classes=10)
     optimizer = torch.optim.SGD(simpnet.parameters(), lr=0.01, momentum=0.9,
@@ -54,4 +54,13 @@ if __name__ == "__main__":
     train_victim_model(simplenet, optimizer, loss, train_set, 10, 100, 64, 16,
                        test_set=test_set, gpus=args.gpus,
                        save_loc="./cache/Simplenet-vs-Simpnet-cifar10"
-                                "/Simpnet")
+                                "/SimpNet-5M")
+
+    simpnet = SimpNet(num_classes=10, less_parameters=False)
+    optimizer = torch.optim.SGD(simpnet.parameters(), lr=0.01, momentum=0.9,
+                                weight_decay=0.005,)
+    loss = torch.nn.functional.cross_entropy
+    train_victim_model(simplenet, optimizer, loss, train_set, 10, 100, 64, 16,
+                       test_set=test_set, gpus=args.gpus,
+                       save_loc="./cache/Simplenet-vs-Simpnet-cifar10"
+                                "/SimpNet-8M")

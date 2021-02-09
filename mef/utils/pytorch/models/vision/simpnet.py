@@ -12,6 +12,7 @@ class SimpNet(Base):
 
     def __init__(self,
                  num_classes: int,
+                 less_parameters: bool = True,
                  return_hidden: bool = False):
         super().__init__(num_classes)
 
@@ -21,7 +22,10 @@ class SimpNet(Base):
         self._pool = lambda a: F.max_pool2d(a, kernel_size=a.size()[2:])
         self._drop = nn.Dropout(p=0.2)
 
-        self._fc_final = nn.Linear(432, num_classes)
+        if less_parameters:
+            self._fc_final = nn.Linear(432, num_classes)
+        else:
+            self._fc_final = nn.Linear(600, num_classes)
 
     def forward(self,
                 x: torch.Tensor) -> Union[torch.Tensor,
@@ -47,14 +51,24 @@ class SimpNet(Base):
                                              "padding"])
         MaxPoolLayer = namedtuple("MaxPoolLayer", ["kernel_size", "stride"])
 
-        layers = [ConvBlock(3, 66, 3, 1, 1), ConvBlock(66, 128, 3, 1, 1),
-                  ConvBlock(128, 128, 3, 1, 1), ConvBlock(128, 128, 3, 1, 1),
-                  ConvBlock(128, 192, 3, 1, 1), MaxPoolLayer(2, 2),
-                  ConvBlock(192, 192, 3, 1, 1), ConvBlock(192, 192, 3, 1, 1),
-                  ConvBlock(192, 192, 3, 1, 1), ConvBlock(192, 192, 3, 1, 1),
-                  ConvBlock(192, 288, 3, 1, 1), MaxPoolLayer(2, 2),
-                  ConvBlock(288, 288, 3, 1, 1), ConvBlock(288, 355, 3, 1, 1),
-                  ConvBlock(355, 432, 3, 1, 1)]
+        if less_parameters:
+            layers = [ConvBlock(3, 66, 3, 1, 1), ConvBlock(66, 128, 3, 1, 1),
+                    ConvBlock(128, 128, 3, 1, 1), ConvBlock(128, 128, 3, 1, 1),
+                    ConvBlock(128, 192, 3, 1, 1), MaxPoolLayer(2, 2),
+                    ConvBlock(192, 192, 3, 1, 1), ConvBlock(192, 192, 3, 1, 1),
+                    ConvBlock(192, 192, 3, 1, 1), ConvBlock(192, 192, 3, 1, 1),
+                    ConvBlock(192, 288, 3, 1, 1), MaxPoolLayer(2, 2),
+                    ConvBlock(288, 288, 3, 1, 1), ConvBlock(288, 355, 3, 1, 1),
+                    ConvBlock(355, 432, 3, 1, 1)]
+        else:
+            layers = [ConvBlock(3, 128, 3, 1, 1), ConvBlock(128, 182, 3, 1, 1),
+                    ConvBlock(182, 182, 3, 1, 1), ConvBlock(182, 182, 3, 1, 1),
+                    ConvBlock(182, 182, 3, 1, 1), MaxPoolLayer(2, 2),
+                    ConvBlock(182, 182, 3, 1, 1), ConvBlock(182, 182, 3, 1, 1),
+                    ConvBlock(182, 182, 3, 1, 1), ConvBlock(182, 182, 3, 1, 1),
+                    ConvBlock(182, 430, 3, 1, 1), MaxPoolLayer(2, 2),
+                    ConvBlock(430, 430, 3, 1, 1), ConvBlock(430, 450, 3, 1, 1),
+                    ConvBlock(450, 600, 3, 1, 1)]
 
         model = []
         for layer in layers:
