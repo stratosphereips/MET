@@ -17,7 +17,7 @@ class SimpNet(Base):
         super().__init__(num_classes)
 
         self._return_hidden = return_hidden
-        self._layers = self._make_layers()
+        self._layers = self._make_layers(less_parameters)
 
         self._pool = lambda a: F.max_pool2d(a, kernel_size=a.size()[2:])
         self._drop = nn.Dropout(p=0.2)
@@ -44,7 +44,8 @@ class SimpNet(Base):
 
         return logits
 
-    def _make_layers(self) -> nn.Sequential:
+    def _make_layers(self,
+                     less_parameters: bool) -> nn.Sequential:
 
         ConvBlock = namedtuple("ConvBlock", ["in_channels", "out_channels",
                                              "kernel_size", "stride",
