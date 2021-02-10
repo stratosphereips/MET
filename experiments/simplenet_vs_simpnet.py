@@ -12,8 +12,10 @@ from mef.utils.pytorch.datasets.vision import Cifar10
 from mef.utils.pytorch.models.vision import SimpNet, SimpleNet
 
 NUM_CLASSES = 10
-EPOCHS = 100
-BATCH_SIZE = 64
+EPOCHS = 1000
+PATIENCE = 100
+EVALUATION_FREQUENCY = 1
+BATCH_SIZE = 100
 
 
 def getr_args():
@@ -45,31 +47,31 @@ if __name__ == "__main__":
                        transform=test_transform)
 
     simplenet = SimpleNet(num_classes=NUM_CLASSES)
-    optimizer = torch.optim.SGD(simplenet.parameters(), lr=0.01, momentum=0.9,
-                                weight_decay=0.005)
+    optimizer = torch.optim.Adam(simplenet.parameters())
     loss = torch.nn.functional.cross_entropy
     train_victim_model(simplenet, optimizer, loss, train_set, NUM_CLASSES,
-                       EPOCHS, BATCH_SIZE, args.num_workers, test_set=test_set,
-                       gpus=args.gpus,
+                       EPOCHS, BATCH_SIZE, args.num_workers, val_set=test_set,
+                       patience=PATIENCE, gpus=args.gpus,
+                       evaluation_frequency=EVALUATION_FREQUENCY,
                        save_loc="./cache/Simplenet-vs-Simpnet-cifar10"
                                 "/SimpleNet")
 
     simpnet1 = SimpNet(num_classes=NUM_CLASSES)
-    optimizer = torch.optim.SGD(simpnet1.parameters(), lr=0.01, momentum=0.9,
-                                weight_decay=0.005)
+    optimizer = torch.optim.Adam(simpnet1.parameters())
     loss = torch.nn.functional.cross_entropy
     train_victim_model(simpnet1, optimizer, loss, train_set, NUM_CLASSES,
-                       EPOCHS, BATCH_SIZE, args.num_workers, test_set=test_set,
-                       gpus=args.gpus,
+                       EPOCHS, BATCH_SIZE, args.num_workers, val_set=test_set,
+                       patience=PATIENCE, gpus=args.gpus,
+                       evaluation_frequency=EVALUATION_FREQUENCY,
                        save_loc="./cache/Simplenet-vs-Simpnet-cifar10"
                                 "/SimpNet-5M")
 
     simpnet2 = SimpNet(num_classes=NUM_CLASSES, less_parameters=False)
-    optimizer = torch.optim.SGD(simpnet2.parameters(), lr=0.01, momentum=0.9,
-                                weight_decay=0.005)
+    optimizer = torch.optim.Adam(simpnet2.parameters())
     loss = torch.nn.functional.cross_entropy
     train_victim_model(simpnet2, optimizer, loss, train_set, NUM_CLASSES,
-                       EPOCHS, BATCH_SIZE, args.num_workers, test_set=test_set,
-                       gpus=args.gpus,
+                       EPOCHS, BATCH_SIZE, args.num_workers, val_set=test_set,
+                       patience=PATIENCE, gpus=args.gpus,
+                       evaluation_frequency=EVALUATION_FREQUENCY,
                        save_loc="./cache/Simplenet-vs-Simpnet-cifar10"
                                 "/SimpNet-8M")
