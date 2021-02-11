@@ -69,7 +69,7 @@ class ActiveThief(Base):
         self.attack_settings = ActiveThiefSettings(iterations,
                                                    selection_strategy, budget,
                                                    init_seed_size, val_size,
-                                                   idxs)
+                                                   save_samples)
         self._val_dataset = None
         self._selected_samples = dd(list)
 

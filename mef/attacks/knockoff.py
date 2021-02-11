@@ -64,7 +64,7 @@ class KnockOff(Base):
 
         super().__init__(victim_model, substitute_model)
         self.attack_settings = KnockOffSettings(sampling_strategy, reward_type,
-                                                budget, idxs)
+                                                budget, save_samples)
         self.trainer_settings._validation = False
 
         # KnockOff's specific attributes
@@ -103,7 +103,7 @@ class KnockOff(Base):
         self._logger.info("Selecting random sample from thief dataset of "
                           "size {}".format(self.attack_settings.budget))
         idx_x = np.arange(len(self._thief_dataset))
-        idx_smapled = np.random.permutation(idx_x)[:
+        idx_sampled = np.random.permutation(idx_x)[:
                             self.attack_settings.budget]
         selected_data = Subset(self._thief_dataset, self._selected_idxs)
 
