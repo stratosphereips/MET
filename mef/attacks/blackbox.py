@@ -1,10 +1,12 @@
+import math
 from argparse import ArgumentParser
 from dataclasses import dataclass
 from typing import List
 
+import numpy as np
 import torch
 from pl_bolts.datamodules.sklearn_datamodule import TensorDataset
-from torch.utils.data import ConcatDataset, DataLoader, Dataset
+from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset
 from tqdm import tqdm
 
 from mef.attacks.base import Base
@@ -21,8 +23,10 @@ class BlackBoxSettings(AttackSettings):
 
     def __init__(self,
                  iterations: int,
+                 budget: int,
                  lmbda: float):
         self.iterations = iterations
+        self.budget = budget
         self.lmbda = lmbda
 
 
@@ -44,6 +48,10 @@ class BlackBox(Base):
         parser.add_argument("--iterations", default=6, type=int,
                             help="Number of iterations of the attacks ("
                                  "Default: 6)")
+        parser.add_argument("--budget", default=20000, type=int,
+                            help="Size of the budget (Default: 20000). For "
+                                 "the blackbox attack, this is only used as "
+                                 "upper limit.")
         parser.add_argument("--lmbda", default=0.1, type=float,
                             help="Value of lambda in Jacobian augmentation ("
                                  "Default: 0.1)")
@@ -119,12 +127,17 @@ class BlackBox(Base):
         self._logger.info("########### Starting BlackBox attack ###########")
 
         # Get attack's budget
-        budget = len(self._thief_dataset) * \
-                 (2 ** self.attack_settings.iterations) - \
-                 len(self._thief_dataset)
-        self._logger.info("BlackBox's attack budget: {}".format(budget))
+        query_set_size = self.attack_settings.budget / (
+                (2 ** self.attack_settings.iterations) - 1)
+        real_budget = math.floor(query_set_size *
+                                 (2 ** self.attack_settings.iterations) -
+                                 query_set_size)
+        self._logger.info("BlackBox's attack budget: {}".format(real_budget))
 
-        query_sets = [self._thief_dataset]
+        idxs_rest = np.arange(len(self._thief_dataset))
+        idxs_initial = np.random.permutation(idxs_rest)[:query_set_size]
+
+        query_sets = [Subset(self._thief_dataset, idxs_initial)]
         for it in range(self.attack_settings.iterations):
             self._logger.info("---------- Iteration: {} ----------".format(
                     it + 1))
