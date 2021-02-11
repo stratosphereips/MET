@@ -108,6 +108,6 @@ if __name__ == "__main__":
     af.trainer_settings.patience = args.patience
     af.trainer_settings.evaluation_frequency = args.evaluation_frequency
     af.trainer_settings.precision = args.precision
-    af.trainer_settings.accuracy = args.accuracy
+    af.trainer_settings.use_accuracy = args.accuracy
 
     af(thief_dataset, test_set, val_dataset)

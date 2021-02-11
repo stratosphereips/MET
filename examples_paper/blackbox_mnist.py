@@ -95,6 +95,6 @@ if __name__ == "__main__":
     # Trainer settings
     bb.trainer_settings.training_epochs = args.training_epochs
     bb.trainer_settings.precision = args.precision
-    bb.trainer_settings.accuracy = args.accuracy
+    bb.trainer_settings.use_accuracy = args.accuracy
 
     bb(thief_dataset, test_set)

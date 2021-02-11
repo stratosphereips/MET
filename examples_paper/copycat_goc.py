@@ -170,7 +170,7 @@ if __name__ == "__main__":
     # Trainer settings
     copycat.trainer_settings.training_epochs = args.training_epochs
     copycat.trainer_settings.precision = args.precision
-    copycat.trainer_settings.accuracy = args.accuracy
+    copycat.trainer_settings.use_accuracy = args.accuracy
 
     print("CopyCat attack with NPD dataset")
     copycat(thief_dataset[0], test_set)

@@ -78,6 +78,7 @@ def get_trainer_with_settings(base_settings: BaseSettings,
                        iteration, trainer_settings.training_epochs,
                        base_settings.gpus, validation,
                        trainer_settings.evaluation_frequency,
-                       trainer_settings.patience, trainer_settings.accuracy,
-                       base_settings.debug, base_settings.deterministic,
-                       trainer_settings.precision, logger)
+                       trainer_settings.patience,
+                       trainer_settings.use_accuracy, base_settings.debug,
+                       base_settings.deterministic, trainer_settings.precision,
+                       logger)

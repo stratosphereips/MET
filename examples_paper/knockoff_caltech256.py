@@ -110,6 +110,6 @@ if __name__ == "__main__":
     # Trainer settings
     ko.trainer_settings.training_epochs = args.training_epochs
     ko.trainer_settings.precision = args.precision
-    ko.trainer_settings.accuracy = args.accuracy
+    ko.trainer_settings.use_accuracy = args.accuracy
 
     ko(sub_dataset, test_set)

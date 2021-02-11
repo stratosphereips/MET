@@ -13,7 +13,7 @@ class TrainerSettings:
     patience: int = 100
     evaluation_frequency: int = 1
     precision: int = 32
-    accuracy: bool = False
+    use_accuracy: bool = False
 
 
 @dataclass

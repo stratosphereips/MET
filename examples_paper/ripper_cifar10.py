@@ -99,6 +99,6 @@ if __name__ == "__main__":
     # Trainer settings
     rp.trainer_settings.training_epochs = args.training_epochs
     rp.trainer_settings.precision = args.precision
-    rp.trainer_settings.accuracy = args.accuracy
+    rp.trainer_settings.use_accuracy = args.accuracy
 
     rp(test_set)

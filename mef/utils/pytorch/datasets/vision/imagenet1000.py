@@ -1,6 +1,6 @@
 from collections import defaultdict as dd
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, List, Optional
 
 import numpy as np
 from torchvision.datasets import ImageFolder
