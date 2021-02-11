@@ -1,3 +1,5 @@
+import datetime
+import time
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser
 from typing import Optional, Tuple, Union
@@ -229,7 +231,13 @@ class Base(ABC):
             self._victim_model.cuda()
             self._substitute_model.cuda()
 
+        start_time = time.time()
         self._run(*args, **kwargs)
+        end_time = time.time()
+
+        final_time = str(datetime.timedelta(seconds=end_time-start_time))
+        self._logger.info(f"Attacks's time: {final_time}")
+
         self._finalize_attack()
 
         return
