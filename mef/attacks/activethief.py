@@ -299,7 +299,7 @@ class ActiveThief(Base):
 
         val_set = CustomLabelDataset(val_set, y_val)
         if self.attack_settings.save_samples:
-            self._selected_idxs["val_data"].extend(idxs_val)
+            self._selected_samples["val_data"].extend(idxs_val)
 
         val_label_counts = dict(
                 list(enumerate([0] * self._victim_model.num_classes)))
