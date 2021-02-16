@@ -51,7 +51,7 @@ if __name__ == "__main__":
     loss = torch.nn.functional.cross_entropy
     train_victim_model(simplenet, optimizer, loss, train_set, NUM_CLASSES,
                        EPOCHS, BATCH_SIZE, args.num_workers, val_set=test_set,
-                       patience=PATIENCE, gpus=args.gpus,
+                       test_set=test_set, patience=PATIENCE, gpus=args.gpus,
                        evaluation_frequency=EVALUATION_FREQUENCY,
                        save_loc="./cache/Simplenet-vs-Simpnet-cifar10"
                                 "/SimpleNet")
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     loss = torch.nn.functional.cross_entropy
     train_victim_model(simpnet1, optimizer, loss, train_set, NUM_CLASSES,
                        EPOCHS, BATCH_SIZE, args.num_workers, val_set=test_set,
-                       patience=PATIENCE, gpus=args.gpus,
+                       test_set=test_set, patience=PATIENCE, gpus=args.gpus,
                        evaluation_frequency=EVALUATION_FREQUENCY,
                        save_loc="./cache/Simplenet-vs-Simpnet-cifar10"
                                 "/SimpNet-5M")
@@ -71,7 +71,7 @@ if __name__ == "__main__":
     loss = torch.nn.functional.cross_entropy
     train_victim_model(simpnet2, optimizer, loss, train_set, NUM_CLASSES,
                        EPOCHS, BATCH_SIZE, args.num_workers, val_set=test_set,
-                       patience=PATIENCE, gpus=args.gpus,
+                       test_set=test_set, patience=PATIENCE, gpus=args.gpus,
                        evaluation_frequency=EVALUATION_FREQUENCY,
                        save_loc="./cache/Simplenet-vs-Simpnet-cifar10"
                                 "/SimpNet-8M")
