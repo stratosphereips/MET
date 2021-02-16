@@ -168,7 +168,7 @@ class Base(ABC):
         final_model_dir = self.base_settings.save_loc.joinpath("substitute")
         mkdir_if_missing(final_model_dir)
         final_model_loc = final_model_dir.joinpath(
-            "final_substitute_model-state_dict.pt")
+                "final_substitute_model-state_dict.pt")
         self._logger.info(
                 "Saving final substitute model state dictionary to: {}".format(
                         final_model_loc.__str__()))
@@ -220,14 +220,14 @@ class Base(ABC):
         :param kwargs:
         :return: None
         """
+        self._logger = set_up_logger(f"Mef",
+                                     "debug" if self.base_settings.debug else
+                                     "info", self.base_settings.save_loc)
+
         # Seed random generators for reproducibility
         seed_everything(self.base_settings.seed)
         # In 1.7.0 still in BETA
         # torch.set_deterministic(self.base_settings.deterministic)
-
-        self._logger = set_up_logger("Mef",
-                                     "debug" if self.base_settings.debug else
-                                     "info", self.base_settings.save_loc)
 
         # TODO: add self._device attribute + parameter to mefmodel
         if self.base_settings.gpus:
@@ -238,10 +238,15 @@ class Base(ABC):
         self._run(*args, **kwargs)
         end_time = time.time()
 
+        self._finalize_attack()
         final_time = str(datetime.timedelta(seconds=end_time - start_time))
         self._logger.info(f"Attacks's time: {final_time}")
 
-        self._finalize_attack()
+        # Close all handlers of logger
+        for i in list(self._logger.handlers):
+            self._logger.removeHandler(i)
+            i.flush()
+            i.close()
 
         return
 
