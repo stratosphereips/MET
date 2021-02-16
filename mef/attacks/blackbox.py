@@ -10,7 +10,7 @@ from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset
 from tqdm import tqdm
 
 from mef.attacks.base import Base
-from mef.utils.pytorch.datasets import NoYDataset
+from mef.utils.pytorch.datasets import CustomLabelDataset, NoYDataset
 from mef.utils.pytorch.functional import get_class_labels
 from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
 from mef.utils.settings import AttackSettings
@@ -35,11 +35,12 @@ class BlackBox(Base):
     def __init__(self,
                  victim_model: VictimModel,
                  substitute_model: TrainableModel,
+                 budget: int,
                  iterations: int = 6,
                  lmbda: float = 0.1):
 
         super().__init__(victim_model, substitute_model)
-        self.attack_settings = BlackBoxSettings(iterations, lmbda)
+        self.attack_settings = BlackBoxSettings(iterations, budget, lmbda)
         self.trainer_settings._validation = False
 
     @classmethod
@@ -89,9 +90,11 @@ class BlackBox(Base):
                                      total=len(loader)):
             grads = self._jacobian(x_thief)
 
+            y_thief = get_class_labels(y_thief)
             for idx in range(grads[0].shape[0]):
                 # Select gradient corresponding to the label predicted by the
                 # oracle
+                # Need to use max the
                 grad = grads[y_thief[idx]][idx]
 
                 # Compute sign matrix
@@ -127,17 +130,20 @@ class BlackBox(Base):
         self._logger.info("########### Starting BlackBox attack ###########")
 
         # Get attack's budget
-        query_set_size = self.attack_settings.budget / (
-                (2 ** self.attack_settings.iterations) - 1)
-        real_budget = math.floor(query_set_size *
-                                 (2 ** self.attack_settings.iterations) -
-                                 query_set_size)
+        query_set_size = math.floor(self.attack_settings.budget / (
+                (2 ** self.attack_settings.iterations) - 1))
+        print(query_set_size)
+        real_budget = query_set_size * \
+                      (2 ** self.attack_settings.iterations) - query_set_size
+
         self._logger.info("BlackBox's attack budget: {}".format(real_budget))
 
         idxs_rest = np.arange(len(self._thief_dataset))
         idxs_initial = np.random.permutation(idxs_rest)[:query_set_size]
 
-        query_sets = [Subset(self._thief_dataset, idxs_initial)]
+        query_data = Subset(self._thief_dataset, idxs_initial)
+        y_query_set = self._get_predictions(self._victim_model, query_data)
+        query_sets = [CustomLabelDataset(query_data, y_query_set)]
         for it in range(self.attack_settings.iterations):
             self._logger.info("---------- Iteration: {} ----------".format(
                     it + 1))
@@ -155,9 +161,6 @@ class BlackBox(Base):
                 # Adversary has access only to labels
                 y_query_set = self._get_predictions(self._victim_model,
                                                     NoYDataset(x_query_set))
-                y_query_set = get_class_labels(y_query_set)
-
-                query_sets.append(TensorDataset(x_query_set,
-                                                y_query_set.numpy()))
+                query_sets.append(TensorDataset(x_query_set, y_query_set))
 
         return
