@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
+from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.lighting.module import TrainableModel
 from mef.utils.pytorch.lighting.trainer import get_trainer
 
@@ -29,15 +30,17 @@ def train_victim_model(victim_model: nn.Module,
                        debug: bool = False,
                        precision=32) -> None:
     trainer, checkpoint_cb = get_trainer(Path(save_loc).joinpath("victim"),
-                                            None, training_epochs, gpus,
-                                            val_set is not None,
-                                            evaluation_frequency, patience,
-                                            accuracy, debug, deterministic,
-                                            precision, logger=True)
-    
+                                         None, training_epochs, gpus,
+                                         val_set is not None,
+                                         evaluation_frequency, patience,
+                                         accuracy, debug, deterministic,
+                                         precision, logger=True)
+    victim_save_dir = Path(save_loc).joinpath("victim")
+    mkdir_if_missing(victim_save_dir)
+
     try:
-        saved_model = torch.load(Path(save_loc).joinpath(
-                "victim", "final_victim_model-state_dict.pt"))
+        saved_model = torch.load(
+                victim_save_dir.joinpath("final_victim_model-state_dict.pt"))
         victim_model.load_state_dict(saved_model["state_dict"])
         print("Loaded victim model")
         victim = TrainableModel(victim_model, num_classes, optimizer, loss,
@@ -70,14 +73,13 @@ def train_victim_model(victim_model: nn.Module,
             victim.load_state_dict(checkpoint["state_dict"])
 
         torch.save(dict(state_dict=victim.model.state_dict()),
-                   Path(save_loc).joinpath("victim",
-                                           "final_victim_model-state_dict.pt"))
+                   victim_save_dir.joinpath(
+                       "final_victim_model-state_dict.pt"))
 
-    test_dataloader = None
     if test_set is not None:
         test_dataloader = DataLoader(dataset=test_set, pin_memory=gpus != 0,
-                                        num_workers=num_workers,
-                                        batch_size=batch_size)
+                                     num_workers=num_workers,
+                                     batch_size=batch_size)
         trainer.test(victim, test_dataloader)
 
     return

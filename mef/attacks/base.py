@@ -10,6 +10,7 @@ from pytorch_lightning import seed_everything
 from torch.utils.data import DataLoader, Dataset, IterableDataset
 from tqdm import tqdm
 
+from mef.utils.ios import mkdir_if_missing
 from mef.utils.logger import set_up_logger
 from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
 from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
@@ -164,8 +165,10 @@ class Base(ABC):
         return
 
     def _save_final_subsitute(self):
-        final_model_loc = self.base_settings.save_loc.joinpath(
-                "substitute", "final_substitute_model-state_dict.pt")
+        final_model_dir = self.base_settings.save_loc.joinpath("substitute")
+        mkdir_if_missing(final_model_dir)
+        final_model_loc = final_model_dir.joinpath(
+            "final_substitute_model-state_dict.pt")
         self._logger.info(
                 "Saving final substitute model state dictionary to: {}".format(
                         final_model_loc.__str__()))
@@ -235,7 +238,7 @@ class Base(ABC):
         self._run(*args, **kwargs)
         end_time = time.time()
 
-        final_time = str(datetime.timedelta(seconds=end_time-start_time))
+        final_time = str(datetime.timedelta(seconds=end_time - start_time))
         self._logger.info(f"Attacks's time: {final_time}")
 
         self._finalize_attack()
