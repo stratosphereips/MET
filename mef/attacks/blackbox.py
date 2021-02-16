@@ -132,7 +132,6 @@ class BlackBox(Base):
         # Get attack's budget
         query_set_size = math.floor(self.attack_settings.budget / (
                 (2 ** self.attack_settings.iterations) - 1))
-        print(query_set_size)
         real_budget = query_set_size * \
                       (2 ** self.attack_settings.iterations) - query_set_size
 
