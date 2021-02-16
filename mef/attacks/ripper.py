@@ -26,11 +26,12 @@ class GeneratorRandomDataset(IterableDataset):
         for _ in range(100):
             latent_vectors = np.random.uniform(
                     -u, u, size=(self._batch_size, self._generator.latent_dim))
-            latent_vectors = torch.from_numpy(latent_vectors)
+            latent_vectors = torch.from_numpy(
+                    latent_vectors.astype(np.float32))
             images = self._generator(latent_vectors)
 
             with torch.no_grad():
-                labels = self._victim_model(images)
+                labels = self._victim_model(images)[0]
 
             yield images, labels
 

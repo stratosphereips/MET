@@ -77,8 +77,6 @@ if __name__ == "__main__":
                              "for SNGAN.")
     parser.add_argument("--cifar10_dir", default="./data/", type=str,
                         help="Path to CIFAR10 dataset (Default: ./data/)")
-    parser.add_argument("--imagenet_dir", type=str,
-                        help="Path to ImageNet dataset")
     args = parser.parse_args()
     args.training_epochs = 200
 
