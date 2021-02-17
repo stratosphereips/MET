@@ -10,9 +10,7 @@ from mef.utils.pytorch.functional import get_class_labels
 
 
 class Generator(pl.LightningModule):
-    def __init__(self,
-                 generator: torch.nn.Module,
-                 latent_dim: int):
+    def __init__(self, generator: torch.nn.Module, latent_dim: int):
         super().__init__()
         self._generator = generator
         self.latent_dim = latent_dim
@@ -23,26 +21,24 @@ class Generator(pl.LightningModule):
 
 
 class _MefModel(pl.LightningModule, ABC):
-    def __init__(self,
-                 model: torch.nn.Module,
-                 num_classes: int):
+    def __init__(self, model: torch.nn.Module, num_classes: int):
         super().__init__()
         self.model = model
         self.num_classes = num_classes
 
         self._val_accuracy = pl.metrics.Accuracy(compute_on_step=False)
-        self._f1_macro = pl.metrics.F1(self.num_classes, average="macro",
-                                       compute_on_step=False)
+        self._f1_macro = pl.metrics.F1(
+            self.num_classes, average="macro", compute_on_step=False
+        )
         self.test_labels = None
 
     @abstractmethod
-    def _shared_step_output(self,
-                            x: torch.Tensor) -> torch.Tensor:
+    def _shared_step_output(self, x: torch.Tensor) -> torch.Tensor:
         pass
 
-    def _shared_step(self,
-                     batch: Tuple[torch.Tensor, torch.Tensor],
-                     step_type: str) -> torch.Tensor:
+    def _shared_step(
+        self, batch: Tuple[torch.Tensor, torch.Tensor], step_type: str
+    ) -> torch.Tensor:
         x, y = batch
 
         preds = self._shared_step_output(x).float()
@@ -60,36 +56,38 @@ class _MefModel(pl.LightningModule, ABC):
 
         self._val_accuracy(preds, y)
         self._f1_macro(preds, y)
-        self.log_dict({f"{step_type}_acc": self._val_accuracy,
-                       f"{step_type}_f1": self._f1_macro}, prog_bar=True,
-                      on_epoch=True)
+        self.log_dict(
+            {f"{step_type}_acc": self._val_accuracy, f"{step_type}_f1": self._f1_macro},
+            prog_bar=True,
+            on_epoch=True,
+        )
         return preds.detach().cpu()
 
-    def validation_step(self,
-                        batch: Tuple[torch.Tensor, torch.Tensor],
-                        batch_idx: int) -> torch.Tensor:
+    def validation_step(
+        self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
+    ) -> torch.Tensor:
         return self._shared_step(batch, "val")
 
-    def test_step(self,
-                  batch,
-                  batch_idx: int) -> torch.Tensor:
+    def test_step(self, batch, batch_idx: int) -> torch.Tensor:
         return self._shared_step(batch, "test")
 
-    def test_epoch_end(self,
-                       test_step_outputs: List[torch.Tensor]) -> None:
+    def test_epoch_end(self, test_step_outputs: List[torch.Tensor]) -> None:
         # Expected shape is [N, C] for multiclass and [N] for binary
         self.test_labels = get_class_labels(
-                torch.cat(test_step_outputs).squeeze(dim=-1)).numpy()
+            torch.cat(test_step_outputs).squeeze(dim=-1)
+        ).numpy()
         return
 
 
 class TrainableModel(_MefModel):
-    def __init__(self,
-                 model: torch.nn.Module,
-                 num_classes: int,
-                 optimizer: torch.optim.Optimizer,
-                 loss: Callable,
-                 lr_scheduler: Optional[Callable] = None):
+    def __init__(
+        self,
+        model: torch.nn.Module,
+        num_classes: int,
+        optimizer: torch.optim.Optimizer,
+        loss: Callable,
+        lr_scheduler: Optional[Callable] = None,
+    ):
         super().__init__(model, num_classes)
         self.optimizer = optimizer
         self._loss = loss
@@ -105,21 +103,19 @@ class TrainableModel(_MefModel):
             return list([output])
 
     @auto_move_data
-    def forward(self,
-                x: torch.Tensor) -> Union[List[torch.Tensor]]:
+    def forward(self, x: torch.Tensor) -> Union[List[torch.Tensor]]:
         output = self.model(x)
 
         return self._output_to_list(output)
 
-    def _shared_step_output(self,
-                            x: torch.Tensor) -> torch.Tensor:
+    def _shared_step_output(self, x: torch.Tensor) -> torch.Tensor:
         if self.num_classes == 2:
             return torch.sigmoid(self(x)[0])
         return torch.softmax(self(x)[0], dim=-1)
 
-    def training_step(self,
-                      batch: Tuple[torch.Tensor, torch.Tensor],
-                      batch_idx: int) -> torch.Tensor:
+    def training_step(
+        self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
+    ) -> torch.Tensor:
         x, y = batch
 
         # Dataloader adds one more dimension corresponding to batch size,
@@ -138,34 +134,41 @@ class TrainableModel(_MefModel):
         self.log_dict({"train_loss": loss})
         return loss
 
-    def configure_optimizers(self) -> Union[torch.optim.Optimizer,
-                                            Tuple[List[torch.optim.Optimizer],
-                                                  List[Callable]]]:
+    def configure_optimizers(
+        self,
+    ) -> Union[
+        torch.optim.Optimizer, Tuple[List[torch.optim.Optimizer], List[Callable]]
+    ]:
         if self._lr_scheduler is None:
             return self.optimizer
         return [self.optimizer], [self._lr_scheduler]
 
 
 class VictimModel(_MefModel):
-    def __init__(self,
-                 model: torch.nn.Module,
-                 num_classes: int,
-                 output_type: str):
+    def __init__(self, model: torch.nn.Module, num_classes: int, output_type: str):
         super().__init__(model, num_classes)
 
-        if output_type.lower() not in ["one_hot", "raw", "logits", "labels",
-                                       "sigmoid", "softmax"]:
-            raise ValueError("VictimModel output type must be one of {"
-                             "one_hot, raw, logits, labels, sigmoid,"
-                             "softmax}")
+        if output_type.lower() not in [
+            "one_hot",
+            "raw",
+            "logits",
+            "labels",
+            "sigmoid",
+            "softmax",
+        ]:
+            raise ValueError(
+                "VictimModel output type must be one of {"
+                "one_hot, raw, logits, labels, sigmoid,"
+                "softmax}"
+            )
 
         self.output_type = output_type.lower()
 
-    def _transform_output(self,
-                          output: torch.Tensor) -> torch.Tensor:
+    def _transform_output(self, output: torch.Tensor) -> torch.Tensor:
         if self.output_type == "one_hot":
-            y_hats = F.one_hot(torch.argmax(output, dim=-1),
-                               num_classes=self.num_classes)
+            y_hats = F.one_hot(
+                torch.argmax(output, dim=-1), num_classes=self.num_classes
+            )
             # to_oneshot returns tensor with uint8 type
             y_hats = y_hats.float()
         elif self.output_type == "sigmoid":
@@ -180,8 +183,7 @@ class VictimModel(_MefModel):
         return y_hats
 
     @auto_move_data
-    def forward(self,
-                x: torch.Tensor) -> List[torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
         y_hats = self.model(x)
 
         # Model output must always be 2-dimensional
@@ -190,6 +192,5 @@ class VictimModel(_MefModel):
 
         return [self._transform_output(y_hats)]
 
-    def _shared_step_output(self,
-                            x: torch.Tensor) -> torch.Tensor:
+    def _shared_step_output(self, x: torch.Tensor) -> torch.Tensor:
         return self(x)[0]

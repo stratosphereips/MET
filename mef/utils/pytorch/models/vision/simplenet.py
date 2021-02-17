@@ -11,9 +11,7 @@ from mef.utils.pytorch.models.vision.base import Base
 class SimpleNet(Base):
     """https://paperswithcode.com/paper/lets-keep-it-simple-using-simple"""
 
-    def __init__(self,
-                 num_classes: int,
-                 return_hidden: bool = False):
+    def __init__(self, num_classes: int, return_hidden: bool = False):
         super().__init__(num_classes)
 
         self._return_hidden = return_hidden
@@ -24,9 +22,9 @@ class SimpleNet(Base):
 
         self._fc_final = nn.Linear(256, num_classes)
 
-    def forward(self,
-                x: torch.Tensor) -> Union[torch.Tensor,
-                                          Tuple[torch.Tensor, torch.Tensor]]:
+    def forward(
+        self, x: torch.Tensor
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         x = self._layers(x)
 
         # Global Max Pooling
@@ -43,40 +41,61 @@ class SimpleNet(Base):
 
     def _make_layers(self) -> nn.Sequential:
 
-        ConvBlock = namedtuple("ConvBlock", ["in_channels", "out_channels",
-                                             "kernel_size", "stride",
-                                             "padding"])
+        ConvBlock = namedtuple(
+            "ConvBlock",
+            ["in_channels", "out_channels", "kernel_size", "stride", "padding"],
+        )
         MaxPoolLayer = namedtuple("MaxPoolLayer", ["kernel_size", "stride"])
 
-        layers = [ConvBlock(3, 64, 3, 1, 1), ConvBlock(64, 128, 3, 1, 1),
-                  ConvBlock(128, 128, 3, 1, 1), ConvBlock(128, 128, 3, 1, 1),
-                  MaxPoolLayer(2, 2), ConvBlock(128, 128, 3, 1, 1),
-                  ConvBlock(128, 128, 3, 1, 1), ConvBlock(128, 256, 3, 1, 1),
-                  MaxPoolLayer(2, 2), ConvBlock(256, 256, 3, 1, 1),
-                  ConvBlock(256, 256, 3, 1, 1), MaxPoolLayer(2, 2),
-                  ConvBlock(256, 512, 3, 1, 1), MaxPoolLayer(2, 2),
-                  ConvBlock(512, 2048, 1, 1, 0), ConvBlock(2048, 256, 1, 1, 0),
-                  MaxPoolLayer(2, 2), ConvBlock(256, 256, 3, 1, 1)]
+        layers = [
+            ConvBlock(3, 64, 3, 1, 1),
+            ConvBlock(64, 128, 3, 1, 1),
+            ConvBlock(128, 128, 3, 1, 1),
+            ConvBlock(128, 128, 3, 1, 1),
+            MaxPoolLayer(2, 2),
+            ConvBlock(128, 128, 3, 1, 1),
+            ConvBlock(128, 128, 3, 1, 1),
+            ConvBlock(128, 256, 3, 1, 1),
+            MaxPoolLayer(2, 2),
+            ConvBlock(256, 256, 3, 1, 1),
+            ConvBlock(256, 256, 3, 1, 1),
+            MaxPoolLayer(2, 2),
+            ConvBlock(256, 512, 3, 1, 1),
+            MaxPoolLayer(2, 2),
+            ConvBlock(512, 2048, 1, 1, 0),
+            ConvBlock(2048, 256, 1, 1, 0),
+            MaxPoolLayer(2, 2),
+            ConvBlock(256, 256, 3, 1, 1),
+        ]
 
         model = []
         for layer in layers:
             if isinstance(layer, ConvBlock):
-                model.extend([nn.Conv2d(layer.in_channels, layer.out_channels,
-                                        layer.kernel_size, layer.stride,
-                                        layer.padding),
-                              nn.BatchNorm2d(layer.out_channels,
-                                             momentum=0.05),
-                              nn.ReLU(inplace=True)])
+                model.extend(
+                    [
+                        nn.Conv2d(
+                            layer.in_channels,
+                            layer.out_channels,
+                            layer.kernel_size,
+                            layer.stride,
+                            layer.padding,
+                        ),
+                        nn.BatchNorm2d(layer.out_channels, momentum=0.05),
+                        nn.ReLU(inplace=True),
+                    ]
+                )
             else:
-                model.extend([nn.MaxPool2d(layer.kernel_size, layer.stride),
-                              nn.Dropout2d(p=0.1)])
+                model.extend(
+                    [nn.MaxPool2d(layer.kernel_size, layer.stride), nn.Dropout2d(p=0.1)]
+                )
 
         model = nn.Sequential(*model)
 
         def init_weights(m):
             if isinstance(m, nn.Conv2d):
-                nn.init.xavier_uniform_(m.weight.data,
-                                        gain=nn.init.calculate_gain("relu"))
+                nn.init.xavier_uniform_(
+                    m.weight.data, gain=nn.init.calculate_gain("relu")
+                )
 
         model.apply(init_weights)
         return model

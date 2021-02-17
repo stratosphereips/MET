@@ -7,14 +7,15 @@ from torchvision.datasets import ImageFolder
 
 
 class ImageNet1000(ImageFolder):
-
-    def __init__(self,
-                 root: str,
-                 size: Optional[int] = None,
-                 train: bool = True,
-                 transform: Optional[Callable] = None,
-                 target_transform: Optional[Callable] = None,
-                 seed: int = 0):
+    def __init__(
+        self,
+        root: str,
+        size: Optional[int] = None,
+        train: bool = True,
+        transform: Optional[Callable] = None,
+        target_transform: Optional[Callable] = None,
+        seed: int = 0,
+    ):
         root = Path(root)
         if train and "train" not in str(root):
             root = root.joinpath("train")
@@ -22,11 +23,9 @@ class ImageNet1000(ImageFolder):
             root = root.joinpath("val")
 
         if not root.exists():
-            raise ValueError("Imagenet2012 dataset not found at {}"
-                             .format(str(root)))
+            raise ValueError("Imagenet2012 dataset not found at {}".format(str(root)))
 
-        super().__init__(root, transform=transform,
-                         target_transform=target_transform)
+        super().__init__(root, transform=transform, target_transform=target_transform)
 
         self._size = size
         self._seed = seed
@@ -37,10 +36,13 @@ class ImageNet1000(ImageFolder):
             self.samples = [self.samples[i] for i in self._subset_idxs]
             self.imgs = self.samples
 
-        print("Loaded {} ({}) with {} samples".format(self.__class__.__name__,
-                                                      "train" if train else
-                                                      "validation",
-                                                      len(self.samples)))
+        print(
+            "Loaded {} ({}) with {} samples".format(
+                self.__class__.__name__,
+                "train" if train else "validation",
+                len(self.samples),
+            )
+        )
 
     def _get_subset_idxs(self) -> List[int]:
         samples_per_class = self._size // 1000

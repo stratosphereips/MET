@@ -22,7 +22,6 @@ NUM_CLASSES = 9
 
 
 class GOCData:
-
     def __init__(self, imagenet_dir, stl10_dir, cifar10_dir):
         self.npd_size = 120000
         self.imagenet_dir = imagenet_dir
@@ -40,8 +39,7 @@ class GOCData:
 
         self._setup()
 
-    def _remove_class(self, class_to_remove, labels, data, class_to_idx,
-                      classes):
+    def _remove_class(self, class_to_remove, labels, data, class_to_idx, classes):
         class_idx = class_to_idx[class_to_remove]
 
         class_idxes = np.where(labels == np.atleast_1d(class_idx))
@@ -63,13 +61,13 @@ class GOCData:
     def _setup(self):
         cifar10 = dict()
         cifar10["train"] = Cifar10(self.cifar10_dir, transform=self.transform)
-        cifar10["test"] = Cifar10(self.cifar10_dir, train=False,
-                                  transform=self.transform)
+        cifar10["test"] = Cifar10(
+            self.cifar10_dir, train=False, transform=self.transform
+        )
 
         stl10 = dict()
         stl10["train"] = Stl10(self.stl10_dir, transform=self.transform)
-        stl10["test"] = Stl10(self.stl10_dir, split="test",
-                              transform=self.transform)
+        stl10["test"] = Stl10(self.stl10_dir, split="test", transform=self.transform)
 
         # Replace car with automobile to make the class name same as in the
         # cifar10
@@ -83,25 +81,34 @@ class GOCData:
         # Remove frog class from CIFAR-10 and monkey from STL-10 so both
         # datasets have same class
         for name, setx in cifar10.items():
-            setx.targets, setx.data, setx.class_to_idx, setx.classes = \
-                self._remove_class("frog", setx.targets, setx.data,
-                                   setx.class_to_idx, setx.classes)
+            (
+                setx.targets,
+                setx.data,
+                setx.class_to_idx,
+                setx.classes,
+            ) = self._remove_class(
+                "frog", setx.targets, setx.data, setx.class_to_idx, setx.classes
+            )
 
         for name, setx in stl10.items():
-            stl10_class_to_idx = {cls: idx for cls, idx in
-                                  zip(setx.classes, range(len(
-                                          setx.classes)))}
-            setx.labels, setx.data, stl10_class_to_idx, setx.classes = \
-                self._remove_class("monkey", setx.labels, setx.data,
-                                   stl10_class_to_idx,
-                                   setx.classes)
+            stl10_class_to_idx = {
+                cls: idx for cls, idx in zip(setx.classes, range(len(setx.classes)))
+            }
+            (
+                setx.labels,
+                setx.data,
+                stl10_class_to_idx,
+                setx.classes,
+            ) = self._remove_class(
+                "monkey", setx.labels, setx.data, stl10_class_to_idx, setx.classes
+            )
 
         self.test_set = cifar10["test"]
         self.od_dataset = cifar10["train"]
         self.pd_dataset = ConcatDataset([stl10["train"], stl10["test"]])
 
         imagenet = ImageNet1000(self.imagenet_dir, transform=self.transform)
-        idxs = np.random.permutation(len(imagenet))[:self.npd_size]
+        idxs = np.random.permutation(len(imagenet))[: self.npd_size]
         self.npd_dataset = Subset(imagenet, idxs)
 
 
@@ -118,38 +125,51 @@ def set_up(args):
     print("Preparing data")
     goc = GOCData(args.imagenet_dir, args.cifar10_dir, args.stl10_dir)
 
-    optimizer = torch.optim.SGD(victim_model.parameters(), lr=0.1,
-                                momentum=0.5)
+    optimizer = torch.optim.SGD(victim_model.parameters(), lr=0.1, momentum=0.5)
     loss = F.cross_entropy
 
     victim_training_epochs = 20
-    train_victim_model(victim_model, optimizer, loss, goc.od_dataset,
-                       NUM_CLASSES, victim_training_epochs, args.batch_size,
-                       args.num_workers, save_loc=args.save_loc,
-                       gpus=args.gpus, deterministic=args.deterministic,
-                       debug=args.debug, precision=args.precision)
+    train_victim_model(
+        victim_model,
+        optimizer,
+        loss,
+        goc.od_dataset,
+        NUM_CLASSES,
+        victim_training_epochs,
+        args.batch_size,
+        args.num_workers,
+        save_loc=args.save_loc,
+        gpus=args.gpus,
+        deterministic=args.deterministic,
+        debug=args.debug,
+        precision=args.precision,
+    )
 
-    victim_model = VictimModel(victim_model, NUM_CLASSES,
-                               output_type="softmax")
-    substitute_model = TrainableModel(substitute_model, NUM_CLASSES,
-                                      torch.optim.SGD(
-                                              substitute_model.parameters(),
-                                              lr=0.01,
-                                              momentum=0.8),
-                                      F.cross_entropy)
+    victim_model = VictimModel(victim_model, NUM_CLASSES, output_type="softmax")
+    substitute_model = TrainableModel(
+        substitute_model,
+        NUM_CLASSES,
+        torch.optim.SGD(substitute_model.parameters(), lr=0.01, momentum=0.8),
+        F.cross_entropy,
+    )
 
-    return victim_model, substitute_model, [goc.npd_dataset, goc.pd_dataset], \
-           goc.test_set
+    return (
+        victim_model,
+        substitute_model,
+        [goc.npd_dataset, goc.pd_dataset],
+        goc.test_set,
+    )
 
 
 if __name__ == "__main__":
     parser = CopyCat.get_attack_args()
-    parser.add_argument("--stl10_dir", default="./data", type=str,
-                        help="Path to Stl10 dataset")
-    parser.add_argument("--cifar10_dir", default="./data", type=str,
-                        help="Path to Cifar10 dataset")
-    parser.add_argument("--imagenet_dir", type=str,
-                        help="Path to ImageNet dataset")
+    parser.add_argument(
+        "--stl10_dir", default="./data", type=str, help="Path to Stl10 dataset"
+    )
+    parser.add_argument(
+        "--cifar10_dir", default="./data", type=str, help="Path to Cifar10 dataset"
+    )
+    parser.add_argument("--imagenet_dir", type=str, help="Path to ImageNet dataset")
     args = parser.parse_args()
     args.training_epochs = 5
 

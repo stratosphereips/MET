@@ -8,11 +8,18 @@ from mef.utils.pytorch.models.vision.base import Base
 
 
 class AtCnn(Base):
-
-    def __init__(self, dims, num_classes, conv_kernel_size=(3, 3),
-                 pool_kernel_size=(2, 2), conv_out_channels=(32, 64, 128),
-                 fc_layers=(), convs_in_block=2, dropout_keep_prob=0.1,
-                 return_hidden=False):
+    def __init__(
+        self,
+        dims,
+        num_classes,
+        conv_kernel_size=(3, 3),
+        pool_kernel_size=(2, 2),
+        conv_out_channels=(32, 64, 128),
+        fc_layers=(),
+        convs_in_block=2,
+        dropout_keep_prob=0.1,
+        return_hidden=False,
+    ):
         super().__init__(num_classes)
 
         assert len(conv_kernel_size) == 2
@@ -35,9 +42,9 @@ class AtCnn(Base):
         num_features = test_out.size(1) * test_out.size(2) * test_out.size(3)
         self._fcs, self._fc_final = self._build_fcs(num_features)
 
-    def forward(self,
-                x: torch.Tensor) -> Union[torch.Tensor,
-                                          Tuple[torch.Tensor, torch.Tensor]]:
+    def forward(
+        self, x: torch.Tensor
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         hidden = self._convs(x)
         hidden = hidden.view(hidden.size(0), -1)
 
@@ -63,9 +70,15 @@ class AtCnn(Base):
                 else:
                     in_channels = self._dims[0]
 
-                convs.append(ConvBlock(in_channels, out_channels,
-                                       self._conv_kernel_size, padding=1,
-                                       use_batch_norm=True))
+                convs.append(
+                    ConvBlock(
+                        in_channels,
+                        out_channels,
+                        self._conv_kernel_size,
+                        padding=1,
+                        use_batch_norm=True,
+                    )
+                )
 
             convs.append(nn.MaxPool2d(self._pool_kernel_size, stride=2))
             convs.append(nn.Dropout(p=self._dropout_keep_prob))
@@ -74,8 +87,9 @@ class AtCnn(Base):
 
         def init_weights(m):
             if isinstance(m, nn.Conv2d):
-                nn.init.xavier_uniform_(m.weight.data,
-                                        gain=nn.init.calculate_gain("relu"))
+                nn.init.xavier_uniform_(
+                    m.weight.data, gain=nn.init.calculate_gain("relu")
+                )
 
         convs.apply(init_weights)
 

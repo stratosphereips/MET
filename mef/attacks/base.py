@@ -22,9 +22,7 @@ class Base(ABC):
     base_settings = BaseSettings()
     trainer_settings = TrainerSettings()
 
-    def __init__(self,
-                 victim_model: VictimModel,
-                 substitute_model: TrainableModel):
+    def __init__(self, victim_model: VictimModel, substitute_model: TrainableModel):
         self._logger = None
         # Datasets
         self._test_set = None
@@ -35,44 +33,75 @@ class Base(ABC):
         self._substitute_model = substitute_model
 
     @classmethod
-    def _add_base_args(cls,
-                       parser: ArgumentParser) -> None:
-        parser.add_argument("--seed", default=0, type=int,
-                            help="Random seed to be used (Default: 0)")
-        parser.add_argument("--batch_size", type=int, default=32,
-                            help="Batch size to be used (Default: 32)")
-        parser.add_argument("--save_loc", type=str, default="./cache/",
-                            help="Path where the attacks file should be "
-                                 "saved (Default: ./cache/)")
-        parser.add_argument("--gpus", type=int, default=0,
-                            help="Number of gpus to be used (Default: 0)")
-        parser.add_argument("--num_workers", type=int, default=1,
-                            help="Number of workers to be used in loaders ("
-                                 "Default: 1)")
-        parser.add_argument("--deterministic", action="store_true",
-                            help="Run in deterministic mode (Default: False)")
-        parser.add_argument("--debug", action="store_true",
-                            help="Run in debug mode (Default: False)")
-        parser.add_argument("--precision", default=32, type=int,
-                            help="Precision of caluclation in bits must be "
-                                 "one of {16, 32} (Default: 32)")
-        parser.add_argument("--accuracy", action="store_true",
-                            help="If accuracy should be used as metric for "
-                                 "early stopping. If False F1-macro is used "
-                                 "instead. (Default: False)")
+    def _add_base_args(cls, parser: ArgumentParser) -> None:
+        parser.add_argument(
+            "--seed", default=0, type=int, help="Random seed to be used (Default: 0)"
+        )
+        parser.add_argument(
+            "--batch_size",
+            type=int,
+            default=32,
+            help="Batch size to be used (Default: 32)",
+        )
+        parser.add_argument(
+            "--save_loc",
+            type=str,
+            default="./cache/",
+            help="Path where the attacks file should be " "saved (Default: ./cache/)",
+        )
+        parser.add_argument(
+            "--gpus", type=int, default=0, help="Number of gpus to be used (Default: 0)"
+        )
+        parser.add_argument(
+            "--num_workers",
+            type=int,
+            default=1,
+            help="Number of workers to be used in loaders (" "Default: 1)",
+        )
+        parser.add_argument(
+            "--deterministic",
+            action="store_true",
+            help="Run in deterministic mode (Default: False)",
+        )
+        parser.add_argument(
+            "--debug", action="store_true", help="Run in debug mode (Default: False)"
+        )
+        parser.add_argument(
+            "--precision",
+            default=32,
+            type=int,
+            help="Precision of caluclation in bits must be "
+            "one of {16, 32} (Default: 32)",
+        )
+        parser.add_argument(
+            "--accuracy",
+            action="store_true",
+            help="If accuracy should be used as metric for "
+            "early stopping. If False F1-macro is used "
+            "instead. (Default: False)",
+        )
         return
 
     @classmethod
-    def _add_trainer_args(cls,
-                          parser: ArgumentParser) -> None:
-        parser.add_argument("--training_epochs", default=100, type=int,
-                            help="Number of training epochs for substitute "
-                                 "model (Default: 100)")
-        parser.add_argument("--patience", default=10, type=int,
-                            help="Number of epochs without improvement for "
-                                 "early stop (Default: 10)")
-        parser.add_argument("--evaluation_frequency", default=1, type=int,
-                            help="Epochs interval of validation (Default: 1)")
+    def _add_trainer_args(cls, parser: ArgumentParser) -> None:
+        parser.add_argument(
+            "--training_epochs",
+            default=100,
+            type=int,
+            help="Number of training epochs for substitute " "model (Default: 100)",
+        )
+        parser.add_argument(
+            "--patience",
+            default=10,
+            type=int,
+            help="Number of epochs without improvement for " "early stop (Default: 10)",
+        )
+        parser.add_argument(
+            "--evaluation_frequency",
+            default=1,
+            type=int,
+            help="Epochs interval of validation (Default: 1)",
+        )
 
         return
 
@@ -89,30 +118,40 @@ class Base(ABC):
 
         return parser
 
-    def _train_substitute_model(self,
-                                train_set: Dataset,
-                                val_set: Optional[Dataset] = None,
-                                iteration: Optional[int] = None) -> None:
+    def _train_substitute_model(
+        self,
+        train_set: Dataset,
+        val_set: Optional[Dataset] = None,
+        iteration: Optional[int] = None,
+    ) -> None:
         # For ripper attack
         if isinstance(train_set, IterableDataset):
             train_dataloader = DataLoader(dataset=train_set)
         else:
             train_dataloader = DataLoader(
-                    dataset=train_set, pin_memory=self.base_settings.gpus != 0,
-                    num_workers=self.base_settings.num_workers, shuffle=True,
-                    batch_size=self.base_settings.batch_size)
+                dataset=train_set,
+                pin_memory=self.base_settings.gpus != 0,
+                num_workers=self.base_settings.num_workers,
+                shuffle=True,
+                batch_size=self.base_settings.batch_size,
+            )
 
         val_dataloader = None
         if val_set is not None:
             val_dataloader = DataLoader(
-                    dataset=val_set, pin_memory=self.base_settings.gpus != 0,
-                    num_workers=self.base_settings.num_workers,
-                    batch_size=self.base_settings.batch_size)
+                dataset=val_set,
+                pin_memory=self.base_settings.gpus != 0,
+                num_workers=self.base_settings.num_workers,
+                batch_size=self.base_settings.batch_size,
+            )
 
         trainer, checkpoint_cb = get_trainer_with_settings(
-                self.base_settings, self.trainer_settings,
-                model_name="substitute", iteration=iteration,
-                validation=val_set is not None)
+            self.base_settings,
+            self.trainer_settings,
+            model_name="substitute",
+            iteration=iteration,
+            validation=val_set is not None,
+        )
 
         trainer.fit(self._substitute_model, train_dataloader, val_dataloader)
 
@@ -127,17 +166,19 @@ class Base(ABC):
 
         return
 
-    def _test_model(self,
-                    model: Union[TrainableModel, VictimModel],
-                    test_set: Dataset) -> float:
+    def _test_model(
+        self, model: Union[TrainableModel, VictimModel], test_set: Dataset
+    ) -> float:
         test_dataloader = DataLoader(
-                dataset=test_set, pin_memory=self.base_settings.gpus != 0,
-                num_workers=self.base_settings.num_workers,
-                batch_size=self.base_settings.batch_size)
+            dataset=test_set,
+            pin_memory=self.base_settings.gpus != 0,
+            num_workers=self.base_settings.num_workers,
+            batch_size=self.base_settings.batch_size,
+        )
 
-        trainer, _ = get_trainer_with_settings(self.base_settings,
-                                               self.trainer_settings,
-                                               logger=False)
+        trainer, _ = get_trainer_with_settings(
+            self.base_settings, self.trainer_settings, logger=False
+        )
         metrics = trainer.test(model, test_dataloader)
 
         return 100 * metrics[0]["test_acc"]
@@ -146,10 +187,8 @@ class Base(ABC):
         self._logger.info("Test set metrics")
         vict_test_acc = self._test_model(self._victim_model, self._test_set)
         sub_test_acc = self._test_model(self._substitute_model, self._test_set)
-        self._logger.info(
-                "Victim model Accuracy: {:.1f}%".format(vict_test_acc))
-        self._logger.info(
-                "Substitute model Accuracy: {:.1f}%".format(sub_test_acc))
+        self._logger.info("Victim model Accuracy: {:.1f}%".format(vict_test_acc))
+        self._logger.info("Substitute model Accuracy: {:.1f}%".format(sub_test_acc))
 
         return
 
@@ -158,9 +197,13 @@ class Base(ABC):
         sub_test_labels = self._substitute_model.test_labels
 
         agreement_count = np.sum((vict_test_labels == sub_test_labels))
-        self._logger.info("Agreement score: {}/{} ({:.1f}%)".format(
-                agreement_count, len(vict_test_labels),
-                100 * (agreement_count / len(vict_test_labels))))
+        self._logger.info(
+            "Agreement score: {}/{} ({:.1f}%)".format(
+                agreement_count,
+                len(vict_test_labels),
+                100 * (agreement_count / len(vict_test_labels)),
+            )
+        )
 
         return
 
@@ -168,25 +211,29 @@ class Base(ABC):
         final_model_dir = self.base_settings.save_loc.joinpath("substitute")
         mkdir_if_missing(final_model_dir)
         final_model_loc = final_model_dir.joinpath(
-                "final_substitute_model-state_dict.pt")
+            "final_substitute_model-state_dict.pt"
+        )
         self._logger.info(
-                "Saving final substitute model state dictionary to: {}".format(
-                        final_model_loc.__str__()))
-        torch.save(dict(state_dict=self._substitute_model.state_dict()),
-                   final_model_loc)
+            "Saving final substitute model state dictionary to: {}".format(
+                final_model_loc.__str__()
+            )
+        )
+        torch.save(
+            dict(state_dict=self._substitute_model.state_dict()), final_model_loc
+        )
 
         return
 
-    def _get_predictions(self,
-                         model: Union[TrainableModel, VictimModel],
-                         data: Dataset) -> Union[torch.Tensor,
-                                                 Tuple[torch.Tensor,
-                                                       torch.Tensor]]:
+    def _get_predictions(
+        self, model: Union[TrainableModel, VictimModel], data: Dataset
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         model.eval()
-        loader = DataLoader(dataset=data,
-                            pin_memory=self.base_settings.gpus != 0,
-                            num_workers=self.base_settings.num_workers,
-                            batch_size=self.base_settings.batch_size)
+        loader = DataLoader(
+            dataset=data,
+            pin_memory=self.base_settings.gpus != 0,
+            num_workers=self.base_settings.num_workers,
+            batch_size=self.base_settings.batch_size,
+        )
         hidden_layer_outputs = []
         y_hats = []
         with torch.no_grad():
@@ -220,9 +267,11 @@ class Base(ABC):
         :param kwargs:
         :return: None
         """
-        self._logger = set_up_logger(f"Mef",
-                                     "debug" if self.base_settings.debug else
-                                     "info", self.base_settings.save_loc)
+        self._logger = set_up_logger(
+            f"Mef",
+            "debug" if self.base_settings.debug else "info",
+            self.base_settings.save_loc,
+        )
 
         # Seed random generators for reproducibility
         seed_everything(self.base_settings.seed)

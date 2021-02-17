@@ -34,20 +34,35 @@ class EmberSubsitute(nn.Module):
     def __init__(self, scaler, return_hidden):
         super().__init__()
         self._layer1 = nn.Sequential(
-                nn.Linear(in_features=2381, out_features=2400), nn.ELU(),
-                nn.LayerNorm(2400), nn.Dropout(p=0.2))
+            nn.Linear(in_features=2381, out_features=2400),
+            nn.ELU(),
+            nn.LayerNorm(2400),
+            nn.Dropout(p=0.2),
+        )
         self._layer2 = nn.Sequential(
-                nn.Linear(in_features=2400, out_features=1024), nn.ELU(),
-                nn.LayerNorm(1024), nn.Dropout(p=0.2))
+            nn.Linear(in_features=2400, out_features=1024),
+            nn.ELU(),
+            nn.LayerNorm(1024),
+            nn.Dropout(p=0.2),
+        )
         self._layer3 = nn.Sequential(
-                nn.Linear(in_features=1024, out_features=512), nn.ELU(),
-                nn.LayerNorm(512), nn.Dropout(p=0.2))
+            nn.Linear(in_features=1024, out_features=512),
+            nn.ELU(),
+            nn.LayerNorm(512),
+            nn.Dropout(p=0.2),
+        )
         self._layer4 = nn.Sequential(
-                nn.Linear(in_features=512, out_features=512), nn.ELU(),
-                nn.LayerNorm(512), nn.Dropout(p=0.2))
+            nn.Linear(in_features=512, out_features=512),
+            nn.ELU(),
+            nn.LayerNorm(512),
+            nn.Dropout(p=0.2),
+        )
         self._layer5 = nn.Sequential(
-                nn.Linear(in_features=512, out_features=128), nn.ELU(),
-                nn.LayerNorm(128), nn.Dropout(p=0.2))
+            nn.Linear(in_features=512, out_features=128),
+            nn.ELU(),
+            nn.LayerNorm(128),
+            nn.Dropout(p=0.2),
+        )
         self._final = nn.Linear(in_features=128, out_features=1)
 
         self._scaler = scaler
@@ -60,8 +75,9 @@ class EmberSubsitute(nn.Module):
         x_scaled = torch.from_numpy(x_scaled)
         x_scaled = x_scaled.to(x.device)
 
-        hidden = self._layer5(self._layer4(self._layer3(self._layer2(
-                self._layer1(x_scaled)))))
+        hidden = self._layer5(
+            self._layer4(self._layer3(self._layer2(self._layer1(x_scaled))))
+        )
         logits = self._final(hidden)
 
         if self._return_hidden:
@@ -75,10 +91,9 @@ def prepare_ember2018_data(data_dir):
     y_train_path = Path(data_dir).joinpath("y_train.dat")
     y_train = np.memmap(y_train_path, dtype=np.float32, mode="r")
     N = y_train.shape[0]
-    X_train = np.memmap(X_train_path, dtype=np.float32, mode="r",
-                        shape=(N, 2381))
+    X_train = np.memmap(X_train_path, dtype=np.float32, mode="r", shape=(N, 2381))
 
-    train_rows = (y_train == -1)  # read training dataset
+    train_rows = y_train == -1  # read training dataset
     X_train = X_train[train_rows]
     y_train = y_train[train_rows]
 
@@ -86,8 +101,7 @@ def prepare_ember2018_data(data_dir):
     y_test_path = Path(data_dir).joinpath("y_test.dat")
     y_test = np.memmap(y_test_path, dtype=np.float32, mode="readwrite")
     N = y_test.shape[0]
-    X_test = np.memmap(X_test_path, dtype=np.float32, mode="readwrite",
-                       shape=(N, 2381))
+    X_test = np.memmap(X_test_path, dtype=np.float32, mode="readwrite", shape=(N, 2381))
 
     scaler = StandardScaler()
     scaler = scaler.fit(X_train)
@@ -98,40 +112,50 @@ def prepare_ember2018_data(data_dir):
     return thief_dataset, test_set, scaler
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = ActiveThief.get_attack_args()
-    parser.add_argument("--ember2018_data_dir", type=str,
-                        help="Path to Ember2018 dataset")
-    parser.add_argument("--ember2018_model_dir", type=str,
-                        help="Path to Ember2018 dataset")
-    parser.add_argument("--atlasthief", action="store_true",
-                        help="Use atlasthief for the attack (Default: False)")
+    parser.add_argument(
+        "--ember2018_data_dir", type=str, help="Path to Ember2018 dataset"
+    )
+    parser.add_argument(
+        "--ember2018_model_dir", type=str, help="Path to Ember2018 dataset"
+    )
+    parser.add_argument(
+        "--atlasthief",
+        action="store_true",
+        help="Use atlasthief for the attack (Default: False)",
+    )
     args = parser.parse_args()
     mkdir_if_missing(args.save_loc)
 
     # Prepare data
-    thief_dataset, test_set, scaler = prepare_ember2018_data(
-            args.ember2018_data_dir)
+    thief_dataset, test_set, scaler = prepare_ember2018_data(args.ember2018_data_dir)
 
     # Prepare models
     victim_model = Ember2018(args.ember2018_model_dir, args.seed)
     victim_model = VictimModel(victim_model, NUM_CLASSES, "raw")
     substitute_model = EmberSubsitute(scaler, args.atlasthief)
-    substitute_model = TrainableModel(substitute_model, NUM_CLASSES,
-                                      torch.optim.Adam(
-                                              substitute_model.parameters()),
-                                      torch.nn.BCEWithLogitsLoss())
+    substitute_model = TrainableModel(
+        substitute_model,
+        NUM_CLASSES,
+        torch.optim.Adam(substitute_model.parameters()),
+        torch.nn.BCEWithLogitsLoss(),
+    )
 
     if args.gpus:
         victim_model.cuda()
         substitute_model.cuda()
 
     if args.atlasthief:
-        af = AtlasThief(victim_model, substitute_model, args.iterations,
-                        args.budget)
+        af = AtlasThief(victim_model, substitute_model, args.iterations, args.budget)
     else:
-        af = ActiveThief(victim_model, substitute_model, args.iterations,
-                         args.selection_strategy, args.budget)
+        af = ActiveThief(
+            victim_model,
+            substitute_model,
+            args.iterations,
+            args.selection_strategy,
+            args.budget,
+        )
 
     # Baset settings
     af.base_settings.save_loc = Path(args.save_loc)

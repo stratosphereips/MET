@@ -27,10 +27,8 @@ NUM_CLASSES = 10
 def set_up(args):
     seed_everything(args.seed)
 
-    victim_model = AtCnn(dims=DIMS, num_classes=NUM_CLASSES,
-                         dropout_keep_prob=0.2)
-    substitute_model = AtCnn(dims=DIMS, num_classes=NUM_CLASSES,
-                             dropout_keep_prob=0.2)
+    victim_model = AtCnn(dims=DIMS, num_classes=NUM_CLASSES, dropout_keep_prob=0.2)
+    substitute_model = AtCnn(dims=DIMS, num_classes=NUM_CLASSES, dropout_keep_prob=0.2)
 
     if args.gpus:
         victim_model.cuda()
@@ -43,12 +41,19 @@ def set_up(args):
     test_set = Cifar10(root=args.cifar10_dir, train=False, transform=transform)
 
     transform = T.Compose([T.Resize(DIMS[1:3]), T.ToTensor()])
-    imagenet_train = ImageNet1000(root=args.imagenet_dir,
-                                  size=IMAGENET_TRAIN_SIZE,
-                                  transform=transform, seed=args.seed)
-    imagenet_val = ImageNet1000(root=args.imagenet_dir, train=False,
-                                size=IMAGENET_VAL_SIZE, transform=transform,
-                                seed=args.seed)
+    imagenet_train = ImageNet1000(
+        root=args.imagenet_dir,
+        size=IMAGENET_TRAIN_SIZE,
+        transform=transform,
+        seed=args.seed,
+    )
+    imagenet_val = ImageNet1000(
+        root=args.imagenet_dir,
+        train=False,
+        size=IMAGENET_VAL_SIZE,
+        transform=transform,
+        seed=args.seed,
+    )
     thief_dataset = imagenet_train
     val_dataset = imagenet_val
 
@@ -57,29 +62,44 @@ def set_up(args):
     loss = F.cross_entropy
 
     victim_training_epochs = 1000
-    train_victim_model(victim_model, optimizer, loss, train_set,
-                       NUM_CLASSES, victim_training_epochs, args.batch_size,
-                       args.num_workers, val_set, patience=args.patience,
-                       save_loc=args.save_loc, gpus=args.gpus,
-                       deterministic=args.deterministic, debug=args.debug,
-                       precision=args.precision)
+    train_victim_model(
+        victim_model,
+        optimizer,
+        loss,
+        train_set,
+        NUM_CLASSES,
+        victim_training_epochs,
+        args.batch_size,
+        args.num_workers,
+        val_set,
+        patience=args.patience,
+        save_loc=args.save_loc,
+        gpus=args.gpus,
+        deterministic=args.deterministic,
+        debug=args.debug,
+        precision=args.precision,
+    )
 
-    victim_model = VictimModel(victim_model, NUM_CLASSES,
-                               output_type="softmax")
-    substitute_model = TrainableModel(substitute_model, NUM_CLASSES,
-                                      torch.optim.Adam(
-                                              substitute_model.parameters()),
-                                      soft_cross_entropy)
+    victim_model = VictimModel(victim_model, NUM_CLASSES, output_type="softmax")
+    substitute_model = TrainableModel(
+        substitute_model,
+        NUM_CLASSES,
+        torch.optim.Adam(substitute_model.parameters()),
+        soft_cross_entropy,
+    )
 
     return victim_model, substitute_model, thief_dataset, test_set, val_dataset
 
 
 if __name__ == "__main__":
     parser = ActiveThief.get_attack_args()
-    parser.add_argument("--cifar10_dir", default="./data/", type=str,
-                        help="Path to CIFAR10 dataset (Default: ./data/)")
-    parser.add_argument("--imagenet_dir", type=str,
-                        help="Path to ImageNet dataset")
+    parser.add_argument(
+        "--cifar10_dir",
+        default="./data/",
+        type=str,
+        help="Path to CIFAR10 dataset (Default: ./data/)",
+    )
+    parser.add_argument("--imagenet_dir", type=str, help="Path to ImageNet dataset")
     args = parser.parse_args()
     # Values from the ActiveThief paper
     args.training_epochs = 1000
@@ -89,10 +109,14 @@ if __name__ == "__main__":
 
     mkdir_if_missing(args.save_loc)
 
-    victim_model, substitute_model, thief_dataset, test_set, val_dataset = \
-        set_up(args)
-    af = ActiveThief(victim_model, substitute_model, args.iterations,
-                     args.selection_strategy, args.budget)
+    victim_model, substitute_model, thief_dataset, test_set, val_dataset = set_up(args)
+    af = ActiveThief(
+        victim_model,
+        substitute_model,
+        args.iterations,
+        args.selection_strategy,
+        args.budget,
+    )
 
     # Baset settings
     af.base_settings.save_loc = Path(args.save_loc)
