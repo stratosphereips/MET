@@ -13,7 +13,7 @@ sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks import ActiveThief, BlackBox, CopyCat, KnockOff, Ripper
 from mef.utils.experiment import train_victim_model
-from mef.utils.pytorch.datasets.vision import ImageNet1000, Stl10
+from mef.utils.pytorch.datasets.vision import Caltech256, ImageNet1000, Stl10
 from mef.utils.pytorch.functional import soft_cross_entropy
 from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
 from mef.utils.pytorch.models.vision import SimpNet
@@ -21,14 +21,13 @@ from mef.utils.pytorch.models.vision import SimpNet
 IMAGENET_TRAIN_SIZE = 100000
 IMAGENET_VAL_SIZE = 20000
 DIMS = (3, 64, 64)
-NUM_CLASSES = 10
 TRAINING_EPOCHS = 1000
 PATIENCE = 100
 BATCH_SIZE = 100
 EVALUATION_FREQUENCY = 1
-
 SEED = 200916
 
+DATASETS = {"STL10": Stl10, "Caltech256": Caltech256}
 BUDGETS = [5000, 10000, 15000, 20000]
 OUTPUT_TYPES = ["softmax", "one_hot"]
 
@@ -58,6 +57,9 @@ def getr_args():
     parser.add_argument("--stl10_dir", default="./cache/data", type=str,
                         help="Location where STL10 dataset is or should be "
                              "downloaded to (Default: ./cache/data)")
+    parser.add_argument("--caltech256_dir", default="./cache/data", type=str,
+                        help="Location where Caltech256 dataset is or should "
+                             "be downloaded to (Default: ./cache/data)")
     parser.add_argument("--imagenet_dir", type=str, help="Path to ImageNet "
                                                          "dataset")
     parser.add_argument("--save_loc", type=str, default="./cache/",
@@ -83,28 +85,6 @@ if __name__ == "__main__":
 
     save_loc = Path(args.save_loc)
 
-    stl10_train_transform = T.Compose([T.Resize(DIMS[1:2]),
-                                       T.RandomCrop(DIMS[1], padding=4),
-                                       T.RandomHorizontalFlip(), T.ToTensor(),
-                                       T.Normalize((0.5,), (0.5,))])
-    stl10_test_transform = T.Compose([T.Resize(DIMS[1:2]), T.ToTensor(),
-                                      T.Normalize((0.5,), (0.5,))])
-
-    train_set = Stl10(args.stl10_dir, download=True,
-                      transform=stl10_train_transform)
-    test_set = Stl10(args.stl10_dir, split="test", download=True,
-                     transform=stl10_test_transform)
-
-    # Prepare victim model
-    victim_model = SimpNet(num_classes=NUM_CLASSES)
-    victim_optimizer = torch.optim.Adam(victim_model.parameters())
-    victim_loss = torch.nn.functional.cross_entropy
-    train_victim_model(victim_model, victim_optimizer, victim_loss, train_set,
-                       NUM_CLASSES, TRAINING_EPOCHS, BATCH_SIZE,
-                       args.num_workers, test_set=test_set, gpus=args.gpus,
-                       save_loc=save_loc.joinpath("Attack-tests", "STL10"),
-                       debug=args.debug)
-
     imagenet_transform = T.Compose([T.Resize(DIMS[1:3]), T.ToTensor()])
     imagenet_train = ImageNet1000(root=args.imagenet_dir,
                                   size=IMAGENET_TRAIN_SIZE,
@@ -113,60 +93,95 @@ if __name__ == "__main__":
                                 size=IMAGENET_VAL_SIZE,
                                 transform=imagenet_transform, seed=SEED)
 
-    substitute_loss = soft_cross_entropy
-    for attack in ME_ATTACKS:
-        for output_type in OUTPUT_TYPES:
-            for budget in BUDGETS:
-                # Prepare models for the attack
-                kwargs = {"victim_model": VictimModel(victim_model,
-                                                      NUM_CLASSES,
-                                                      output_type)}
-                substitute_model = SimpNet(num_classes=NUM_CLASSES)
-                substitute_optimizer = torch.optim.Adam(
-                        substitute_model.parameters())
-                kwargs["substitute_model"] = TrainableModel(substitute_model,
-                                                            NUM_CLASSES,
-                                                            substitute_optimizer,
-                                                            substitute_loss)
+    for dataset_name, dataset in DATASETS.items():
+        train_transform = T.Compose([T.Resize(DIMS[1:2]),
+                                     T.RandomCrop(DIMS[1], padding=4),
+                                     T.RandomHorizontalFlip(), T.ToTensor(),
+                                     T.Normalize((0.5,), (0.5,))])
+        test_transform = T.Compose([T.Resize(DIMS[1:2]), T.ToTensor(),
+                                    T.Normalize((0.5,), (0.5,))])
+        if dataset_name == "STL10":
+            num_classes = 10
+            dataset_dir = args.stl10_dir
+            train_kwargs = {"split": "train"}
+            test_kwargs = {"split": "test"}
+        else:
+            num_classes = 256
+            dataset_dir = args.caltech256_dir
+            train_kwargs = {"train": True}
+            test_kwargs = {"train": False}
 
-                kwargs.update(ATTACKS_CONFIG[attack.name])
+        train_set = dataset(args.caltech256_dir, transform=train_transform,
+                            seed=SEED)
+        test_set = dataset(args.caltech256_dir, train=False,
+                           transform=test_transform, seed=SEED)
 
-                # Add attack specific key-name arguments
-                if attack.name == "active-thief":
-                    kwargs["selection_strategy"] = attack.type
-                    kwargs["budget"] = budget
-                elif attack.name == "knockoff":
-                    sampling_strategy, reward_type = attack.type.split('-')
-                    kwargs["sampling_strategy"] = sampling_strategy
-                    kwargs["reward_type"] = reward_type
-                    kwargs["budget"] = budget
-                elif attack.name == "blackbox":
-                    kwargs["budget"] = budget
+        # Prepare victim model
+        victim_model = SimpNet(num_classes=num_classes)
+        victim_optimizer = torch.optim.Adam(victim_model.parameters())
+        victim_loss = torch.nn.functional.cross_entropy
+        train_victim_model(victim_model, victim_optimizer, victim_loss,
+                           train_set,
+                           num_classes, TRAINING_EPOCHS, BATCH_SIZE,
+                           args.num_workers, test_set=test_set, gpus=args.gpus,
+                           save_loc=save_loc.joinpath("Attack-tests", "STL10"),
+                           debug=args.debug)
 
-                attack_instance = ATTACKS_DICT[attack.name](**kwargs)
+        for attack in ME_ATTACKS:
+            for output_type in OUTPUT_TYPES:
+                for budget in BUDGETS:
+                    # Prepare models for the attack
+                    kwargs = {"victim_model": VictimModel(victim_model,
+                                                          num_classes,
+                                                          output_type)}
+                    substitute_model = SimpNet(num_classes=num_classes)
+                    substitute_optimizer = torch.optim.Adam(
+                            substitute_model.parameters())
+                    substitute_loss = soft_cross_entropy
+                    kwargs["substitute_model"] = TrainableModel(
+                            substitute_model, num_classes,
+                            substitute_optimizer, substitute_loss)
 
-                save_loc = f"{args.save_loc}/Attack-tests/STL10/budget" \
-                           f"-{budget}/{attack.name}/{attack.type}"
-                # Base settings
-                attack_instance.base_settings.save_loc = Path(save_loc)
-                attack_instance.base_settings.gpus = args.gpus
-                attack_instance.base_settings.num_workers = args.num_workers
-                attack_instance.base_settings.batch_size = BATCH_SIZE
-                attack_instance.base_settings.seed = SEED
-                attack_instance.base_settings.deterministic = True
-                attack_instance.base_settings.debug = args.debug
+                    kwargs.update(ATTACKS_CONFIG[attack.name])
 
-                # Trainer settings
-                attack_instance.trainer_settings.training_epochs = \
-                    TRAINING_EPOCHS
-                attack_instance.trainer_settings.patience = PATIENCE
-                attack_instance.trainer_settings.evaluation_frequency = \
-                    EVALUATION_FREQUENCY
-                attack_instance.trainer_settings.precision = args.precision
-                attack_instance.trainer_settings.use_accuracy = False
+                    # Add attack specific key-name arguments
+                    if attack.name == "active-thief":
+                        kwargs["selection_strategy"] = attack.type
+                        kwargs["budget"] = budget
+                    elif attack.name == "knockoff":
+                        sampling_strategy, reward_type = attack.type.split('-')
+                        kwargs["sampling_strategy"] = sampling_strategy
+                        kwargs["reward_type"] = reward_type
+                        kwargs["budget"] = budget
+                    elif attack.name == "blackbox":
+                        kwargs["budget"] = budget
 
-                run_kwargs = {
-                    "sub_data": ConcatDataset([imagenet_train, imagenet_val]),
-                    "test_set": test_set}
+                    attack_instance = ATTACKS_DICT[attack.name](**kwargs)
 
-                attack_instance(**run_kwargs)
+                    save_loc = f"{args.save_loc}/Attack-tests/" \
+                               f"{dataset_name}/budget-{budget}/" \
+                               f"{attack.name}/{attack.type}"
+                    # Base settings
+                    attack_instance.base_settings.save_loc = Path(save_loc)
+                    attack_instance.base_settings.gpus = args.gpus
+                    attack_instance.base_settings.num_workers = \
+                        args.num_workers
+                    attack_instance.base_settings.batch_size = BATCH_SIZE
+                    attack_instance.base_settings.seed = SEED
+                    attack_instance.base_settings.deterministic = True
+                    attack_instance.base_settings.debug = args.debug
+
+                    # Trainer settings
+                    attack_instance.trainer_settings.training_epochs = \
+                        TRAINING_EPOCHS
+                    attack_instance.trainer_settings.patience = PATIENCE
+                    attack_instance.trainer_settings.evaluation_frequency = \
+                        EVALUATION_FREQUENCY
+                    attack_instance.trainer_settings.precision = args.precision
+                    attack_instance.trainer_settings.use_accuracy = False
+
+                    run_kwargs = {"sub_data": ConcatDataset(
+                            [imagenet_train, imagenet_val]),
+                        "test_set": test_set}
+
+                    attack_instance(**run_kwargs)
