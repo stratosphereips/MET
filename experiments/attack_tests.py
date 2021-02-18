@@ -9,16 +9,14 @@ import torchvision.transforms as T
 from pytorch_lightning import seed_everything
 from torch.utils.data import ConcatDataset
 
-from mef.utils.pytorch.datasets.vision.indoor67 import Indoor67
-
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks import ActiveThief, BlackBox, CopyCat, KnockOff, Ripper
 from mef.utils.experiment import train_victim_model
-from mef.utils.pytorch.datasets.vision import Caltech256, ImageNet1000, Stl10
+from mef.utils.pytorch.datasets.vision import Caltech256, ImageNet1000, Indoor67, Stl10
 from mef.utils.pytorch.functional import soft_cross_entropy
 from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
-from mef.utils.pytorch.models.vision import SimpNet
+from mef.utils.pytorch.models.vision import ResNet
 
 IMAGENET_TRAIN_SIZE = 100000
 IMAGENET_VAL_SIZE = 20000
@@ -129,7 +127,13 @@ if __name__ == "__main__":
 
     save_loc = Path(args.save_loc)
 
-    imagenet_transform = T.Compose([T.Resize(DIMS[1:3]), T.ToTensor()])
+    imagenet_transform = T.Compose(
+        [
+            T.Resize(DIMS[1]),
+            T.ToTensor(),
+            T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        ]
+    )
     imagenet_train = ImageNet1000(
         root=args.imagenet_dir,
         size=IMAGENET_TRAIN_SIZE,
@@ -147,15 +151,18 @@ if __name__ == "__main__":
     for dataset in DATASETS:
         train_transform = T.Compose(
             [
-                T.Resize(DIMS[1:2]),
-                T.RandomCrop(DIMS[1], padding=4),
+                T.RandomResizedCrop(DIMS[1], padding=4),
                 T.RandomHorizontalFlip(),
                 T.ToTensor(),
-                T.Normalize((0.5,), (0.5,)),
+                T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
             ]
         )
         test_transform = T.Compose(
-            [T.Resize(DIMS[1:2]), T.ToTensor(), T.Normalize((0.5,), (0.5,))]
+            [
+                T.Resize(DIMS[1]),
+                T.ToTensor(),
+                T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+            ]
         )
         if dataset.name == "STL10":
             dataset.dataset_dir = args.stl10_dir
@@ -172,7 +179,7 @@ if __name__ == "__main__":
         )
 
         # Prepare victim model
-        victim_model = SimpNet(num_classes=dataset.num_classes)
+        victim_model = ResNet("resnet_34", num_classes=dataset.num_classes)
         victim_optimizer = torch.optim.Adam(victim_model.parameters())
         victim_loss = torch.nn.functional.cross_entropy
         train_victim_model(
@@ -199,7 +206,9 @@ if __name__ == "__main__":
                             victim_model, dataset.num_classes, output_type
                         )
                     }
-                    substitute_model = SimpNet(num_classes=dataset.num_classes)
+                    substitute_model = ResNet(
+                        "resnet_34", num_classes=dataset.num_classes
+                    )
                     substitute_optimizer = torch.optim.Adam(
                         substitute_model.parameters()
                     )
