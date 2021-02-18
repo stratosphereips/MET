@@ -9,6 +9,8 @@ import torchvision.transforms as T
 from pytorch_lightning import seed_everything
 from torch.utils.data import ConcatDataset
 
+from mef.utils.pytorch.datasets.vision.indoor67 import Indoor67
+
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks import ActiveThief, BlackBox, CopyCat, KnockOff, Ripper
@@ -27,12 +29,17 @@ BATCH_SIZE = 100
 EVALUATION_FREQUENCY = 1
 SEED = 200916
 
-DATASETS = {"STL10": Stl10, "Caltech256": Caltech256}
-BUDGETS = [5000, 10000, 15000, 20000]
-OUTPUT_TYPES = ["softmax", "one_hot"]
+Dataset = namedtuple("Dataset", ["name", "class_", "num_classes", "dataset_dir"])
+DATASETS = (
+    Dataset("STL10", Stl10, 10, None),
+    Dataset("Indoor67", Indoor67, 67, None),
+    Dataset("Caltech256", Caltech256, 256, None),
+)
+BUDGETS = (5000, 10000, 15000, 20000)
+OUTPUT_TYPES = ("softmax", "one_hot")
 
 AttackInfo = namedtuple("AttackInfo", ["name", "type"])
-ME_ATTACKS = [
+ME_ATTACKS = (
     AttackInfo("active-thief", "entropy"),
     AttackInfo("active-thief", "k-center"),
     AttackInfo("active-thief", "dfal"),
@@ -43,7 +50,7 @@ ME_ATTACKS = [
     AttackInfo("knockoff", "nets_adaptive-div"),
     AttackInfo("knockoff", "nets_adaptive-loss"),
     AttackInfo("knockoff", "nets_adaptive-all"),
-]
+)
 ATTACKS_DICT = {
     "active-thief": ActiveThief,
     "blackbox": BlackBox,
@@ -70,18 +77,28 @@ def getr_args():
         "downloaded to (Default: ./cache/data)",
     )
     parser.add_argument(
+        "--indoor67_dir",
+        default="./cache/data",
+        type=str,
+        help="Path to Indoor67 dataset (Default: ./cache/data)",
+    )
+    parser.add_argument(
         "--caltech256_dir",
         default="./cache/data",
         type=str,
-        help="Location where Caltech256 dataset is or should "
-        "be downloaded to (Default: ./cache/data)",
+        help="Path to Caltech256 dataset (Default: ./cache/data)",
     )
-    parser.add_argument("--imagenet_dir", type=str, help="Path to ImageNet " "dataset")
+    parser.add_argument(
+        "--imagenet_dir",
+        default="./cache/data",
+        type=str,
+        help="Path to ImageNet dataset (Default: ./cache/data)",
+    )
     parser.add_argument(
         "--save_loc",
         type=str,
         default="./cache/",
-        help="Path where the attacks file should be " "saved (Default: ./cache/)",
+        help="Path where the attacks file should be " "saved (Default: " "./cache/)",
     )
     parser.add_argument(
         "--gpus", type=int, default=0, help="Number of gpus to be used (Default: 0)"
@@ -127,7 +144,7 @@ if __name__ == "__main__":
         seed=SEED,
     )
 
-    for dataset_name, dataset in DATASETS.items():
+    for dataset in DATASETS:
         train_transform = T.Compose(
             [
                 T.Resize(DIMS[1:2]),
@@ -140,24 +157,22 @@ if __name__ == "__main__":
         test_transform = T.Compose(
             [T.Resize(DIMS[1:2]), T.ToTensor(), T.Normalize((0.5,), (0.5,))]
         )
-        if dataset_name == "STL10":
-            num_classes = 10
-            dataset_dir = args.stl10_dir
-            train_kwargs = {"split": "train"}
-            test_kwargs = {"split": "test"}
+        if dataset.name == "STL10":
+            dataset.dataset_dir = args.stl10_dir
+        elif dataset.name == "Indoor67":
+            dataset.dataset_dir = args.indoor67_dir
         else:
-            num_classes = 256
-            dataset_dir = args.caltech256_dir
-            train_kwargs = {"train": True}
-            test_kwargs = {"train": False}
+            dataset.dataset_dir = args.caltech256_dir
 
-        train_set = dataset(args.caltech256_dir, transform=train_transform, seed=SEED)
-        test_set = dataset(
+        train_set = dataset.class_(
+            args.caltech256_dir, transform=train_transform, seed=SEED
+        )
+        test_set = dataset.class_(
             args.caltech256_dir, train=False, transform=test_transform, seed=SEED
         )
 
         # Prepare victim model
-        victim_model = SimpNet(num_classes=num_classes)
+        victim_model = SimpNet(num_classes=dataset.num_classes)
         victim_optimizer = torch.optim.Adam(victim_model.parameters())
         victim_loss = torch.nn.functional.cross_entropy
         train_victim_model(
@@ -165,13 +180,13 @@ if __name__ == "__main__":
             victim_optimizer,
             victim_loss,
             train_set,
-            num_classes,
+            dataset.num_classes,
             TRAINING_EPOCHS,
             BATCH_SIZE,
             args.num_workers,
             test_set=test_set,
             gpus=args.gpus,
-            save_loc=save_loc.joinpath("Attack-tests", "STL10"),
+            save_loc=save_loc.joinpath("Attack-tests", dataset.name),
             debug=args.debug,
         )
 
@@ -181,17 +196,17 @@ if __name__ == "__main__":
                     # Prepare models for the attack
                     kwargs = {
                         "victim_model": VictimModel(
-                            victim_model, num_classes, output_type
+                            victim_model, dataset.num_classes, output_type
                         )
                     }
-                    substitute_model = SimpNet(num_classes=num_classes)
+                    substitute_model = SimpNet(num_classes=dataset.num_classes)
                     substitute_optimizer = torch.optim.Adam(
                         substitute_model.parameters()
                     )
                     substitute_loss = soft_cross_entropy
                     kwargs["substitute_model"] = TrainableModel(
                         substitute_model,
-                        num_classes,
+                        dataset.num_classes,
                         substitute_optimizer,
                         substitute_loss,
                     )
@@ -212,13 +227,16 @@ if __name__ == "__main__":
 
                     attack_instance = ATTACKS_DICT[attack.name](**kwargs)
 
-                    save_loc = (
-                        f"{args.save_loc}/Attack-tests/"
-                        f"{dataset_name}/budget-{budget}/"
-                        f"{attack.name}/{attack.type}"
+                    attack_save_loc = save_loc.joinpath(
+                        "Attack-tests",
+                        dataset.num_classes,
+                        f"budget-{budget}",
+                        attack.name,
+                        attack.type,
                     )
+
                     # Base settings
-                    attack_instance.base_settings.save_loc = Path(save_loc)
+                    attack_instance.base_settings.save_loc = attack_save_loc
                     attack_instance.base_settings.gpus = args.gpus
                     attack_instance.base_settings.num_workers = args.num_workers
                     attack_instance.base_settings.batch_size = BATCH_SIZE
