@@ -67,7 +67,7 @@ class GOCData:
 
         stl10 = dict()
         stl10["train"] = Stl10(self.stl10_dir, transform=self.transform)
-        stl10["test"] = Stl10(self.stl10_dir, split="test", transform=self.transform)
+        stl10["test"] = Stl10(self.stl10_dir, train=False, transform=self.transform)
 
         # Replace car with automobile to make the class name same as in the
         # cifar10
