@@ -13,6 +13,7 @@ sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks import ActiveThief, BlackBox, CopyCat, KnockOff, Ripper
 from mef.utils.experiment import train_victim_model
+from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.datasets.vision import Caltech256, ImageNet1000, Indoor67, Stl10
 from mef.utils.pytorch.functional import soft_cross_entropy
 from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
@@ -20,18 +21,17 @@ from mef.utils.pytorch.models.vision import ResNet
 
 IMAGENET_TRAIN_SIZE = 100000
 IMAGENET_VAL_SIZE = 20000
-DIMS = (3, 64, 64)
 TRAINING_EPOCHS = 1000
 PATIENCE = 100
 BATCH_SIZE = 100
 EVALUATION_FREQUENCY = 1
 SEED = 200916
 
-Dataset = namedtuple("Dataset", ["name", "class_", "num_classes", "dataset_dir"])
+Dataset = namedtuple("Dataset", ["name", "class_", "num_classes"])
 DATASETS = (
-    Dataset("STL10", Stl10, 10, None),
-    Dataset("Indoor67", Indoor67, 67, None),
-    Dataset("Caltech256", Caltech256, 256, None),
+    Dataset("STL10", Stl10, 10),
+    Dataset("Indoor67", Indoor67, 67),
+    Dataset("Caltech256", Caltech256, 256),
 )
 BUDGETS = (5000, 10000, 15000, 20000)
 OUTPUT_TYPES = ("softmax", "one_hot")
@@ -123,13 +123,13 @@ def getr_args():
 
 if __name__ == "__main__":
     args = getr_args()
-    seed_everything(SEED)
 
     save_loc = Path(args.save_loc)
 
     imagenet_transform = T.Compose(
         [
-            T.Resize(DIMS[1]),
+            T.Resize(128),
+            T.CenterCrop(128),
             T.ToTensor(),
             T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
         ]
@@ -149,9 +149,10 @@ if __name__ == "__main__":
     )
 
     for dataset in DATASETS:
+        seed_everything(SEED)
         train_transform = T.Compose(
             [
-                T.RandomResizedCrop(DIMS[1], padding=4),
+                T.RandomResizedCrop(128),
                 T.RandomHorizontalFlip(),
                 T.ToTensor(),
                 T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
@@ -159,24 +160,26 @@ if __name__ == "__main__":
         )
         test_transform = T.Compose(
             [
-                T.Resize(DIMS[1]),
+                T.Resize(128),
+                T.CenterCrop(128),
                 T.ToTensor(),
                 T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
             ]
         )
+        train_kwargs = {"transform": train_transform}
+        test_kwargs = {"transform": test_transform, "train": False}
         if dataset.name == "STL10":
-            dataset.dataset_dir = args.stl10_dir
+            dataset_dir = args.stl10_dir
         elif dataset.name == "Indoor67":
-            dataset.dataset_dir = args.indoor67_dir
+            dataset_dir = args.indoor67_dir
         else:
-            dataset.dataset_dir = args.caltech256_dir
+            train_kwargs["seed"] = SEED
+            test_kwargs["seed"] = SEED
+            dataset_dir = args.caltech256_dir
 
-        train_set = dataset.class_(
-            args.caltech256_dir, transform=train_transform, seed=SEED
-        )
-        test_set = dataset.class_(
-            args.caltech256_dir, train=False, transform=test_transform, seed=SEED
-        )
+        train_set = dataset.class_(dataset_dir, **train_kwargs)
+        train_set, val_set = split_dataset(train_set, 0.2)
+        test_set = dataset.class_(dataset_dir, **test_kwargs)
 
         # Prepare victim model
         victim_model = ResNet("resnet_34", num_classes=dataset.num_classes)
@@ -191,6 +194,7 @@ if __name__ == "__main__":
             TRAINING_EPOCHS,
             BATCH_SIZE,
             args.num_workers,
+            val_set=val_set,
             test_set=test_set,
             gpus=args.gpus,
             save_loc=save_loc.joinpath("Attack-tests", dataset.name),
@@ -200,6 +204,21 @@ if __name__ == "__main__":
         for attack in ME_ATTACKS:
             for output_type in OUTPUT_TYPES:
                 for budget in BUDGETS:
+                    attack_save_loc = save_loc.joinpath(
+                        "Attack-tests",
+                        str(dataset.num_classes),
+                        f"budget-{budget}",
+                        attack.name,
+                        attack.type,
+                    )
+
+                    # Check if the attack is already done
+                    final_substitute_model = attack_save_loc.joinpath(
+                        "substitute", "final_substitute_model-state_dict.pt"
+                    )
+                    if final_substitute_model.exists():
+                        continue
+
                     # Prepare models for the attack
                     kwargs = {
                         "victim_model": VictimModel(
@@ -235,14 +254,6 @@ if __name__ == "__main__":
                         kwargs["budget"] = budget
 
                     attack_instance = ATTACKS_DICT[attack.name](**kwargs)
-
-                    attack_save_loc = save_loc.joinpath(
-                        "Attack-tests",
-                        dataset.num_classes,
-                        f"budget-{budget}",
-                        attack.name,
-                        attack.type,
-                    )
 
                     # Base settings
                     attack_instance.base_settings.save_loc = attack_save_loc
