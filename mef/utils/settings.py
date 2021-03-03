@@ -10,8 +10,8 @@ class AttackSettings:
 @dataclass
 class TrainerSettings:
     training_epochs: int = 1000
-    patience: int = 100
-    evaluation_frequency: int = 1
+    patience: int = None
+    evaluation_frequency: int = None
     precision: int = 32
     use_accuracy: bool = False
 
