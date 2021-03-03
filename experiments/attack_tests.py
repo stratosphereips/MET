@@ -6,8 +6,9 @@ from pathlib import Path
 
 import torch
 import torchvision.transforms as T
+import numpy as np
 from pytorch_lightning import seed_everything
-from torch.utils.data import ConcatDataset
+from torch.utils.data import ConcatDataset, Subset
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
@@ -21,27 +22,27 @@ from mef.utils.pytorch.models.vision import ResNet
 
 IMAGENET_TRAIN_SIZE = 100000
 IMAGENET_VAL_SIZE = 20000
-TRAINING_EPOCHS = 1000
-PATIENCE = 100
-BATCH_SIZE = 100
+TRAINING_EPOCHS = 200
+PATIENCE = 50
+BATCH_SIZE = 64
 EVALUATION_FREQUENCY = 1
 SEED = 200916
 
 Dataset = namedtuple("Dataset", ["name", "class_", "num_classes"])
 DATASETS = (
-    Dataset("STL10", Stl10, 10),
+    # Dataset("STL10", Stl10, 10),
     Dataset("Indoor67", Indoor67, 67),
     Dataset("Caltech256", Caltech256, 256),
 )
-BUDGETS = (5000, 10000, 15000, 20000)
+BUDGET = 20000
 OUTPUT_TYPES = ("softmax", "one_hot")
 
 AttackInfo = namedtuple("AttackInfo", ["name", "type"])
 ME_ATTACKS = (
     AttackInfo("active-thief", "entropy"),
     AttackInfo("active-thief", "k-center"),
-    AttackInfo("active-thief", "dfal"),
-    AttackInfo("active-thief", "dfal+k-center"),
+    # AttackInfo("active-thief", "dfal"),
+    # AttackInfo("active-thief", "dfal+k-center"),
     AttackInfo("blackbox", ""),
     AttackInfo("copycat", ""),
     AttackInfo("knockoff", "nets_adaptive-cert"),
@@ -128,8 +129,8 @@ if __name__ == "__main__":
 
     imagenet_transform = T.Compose(
         [
-            T.Resize(128),
-            T.CenterCrop(128),
+            T.Resize(256),
+            T.CenterCrop(224),
             T.ToTensor(),
             T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
         ]
@@ -152,7 +153,7 @@ if __name__ == "__main__":
         seed_everything(SEED)
         train_transform = T.Compose(
             [
-                T.RandomResizedCrop(128),
+                T.RandomResizedCrop(224),
                 T.RandomHorizontalFlip(),
                 T.ToTensor(),
                 T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
@@ -160,8 +161,8 @@ if __name__ == "__main__":
         )
         test_transform = T.Compose(
             [
-                T.Resize(128),
-                T.CenterCrop(128),
+                T.Resize(256),
+                T.CenterCrop(224),
                 T.ToTensor(),
                 T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
             ]
@@ -183,8 +184,11 @@ if __name__ == "__main__":
 
         # Prepare victim model
         victim_model = ResNet("resnet_34", num_classes=dataset.num_classes)
-        victim_optimizer = torch.optim.Adam(victim_model.parameters())
+        victim_optimizer = torch.optim.SGD(
+            victim_model.parameters(), lr=0.1, momentum=0.5
+        )
         victim_loss = torch.nn.functional.cross_entropy
+        lr_scheduler = torch.optim.lr_scheduler.StepLR(victim_optimizer, step_size=60)
         train_victim_model(
             victim_model,
             victim_optimizer,
@@ -196,6 +200,7 @@ if __name__ == "__main__":
             args.num_workers,
             val_set=val_set,
             test_set=test_set,
+            lr_scheduler=lr_scheduler,
             gpus=args.gpus,
             save_loc=save_loc.joinpath("Attack-tests", dataset.name),
             debug=args.debug,
@@ -203,79 +208,86 @@ if __name__ == "__main__":
 
         for attack in ME_ATTACKS:
             for output_type in OUTPUT_TYPES:
-                for budget in BUDGETS:
-                    attack_save_loc = save_loc.joinpath(
-                        "Attack-tests",
-                        str(dataset.num_classes),
-                        f"budget-{budget}",
-                        attack.name,
-                        attack.type,
+                attack_save_loc = save_loc.joinpath(
+                    "Attack-tests",
+                    dataset.name,
+                    f"budget-{BUDGET}",
+                    attack.name,
+                    attack.type,
+                )
+
+                # Check if the attack is already done
+                final_substitute_model = attack_save_loc.joinpath(
+                    "substitute", "final_substitute_model-state_dict.pt"
+                )
+                if final_substitute_model.exists():
+                    continue
+
+                # Prepare models for the attack
+                kwargs = {
+                    "victim_model": VictimModel(
+                        victim_model, dataset.num_classes, output_type
                     )
+                }
+                # Prepare substitute model
+                substitute_model = ResNet("resnet_34", num_classes=dataset.num_classes,)
+                substitute_optimizer = torch.optim.SGD(
+                    substitute_model.parameters(), lr=0.01, momentum=0.5
+                )
+                lr_scheduler = torch.optim.lr_scheduler.StepLR(
+                    substitute_optimizer, step_size=60
+                )
+                substitute_loss = soft_cross_entropy
+                kwargs["substitute_model"] = TrainableModel(
+                    substitute_model,
+                    dataset.num_classes,
+                    substitute_optimizer,
+                    substitute_loss,
+                    lr_scheduler,
+                )
 
-                    # Check if the attack is already done
-                    final_substitute_model = attack_save_loc.joinpath(
-                        "substitute", "final_substitute_model-state_dict.pt"
-                    )
-                    if final_substitute_model.exists():
-                        continue
+                kwargs.update(ATTACKS_CONFIG[attack.name])
 
-                    # Prepare models for the attack
-                    kwargs = {
-                        "victim_model": VictimModel(
-                            victim_model, dataset.num_classes, output_type
-                        )
-                    }
-                    substitute_model = ResNet(
-                        "resnet_34", num_classes=dataset.num_classes
-                    )
-                    substitute_optimizer = torch.optim.Adam(
-                        substitute_model.parameters()
-                    )
-                    substitute_loss = soft_cross_entropy
-                    kwargs["substitute_model"] = TrainableModel(
-                        substitute_model,
-                        dataset.num_classes,
-                        substitute_optimizer,
-                        substitute_loss,
-                    )
+                # Add attack specific key-name arguments
+                if attack.name == "active-thief":
+                    kwargs["selection_strategy"] = attack.type
+                    kwargs["budget"] = BUDGET
+                elif attack.name == "knockoff":
+                    sampling_strategy, reward_type = attack.type.split("-")
+                    kwargs["sampling_strategy"] = sampling_strategy
+                    kwargs["reward_type"] = reward_type
+                    kwargs["budget"] = BUDGET
+                elif attack.name == "blackbox":
+                    kwargs["budget"] = BUDGET
 
-                    kwargs.update(ATTACKS_CONFIG[attack.name])
+                attack_instance = ATTACKS_DICT[attack.name](**kwargs)
 
-                    # Add attack specific key-name arguments
-                    if attack.name == "active-thief":
-                        kwargs["selection_strategy"] = attack.type
-                        kwargs["budget"] = budget
-                    elif attack.name == "knockoff":
-                        sampling_strategy, reward_type = attack.type.split("-")
-                        kwargs["sampling_strategy"] = sampling_strategy
-                        kwargs["reward_type"] = reward_type
-                        kwargs["budget"] = budget
-                    elif attack.name == "blackbox":
-                        kwargs["budget"] = budget
+                # Base settings
+                attack_instance.base_settings.save_loc = attack_save_loc
+                attack_instance.base_settings.gpus = args.gpus
+                attack_instance.base_settings.num_workers = args.num_workers
+                attack_instance.base_settings.batch_size = BATCH_SIZE
+                attack_instance.base_settings.seed = SEED
+                attack_instance.base_settings.deterministic = True
+                attack_instance.base_settings.debug = args.debug
 
-                    attack_instance = ATTACKS_DICT[attack.name](**kwargs)
+                # Trainer settings
+                attack_instance.trainer_settings.training_epochs = TRAINING_EPOCHS
+                attack_instance.trainer_settings.patience = PATIENCE
+                attack_instance.trainer_settings.evaluation_frequency = (
+                    EVALUATION_FREQUENCY
+                )
+                attack_instance.trainer_settings.precision = args.precision
+                attack_instance.trainer_settings.use_accuracy = False
 
-                    # Base settings
-                    attack_instance.base_settings.save_loc = attack_save_loc
-                    attack_instance.base_settings.gpus = args.gpus
-                    attack_instance.base_settings.num_workers = args.num_workers
-                    attack_instance.base_settings.batch_size = BATCH_SIZE
-                    attack_instance.base_settings.seed = SEED
-                    attack_instance.base_settings.deterministic = True
-                    attack_instance.base_settings.debug = args.debug
+                run_kwargs = {
+                    "sub_data": ConcatDataset([imagenet_train, imagenet_val]),
+                    "test_set": test_set,
+                }
 
-                    # Trainer settings
-                    attack_instance.trainer_settings.training_epochs = TRAINING_EPOCHS
-                    attack_instance.trainer_settings.patience = PATIENCE
-                    attack_instance.trainer_settings.evaluation_frequency = (
-                        EVALUATION_FREQUENCY
-                    )
-                    attack_instance.trainer_settings.precision = args.precision
-                    attack_instance.trainer_settings.use_accuracy = False
+                if "copycat":
+                    idxs_all = np.arange(len(run_kwargs["sub_data"]))
+                    idxs_sub = np.random.permutation(idxs_all)[:BUDGET]
+                    run_kwargs["sub_data"] = Subset(run_kwargs["sub_data"], idxs_sub)
 
-                    run_kwargs = {
-                        "sub_data": ConcatDataset([imagenet_train, imagenet_val]),
-                        "test_set": test_set,
-                    }
-
-                    attack_instance(**run_kwargs)
+                attack_instance(**run_kwargs)
