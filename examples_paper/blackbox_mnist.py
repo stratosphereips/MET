@@ -65,7 +65,7 @@ def set_up(args):
         precision=args.precision,
     )
 
-    victim_model = VictimModel(victim_model, NUM_CLASSES, output_type="softmax")
+    victim_model = VictimModel(victim_model, NUM_CLASSES, output_type="labels")
     substitute_model = TrainableModel(
         substitute_model,
         NUM_CLASSES,
@@ -84,7 +84,6 @@ if __name__ == "__main__":
         type=str,
         help="Path to MNIST dataset (Default: ./data/",
     )
-    parser.add_argument("--imagenet_dir", type=str, help="Path to ImageNet dataset")
     parser.add_argument(
         "--holdout_size",
         default=150,
