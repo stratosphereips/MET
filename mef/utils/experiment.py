@@ -32,7 +32,7 @@ def train_victim_model(
     precision=32,
 ) -> None:
     trainer, checkpoint_cb = get_trainer(
-        Path(save_loc).joinpath("victim"),
+        Path(save_loc),
         None,
         training_epochs,
         gpus,
@@ -45,7 +45,7 @@ def train_victim_model(
         precision,
         logger=True,
     )
-    victim_save_dir = Path(save_loc).joinpath("victim")
+    victim_save_dir = Path(save_loc)
     mkdir_if_missing(victim_save_dir)
 
     try:

@@ -299,7 +299,12 @@ if __name__ == "__main__":
                     test_set=test_set,
                     lr_scheduler=lr_scheduler,
                     gpus=args.gpus,
-                    save_loc=save_loc.joinpath("Attack-tests", dataset.name),
+                    save_loc=save_loc.joinpath(
+                        "Attack-tests",
+                        f"dataset:{dataset.name}",
+                        f"victim_model",
+                        f"sample_dims:{sample_dims}",
+                    ),
                     debug=args.debug,
                 )
                 for victim_output_type in test_setting.victim_output_types:
