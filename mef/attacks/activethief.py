@@ -305,33 +305,41 @@ class ActiveThief(Base):
         idxs_rest = np.arange(len(self._thief_dataset))
 
         # Prepare validation set
-        self._logger.info("Preparing validation dataset")
-        if self._val_dataset is None:
-            idxs_val = np.random.permutation(idxs_rest)[: self.attack_settings.val_size]
-            idxs_rest = np.setdiff1d(idxs_rest, idxs_val)
-            val_set = Subset(self._thief_dataset, idxs_val)
-            y_val = self._get_predictions(self._victim_model, val_set)
-        else:
-            idxs_val = np.arange(len(self._val_dataset))
-            idxs_val = np.random.permutation(idxs_val)[: self.attack_settings.val_size]
-            val_set = Subset(self._val_dataset, idxs_val)
-            y_val = self._get_predictions(self._victim_model, val_set)
+        val_set = None
+        if self.trainer_settings.evaluation_frequency is not None:
+            self._logger.info("Preparing validation dataset")
+            if self._val_dataset is None:
+                idxs_val = np.random.permutation(idxs_rest)[
+                    : self.attack_settings.val_size
+                ]
+                idxs_rest = np.setdiff1d(idxs_rest, idxs_val)
+                val_set = Subset(self._thief_dataset, idxs_val)
+                y_val = self._get_predictions(self._victim_model, val_set)
+            else:
+                idxs_val = np.arange(len(self._val_dataset))
+                idxs_val = np.random.permutation(idxs_val)[
+                    : self.attack_settings.val_size
+                ]
+                val_set = Subset(self._val_dataset, idxs_val)
+                y_val = self._get_predictions(self._victim_model, val_set)
 
-        val_set = CustomLabelDataset(val_set, y_val)
-        if self.attack_settings.save_samples:
-            self._selected_samples["val_data"].extend(idxs_val)
+            val_set = CustomLabelDataset(val_set, y_val)
+            if self.attack_settings.save_samples:
+                self._selected_samples["val_data"].extend(idxs_val)
 
-        val_label_counts = dict(list(enumerate([0] * self._victim_model.num_classes)))
-        if y_val.size()[-1] == 1:
-            for class_id in torch.round(y_val):
-                val_label_counts[class_id.item()] += 1
-        else:
-            for class_id in torch.argmax(y_val, dim=-1):
-                val_label_counts[class_id.item()] += 1
+            val_label_counts = dict(
+                list(enumerate([0] * self._victim_model.num_classes))
+            )
+            if y_val.size()[-1] == 1:
+                for class_id in torch.round(y_val):
+                    val_label_counts[class_id.item()] += 1
+            else:
+                for class_id in torch.argmax(y_val, dim=-1):
+                    val_label_counts[class_id.item()] += 1
 
-        self._logger.info(
-            "Validation dataset labels distribution: {}".format(val_label_counts)
-        )
+            self._logger.info(
+                "Validation dataset labels distribution: {}".format(val_label_counts)
+            )
 
         # Step 1: attacker picks random subset of initial seed samples
         self._logger.info("Preparing initial random query set")
