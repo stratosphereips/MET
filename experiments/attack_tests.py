@@ -251,11 +251,7 @@ if __name__ == "__main__":
                     ]
 
                 test_transform = T.Compose(
-                    [
-                        *test_transform,
-                        T.ToTensor(),
-                        IMAGENET_NORMALIZATION,
-                    ]
+                    [*test_transform, T.ToTensor(), IMAGENET_NORMALIZATION,]
                 )
 
                 train_kwargs = {"transform": train_transform}
@@ -344,8 +340,11 @@ if __name__ == "__main__":
                                 }
                                 # Prepare substitute model
                                 substitute_model = ResNet(
-                                    "resnet_34",
+                                    substitute_model_arch,
                                     num_classes=dataset.num_classes,
+                                    smaller_resolution=True
+                                    if sample_dims[-1] == 128
+                                    else False,
                                 )
                                 substitute_optimizer = torch.optim.SGD(
                                     substitute_model.parameters(), lr=0.01, momentum=0.5

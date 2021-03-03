@@ -56,6 +56,11 @@ def get_trainer(
         validation, patience, save_loc, iteration, debug, accuracy
     )
 
+    if evaluation_frequency is None:
+        evaluation_frequency = 100
+    if patience is None:
+        patience = 1
+
     # Prepare trainer
     trainer = Trainer(
         default_root_dir=save_loc.__str__(),
