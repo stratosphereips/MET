@@ -45,7 +45,12 @@ class CopyCat(Base):
 
         synthetic_dataset = CustomLabelDataset(self._thief_dataset, stolen_labels)
 
+        train_set = synthetic_dataset
+        val_set = None
+        if self.trainer_setting.evaluation_frequency:
+            train_set, val_set = split_dataset(transfer_data, 0.2)
+
         self._logger.info("Training substitute model with synthetic dataset")
-        self._train_substitute_model(synthetic_dataset)
+        self._train_substitute_model(train_set, val_set)
 
         return
