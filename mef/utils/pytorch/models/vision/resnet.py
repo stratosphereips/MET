@@ -15,7 +15,11 @@ RESNET_TYPES = {
 
 class ResNet(Base):
     def __init__(
-        self, resnet_type: str, num_classes: int, feature_extraction: bool = False
+        self,
+        resnet_type: str,
+        num_classes: int,
+        feature_extraction: bool = False,
+        smaller_resolution: bool = True,
     ):
         super().__init__(num_classes, feature_extraction)
 
@@ -26,6 +30,9 @@ class ResNet(Base):
         self._resnet = resnet_loader(pretrained=True)
         self._set_parameter_requires_grad(self._resnet, self._feature_extraction)
         self._resnet.fc.requires_grad_()
+
+        if smaller_resolution:
+            self._resnet.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1)
 
         if num_classes != 1000:
             in_features = self._resnet.fc.in_features
