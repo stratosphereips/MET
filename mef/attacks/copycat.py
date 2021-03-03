@@ -2,7 +2,7 @@ from argparse import ArgumentParser
 
 from torch.utils.data import Dataset
 
-from mef.utils.pytorch.datasets import CustomLabelDataset
+from mef.utils.pytorch.datasets import CustomLabelDataset, split_dataset
 from .base import Base
 from ..utils.pytorch.functional import get_class_labels
 from ..utils.pytorch.lighting.module import TrainableModel, VictimModel
@@ -40,15 +40,13 @@ class CopyCat(Base):
         # Get stolen labels from victim model
         self._logger.info("Getting stolen labels")
         stolen_labels = self._get_predictions(self._victim_model, self._thief_dataset)
-        # Following the paper the victim-model only returns labels
-        stolen_labels = get_class_labels(stolen_labels)
 
         synthetic_dataset = CustomLabelDataset(self._thief_dataset, stolen_labels)
 
         train_set = synthetic_dataset
         val_set = None
-        if self.trainer_setting.evaluation_frequency:
-            train_set, val_set = split_dataset(transfer_data, 0.2)
+        if self.trainer_settings.evaluation_frequency:
+            train_set, val_set = split_dataset(train_set, 0.2)
 
         self._logger.info("Training substitute model with synthetic dataset")
         self._train_substitute_model(train_set, val_set)

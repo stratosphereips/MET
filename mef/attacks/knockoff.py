@@ -12,7 +12,7 @@ from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset
 from tqdm import tqdm
 
 from mef.attacks.base import Base
-from mef.utils.pytorch.datasets import CustomLabelDataset
+from mef.utils.pytorch.datasets import CustomLabelDataset, split_dataset
 from mef.utils.pytorch.functional import get_prob_vector, soft_cross_entropy
 from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
 from mef.utils.settings import AttackSettings
@@ -364,8 +364,8 @@ class KnockOff(Base):
 
         train_set = transfer_data
         val_set = None
-        if self.trainer_setting.evaluation_frequency:
-            train_set, val_set = split_dataset(transfer_data, 0.2)
+        if self.trainer_settings.evaluation_frequency:
+            train_set, val_set = split_dataset(train_set, 0.2)
 
         self._logger.info("Offline training of substitute model")
         self._train_substitute_model(train_set, val_set)
