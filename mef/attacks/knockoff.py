@@ -364,7 +364,7 @@ class KnockOff(Base):
 
         train_set = transfer_data
         val_set = None
-        if self.trainer_settings.evaluation_frequency:
+        if self.trainer_settings.evaluation_frequency is not None:
             train_set, val_set = split_dataset(train_set, 0.2)
 
         self._logger.info("Offline training of substitute model")
