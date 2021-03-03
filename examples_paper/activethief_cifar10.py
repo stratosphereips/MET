@@ -73,7 +73,7 @@ def set_up(args):
         args.num_workers,
         val_set,
         patience=args.patience,
-        save_loc=args.save_loc,
+        save_loc=Path(args.save_loc).joinpath("victim"),
         gpus=args.gpus,
         deterministic=args.deterministic,
         debug=args.debug,

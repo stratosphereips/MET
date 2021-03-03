@@ -58,7 +58,7 @@ def set_up(args):
         args.training_epochs,
         args.batch_size,
         args.num_workers,
-        save_loc=args.save_loc,
+        save_loc=Path(args.save_loc).joinpath("victim"),
         gpus=args.gpus,
         deterministic=args.deterministic,
         debug=args.debug,

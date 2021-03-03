@@ -75,7 +75,7 @@ if __name__ == "__main__":
         patience=PATIENCE,
         gpus=args.gpus,
         evaluation_frequency=EVALUATION_FREQUENCY,
-        save_loc="./cache/Simplenet-vs-Simpnet-cifar10" "/SimpleNet",
+        save_loc="./cache/Simplenet-vs-Simpnet-cifar10/SimpleNet/victim",
     )
 
     simpnet1 = SimpNet(num_classes=NUM_CLASSES)

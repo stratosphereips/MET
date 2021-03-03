@@ -56,7 +56,7 @@ def set_up(args):
         args.batch_size,
         args.num_workers,
         lr_scheduler=lr_scheduler,
-        save_loc=args.save_loc,
+        save_loc=Path(args.save_loc).joinpath("victim"),
         gpus=args.gpus,
         deterministic=args.deterministic,
         debug=args.debug,
