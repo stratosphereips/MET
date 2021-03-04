@@ -156,7 +156,7 @@ ATTACKS_DICT = {
     "ripper": Ripper,
 }
 ATTACKS_CONFIG = {
-    "active-thief": {"iterations": 10, "save_samples": True},
+    "active-thief": {"iterations": 10, "save_samples": True, "val_size": 0},
     "blackbox": {"iterations": 6},
     "copycat": {},
     "knockoff-nets": {"save_samples": True},
@@ -270,11 +270,14 @@ if __name__ == "__main__":
                     dataset_dir = args.caltech256_dir
 
                 train_set = dataset.class_(dataset_dir, **train_kwargs)
-                train_set, val_set = split_dataset(train_set, 0.2)
                 test_set = dataset.class_(dataset_dir, **test_kwargs)
 
                 # Prepare victim model
-                victim_model = ResNet("resnet_34", num_classes=dataset.num_classes)
+                victim_model = ResNet(
+                    "resnet_34",
+                    num_classes=dataset.num_classes,
+                    smaller_resolution=True if sample_dims[-1] == 128 else False,
+                )
                 victim_optimizer = torch.optim.SGD(
                     victim_model.parameters(), lr=0.1, momentum=0.5
                 )
@@ -291,7 +294,6 @@ if __name__ == "__main__":
                     VICT_TRAINING_EPOCHS,
                     BATCH_SIZE,
                     args.num_workers,
-                    val_set=val_set,
                     test_set=test_set,
                     lr_scheduler=lr_scheduler,
                     gpus=args.gpus,
@@ -401,7 +403,10 @@ if __name__ == "__main__":
 
                                 # Prepare substitute dataset
                                 if sample_dims[-1] == 128:
-                                    test_transform = [T.Resize(128)]
+                                    test_transform = [
+                                        T.Resize(128),
+                                        T.CenterCrop(128),
+                                    ]
                                 else:
                                     test_transform = [
                                         T.Resize(256),
