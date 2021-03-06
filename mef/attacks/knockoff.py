@@ -1,9 +1,8 @@
-# Based on https://github.com/Trusted-AI/adversarial-robustness-toolbox/blob
-# /main/art/attacks/extraction/knockoff_nets.py
 import pickle
 from argparse import ArgumentParser
 from collections import defaultdict as dd
 from dataclasses import dataclass
+from typing import Union
 
 import numpy as np
 import torch
@@ -132,10 +131,16 @@ class KnockOff(Base):
 
         return CustomLabelDataset(selected_data, y)
 
-    def _sample_data(self, action: int) -> Subset:
-        idx_action = np.where(self.y == action)[0]
+    def _sample_data(self, action: int) -> Union[Subset, bool]:
+        idx_action = np.where(self._y == action)[0]
+
+        if len(idx_action) == 0:
+            return False
 
         idx_sampled = np.random.permutation(idx_action)[: self.attack_settings.k]
+
+        # Remove selected samples from possible samples for selection
+        self._y = np.delete(self._y, idx_sampled)
 
         if self.attack_settings.save_samples:
             self._selected_samples["idxs"].extend(idx_sampled)
@@ -166,18 +171,12 @@ class KnockOff(Base):
         return
 
     def _reward_cert(self, y_output: torch.Tensor) -> np.ndarray:
-        """
-        Compute `cert` reward value.
-        """
         largests = torch.topk(y_output, 2)[0]
         reward = torch.mean((largests[:, 0] - largests[:, 1]))
 
         return reward.numpy()
 
     def _reward_div(self, y: torch.Tensor, n: int) -> np.ndarray:
-        """
-        Compute `div` reward value.
-        """
         # First update y_avg
         self._y_avg = self._y_avg + (1.0 / n) * (y.mean(dim=0) - self._y_avg)
 
@@ -187,10 +186,6 @@ class KnockOff(Base):
         return reward.numpy()
 
     def _reward_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> np.ndarray:
-        """
-        Compute `loss` reward value.
-        """
-
         # Compute reward
         if self._victim_model.output_type == "logits":
             if self._victim_model.num_classes == 2:
@@ -202,9 +197,7 @@ class KnockOff(Base):
         return reward.numpy()
 
     def _reward_all(self, y_hat: torch.Tensor, y: torch.Tensor, n: int) -> np.ndarray:
-        """
-        Compute `all` reward value.
-        """
+        # Source: https://github.com/Trusted-AI/adversarial-robustness-toolbox/blob/main/art/attacks/extraction/knockoff_nets.py
         reward_cert = self._reward_cert(y)
         reward_div = self._reward_div(y, n)
         reward_loss = self._reward_loss(y, y_hat)
@@ -236,20 +229,23 @@ class KnockOff(Base):
             return self._reward_all(y_hat, y, iteration)
 
     def _adaptive_strategy(self) -> ConcatDataset:
-        # Number of actions
-        loader = DataLoader(
-            dataset=self._thief_dataset,
-            pin_memory=self.base_settings.gpus != 0,
-            num_workers=self.base_settings.num_workers,
-            batch_size=self.base_settings.batch_size,
-        )
-
-        idx_sub = np.array(self._thief_dataset.indices)
-        self.y = []
-        for _, labels in loader:
-            self.y.append(labels)
-        self.y = torch.cat(self.y).numpy()
-        self._actions = np.unique(self.y)
+        # Get substitute dataset labels
+        if hasattr(self._thief_dataset, "targets"):
+            self._y = self._thief_dataset.targets
+        else:
+            loader = DataLoader(
+                dataset=self._thief_dataset,
+                pin_memory=self.base_settings.gpus != 0,
+                num_workers=self.base_settings.num_workers,
+                batch_size=self.base_settings.batch_size,
+            )
+            self._y = []
+            for _, labels in tqdm(
+                loader, desc="Collecting substitute datasets' " "labels"
+            ):
+                self._y.append(labels)
+        self._y = np.array(self._y, dtype=np.uint32)
+        self._actions = np.unique(self._y)
         self._num_actions = len(self._actions)
 
         # We need to keep an average version of the victim output
@@ -275,14 +271,30 @@ class KnockOff(Base):
             range(1, self.attack_settings.iterations + 1), desc="Selecting data samples"
         ):
             self._logger.info("---------- Iteration: {} ----------".format(it))
-            # Sample an action
-            action_idx = np.random.choice(np.arange(0, self._num_actions), p=probs)
-            action = self._actions[action_idx]
-            self._logger.info("Action {} selected".format(action))
+            # Sample actions until we get data to continue the attack
+            while True:
+                # Sample an action
+                action_idx = np.random.choice(np.arange(0, self._num_actions), p=probs)
+                action = self._actions[action_idx]
+                self._logger.info("Action {} selected".format(action))
 
-            # Select sample to attack
-            self._logger.info("Selecting sample for attack")
-            sampled_data = self._sample_data(action)
+                # Select sample to attack
+                self._logger.info("Selecting sample for attack")
+                sampled_data = self._sample_data(action)
+
+                if sampled_data:
+                    break
+                else:
+                    self._logger.info(
+                        "Action has no more samples, removing it from pool of actions"
+                    )
+                    # Action has no more samples, we remove it from selection
+                    action_prob = probs[action]
+                    probs = np.delete(probs, action)
+                    h_func = np.delete(h_func, action)
+                    # We need to make sure that probs still add up to 1
+                    probs += np.float32((action_prob / self._num_actions))
+                    self._num_actions -= 1
 
             # Query the victim model
             self._logger.info("Getting victim predictions on sampled data")
