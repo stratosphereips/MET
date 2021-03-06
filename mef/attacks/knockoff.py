@@ -133,15 +133,7 @@ class KnockOff(Base):
         return CustomLabelDataset(selected_data, y)
 
     def _sample_data(self, action: int) -> Subset:
-        # TODO: correct this abomination
-        if isinstance(self._thief_dataset, Subset):
-            idx_sub = np.array(self._thief_dataset.indices)
-            y = np.array(self._thief_dataset.dataset.targets)
-            y = y[idx_sub]
-        else:
-            y = np.array(self._thief_dataset.targets)
-
-        idx_action = np.where(y == action)[0]
+        idx_action = np.where(self.y == action)[0]
 
         idx_sampled = np.random.permutation(idx_action)[: self.attack_settings.k]
 
@@ -245,7 +237,20 @@ class KnockOff(Base):
 
     def _adaptive_strategy(self) -> ConcatDataset:
         # Number of actions
-        self._num_actions = self._thief_dataset.num_classes
+        loader = DataLoader(
+            dataset=self._thief_dataset,
+            pin_memory=self.base_settings.gpus != 0,
+            num_workers=self.base_settings.num_workers,
+            batch_size=self.base_settings.batch_size,
+        )
+
+        idx_sub = np.array(self._thief_dataset.indices)
+        self.y = []
+        for _, labels in loader:
+            self.y.append(labels)
+        self.y = torch.cat(self.y).numpy()
+        self._actions = np.unique(self.y)
+        self._num_actions = len(self._actions)
 
         # We need to keep an average version of the victim output
         if (
@@ -271,7 +276,8 @@ class KnockOff(Base):
         ):
             self._logger.info("---------- Iteration: {} ----------".format(it))
             # Sample an action
-            action = np.random.choice(np.arange(0, self._num_actions), p=probs)
+            action_idx = np.random.choice(np.arange(0, self._num_actions), p=probs)
+            action = self._actions[action_idx]
             self._logger.info("Action {} selected".format(action))
 
             # Select sample to attack
@@ -282,7 +288,7 @@ class KnockOff(Base):
             self._logger.info("Getting victim predictions on sampled data")
             y = self._get_predictions(self._victim_model, sampled_data)
 
-            if self._attack_settings.save_samples:
+            if self.attack_settings.save_samples:
                 self._selected_samples["labels"].append(y)
 
             # Train the thieved classifier
@@ -354,7 +360,7 @@ class KnockOff(Base):
             transfer_data = self._adaptive_strategy()
             self._substitute_model.load_state_dict(original_state_dict)
 
-        if self._attack_settings.save_samples:
+        if self.attack_settings.save_samples:
             idxs_filepath = self.base_settings.save_loc.joinpath("selected_samples.pl")
             self._selected_samples["labels"] = torch.cat(
                 self._selected_samples["labels"]
