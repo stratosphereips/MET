@@ -133,18 +133,19 @@ class BlackBox(Base):
         self._logger.info("########### Starting BlackBox attack ###########")
 
         # Get attack's budget
+        query_set_size = len(sub_data)
         if self.attack_settings.budget is not None:
             query_set_size = math.floor(
                 self.attack_settings.budget / ((2 ** self.attack_settings.iterations) - 1)
             )
 
         real_budget = (
-            len(sub_data) * (2 ** self.attack_settings.iterations) - len(sub_data)
+            query_set_size * (2 ** self.attack_settings.iterations) - query_set_size
         )
 
         self._logger.info("BlackBox's attack budget: {}".format(real_budget))
         
-        if budget is not None:
+        if query_set_size != len(sub_data):
             idxs_rest = np.arange(len(self._thief_dataset))
             idxs_initial = np.random.permutation(idxs_rest)[:query_set_size]
             query_data = Subset(self._thief_dataset, idxs_initial)
