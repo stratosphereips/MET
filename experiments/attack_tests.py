@@ -56,12 +56,12 @@ test_settings = (
         sample_dims=[(3, 128, 128)],
         substitute_model_archs=["resnet_34"],
         attacks_to_run=[
+            AttackInfo("blackbox", "", 20000),
+            AttackInfo("copycat", "", 20000),
             AttackInfo("active-thief", "entropy", 20000),
             AttackInfo("active-thief", "k-center", 20000),
             AttackInfo("active-thief", "dfal", 20000),
             AttackInfo("active-thief", "dfal+k-center", 20000),
-            AttackInfo("blackbox", "", 20000),
-            AttackInfo("copycat", "", 20000),
             AttackInfo("knockoff-nets", "adaptive-cert", 20000),
             AttackInfo("knockoff-nets", "adaptive-div", 20000),
             AttackInfo("knockoff-nets", "adaptive-loss", 20000),
@@ -76,6 +76,8 @@ test_settings = (
         sample_dims=[(3, 128, 128), (3, 224, 224)],
         substitute_model_archs=["resnet_34"],
         attacks_to_run=[
+            AttackInfo("blackbox", "", 20000),
+            AttackInfo("copycat", "", 20000),
             AttackInfo("active-thief", "entropy", 20000),
             AttackInfo("active-thief", "k-center", 20000),
             AttackInfo("blackbox", "", 20000),
@@ -94,12 +96,12 @@ test_settings = (
         sample_dims=[(3, 128, 128)],
         substitute_model_archs=["resnet_34"],
         attacks_to_run=[
+            AttackInfo("blackbox", "", 20000),
+            AttackInfo("copycat", "", 20000),
             AttackInfo("active-thief", "entropy", 20000),
             AttackInfo("active-thief", "k-center", 20000),
             AttackInfo("active-thief", "dfal", 20000),
             AttackInfo("active-thief", "dfal+k-center", 20000),
-            AttackInfo("blackbox", "", 20000),
-            AttackInfo("copycat", "", 20000),
             AttackInfo("knockoff-nets", "adaptive-cert", 20000),
             AttackInfo("knockoff-nets", "adaptive-div", 20000),
             AttackInfo("knockoff-nets", "adaptive-loss", 20000),
@@ -114,12 +116,12 @@ test_settings = (
         sample_dims=[(3, 128, 128)],
         substitute_model_archs=["resnet_34"],
         attacks_to_run=[
+            AttackInfo("blackbox", "", 20000),
+            AttackInfo("copycat", "", 20000),
             AttackInfo("active-thief", "entropy", 20000),
             AttackInfo("active-thief", "k-center", 20000),
             AttackInfo("active-thief", "dfal", 20000),
             AttackInfo("active-thief", "dfal+k-center", 20000),
-            AttackInfo("blackbox", "", 20000),
-            AttackInfo("copycat", "", 20000),
             AttackInfo("knockoff-nets", "adaptive-cert", 20000),
             AttackInfo("knockoff-nets", "adaptive-div", 20000),
             AttackInfo("knockoff-nets", "adaptive-loss", 20000),
@@ -134,12 +136,12 @@ test_settings = (
         sample_dims=[(3, 128, 128), (3, 224, 224)],
         substitute_model_archs=["resnet_18", "resnet_34", "resnet_50"],
         attacks_to_run=[
+            AttackInfo("blackbox", "", 20000),
+            AttackInfo("copycat", "", 20000),
             AttackInfo("active-thief", "entropy", 20000),
             AttackInfo("active-thief", "k-center", 20000),
             AttackInfo("active-thief", "dfal", 20000),
             AttackInfo("active-thief", "dfal+k-center", 20000),
-            AttackInfo("blackbox", "", 20000),
-            AttackInfo("copycat", "", 20000),
             AttackInfo("knockoff-nets", "adaptive-cert", 20000),
             AttackInfo("knockoff-nets", "adaptive-div", 20000),
             AttackInfo("knockoff-nets", "adaptive-loss", 20000),
@@ -241,8 +243,7 @@ if __name__ == "__main__":
                 )
                 if sample_dims[-1] == 128:
                     test_transform = [
-                        T.Resize(128),
-                        T.CenterCrop(128),
+                        T.Resize((128, 128)),
                     ]
                 else:
                     test_transform = [
@@ -404,8 +405,7 @@ if __name__ == "__main__":
                                 # Prepare substitute dataset
                                 if sample_dims[-1] == 128:
                                     test_transform = [
-                                        T.Resize(128),
-                                        T.CenterCrop(128),
+                                        T.Resize((128, 128))
                                     ]
                                 else:
                                     test_transform = [
