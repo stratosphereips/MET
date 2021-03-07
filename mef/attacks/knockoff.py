@@ -295,6 +295,7 @@ class KnockOff(Base):
                     # We need to make sure that probs still add up to 1
                     probs += np.float32((action_prob / self._num_actions))
                     self._num_actions -= 1
+                    self._y[self._y > action] -= 1
 
             # Query the victim model
             self._logger.info("Getting victim predictions on sampled data")
