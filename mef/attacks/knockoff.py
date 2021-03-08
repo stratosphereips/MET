@@ -56,6 +56,7 @@ class KnockOff(Base):
         substitute_model: TrainableModel,
         sampling_strategy: str = "adaptive",
         reward_type: str = "cert",
+        online_optimizer: torch.optim.Optimizer = None,
         budget: int = 20000,
         save_samples: bool = False,
     ):
@@ -67,13 +68,12 @@ class KnockOff(Base):
         self.trainer_settings._validation = False
 
         # KnockOff's specific attributes
-        # TODO: make it changable
-        self._online_optimizer = torch.optim.SGD(
-            self._substitute_model.parameters(), lr=0.0005, momentum=0.5
-        )
+        self._online_optimizer = online_optimizer
         self._online_loss = self._substitute_model._loss
 
         self._selected_samples = dd(list)
+        self._y = None
+        self._actions = None
         self._num_actions = None
         self._y_avg = None
         self._reward_avg = None
@@ -133,14 +133,13 @@ class KnockOff(Base):
 
     def _sample_data(self, action: int) -> Union[Subset, bool]:
         idx_action = np.where(self._y == action)[0]
-
         if len(idx_action) == 0:
             return False
 
         idx_sampled = np.random.permutation(idx_action)[: self.attack_settings.k]
 
-        # Remove selected samples from possible samples for selection
-        self._y = np.delete(self._y, idx_sampled)
+        # Mark selected samples from possible samples for selection
+        self._y[idx_sampled] = -1
 
         if self.attack_settings.save_samples:
             self._selected_samples["idxs"].extend(idx_sampled)
@@ -187,11 +186,6 @@ class KnockOff(Base):
 
     def _reward_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> np.ndarray:
         # Compute reward
-        if self._victim_model.output_type == "logits":
-            if self._victim_model.num_classes == 2:
-                y = torch.sigmoid(y)
-            else:
-                y = torch.softmax(y, dim=-1)
         reward = soft_cross_entropy(y_hat, y)
 
         return reward.numpy()
@@ -244,6 +238,8 @@ class KnockOff(Base):
                 loader, desc="Collecting substitute datasets' " "labels"
             ):
                 self._y.append(labels)
+            self._y = torch.cat(self._y)
+
         self._y = np.array(self._y, dtype=np.uint32)
         self._actions = np.unique(self._y)
         self._num_actions = len(self._actions)

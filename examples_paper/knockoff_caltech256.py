@@ -114,6 +114,7 @@ if __name__ == "__main__":
         substitute_model,
         args.sampling_strategy,
         args.reward_type,
+        torch.optim.SGD(self._substitute_model.parameters(), lr=0.0005, momentum=0.5),
         args.budget,
     )
 
