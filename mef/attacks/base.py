@@ -47,7 +47,7 @@ class Base(ABC):
             "--save_loc",
             type=str,
             default="./cache/",
-            help="Path where the attacks file should be " "saved (Default: ./cache/)",
+            help="Path where the attacks file should be saved (Default: ./cache/)",
         )
         parser.add_argument(
             "--gpus", type=int, default=0, help="Number of gpus to be used (Default: 0)"
@@ -56,7 +56,7 @@ class Base(ABC):
             "--num_workers",
             type=int,
             default=1,
-            help="Number of workers to be used in loaders (" "Default: 1)",
+            help="Number of workers to be used in loaders (Default: 1)",
         )
         parser.add_argument(
             "--deterministic",
@@ -88,13 +88,13 @@ class Base(ABC):
             "--training_epochs",
             default=100,
             type=int,
-            help="Number of training epochs for substitute " "model (Default: 100)",
+            help="Number of training epochs for substitute model (Default: 100)",
         )
         parser.add_argument(
             "--patience",
             default=10,
             type=int,
-            help="Number of epochs without improvement for " "early stop (Default: 10)",
+            help="Number of epochs without improvement for early stop (Default: 10)",
         )
         parser.add_argument(
             "--evaluation_frequency",
