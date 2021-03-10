@@ -16,19 +16,20 @@ from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.datasets.vision import ImageNet1000, Cifar10
 from mef.utils.pytorch.functional import soft_cross_entropy
 from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
-from mef.utils.pytorch.models.vision.at_cnn import AtCnn
+from mef.utils.pytorch.models.vision.GenericCNN import GenericCNN
 
 IMAGENET_TRAIN_SIZE = 100000
 IMAGENET_VAL_SIZE = 20000
 DIMS = (3, 32, 32)
 NUM_CLASSES = 10
+BOUNDS = (0, 1)
 
 
 def set_up(args):
     seed_everything(args.seed)
 
-    victim_model = AtCnn(dims=DIMS, num_classes=NUM_CLASSES, dropout_keep_prob=0.2)
-    substitute_model = AtCnn(dims=DIMS, num_classes=NUM_CLASSES, dropout_keep_prob=0.2)
+    victim_model = GenericCNN(dims=DIMS, num_classes=NUM_CLASSES, dropout_keep_prob=0.2)
+    substitute_model = GenericCNN(dims=DIMS, num_classes=NUM_CLASSES, dropout_keep_prob=0.2)
 
     if args.gpus:
         victim_model.cuda()

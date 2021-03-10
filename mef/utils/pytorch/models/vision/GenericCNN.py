@@ -7,13 +7,11 @@ from mef.utils.pytorch.blocks import ConvBlock
 from mef.utils.pytorch.models.vision.base import Base
 
 
-class AtCnn(Base):
+class GenericCNN(Base):
     def __init__(
         self,
         dims,
         num_classes,
-        conv_kernel_size=(3, 3),
-        pool_kernel_size=(2, 2),
         conv_out_channels=(32, 64, 128),
         fc_layers=(),
         convs_in_block=2,
@@ -22,13 +20,8 @@ class AtCnn(Base):
     ):
         super().__init__(num_classes)
 
-        assert len(conv_kernel_size) == 2
-        assert len(pool_kernel_size) == 2
-
         self._return_hidden = return_hidden
         self._dims = dims
-        self._conv_kernel_size = conv_kernel_size
-        self._pool_kernel_size = pool_kernel_size
         self._conv_out_channels = conv_out_channels
         self._fc_layers = fc_layers
         self._convs_in_block = convs_in_block
@@ -59,29 +52,21 @@ class AtCnn(Base):
         return logits
 
     def _build_convs(self):
+        conv_out_channels = [self._dims[0]] + list(self._conv_out_channels)
         convs = []
-        for idx, out_channels in enumerate(self._conv_out_channels):
-            for idx_cur in range(self._convs_in_block):
-                if len(convs) != 0:
-                    if idx_cur != 0:
-                        in_channels = convs[-1].conv.out_channels
-                    else:
-                        in_channels = self._conv_out_channels[idx - 1]
+        for idx, out_channels in enumerate(conv_out_channels[1:], start=1):
+            for block_idx in range(self._convs_in_block):
+                if block_idx != 0:
+                    in_channels = convs[-1].conv.out_channels
                 else:
-                    in_channels = self._dims[0]
+                    in_channels = conv_out_channels[idx - 1]
 
                 convs.append(
-                    ConvBlock(
-                        in_channels,
-                        out_channels,
-                        self._conv_kernel_size,
-                        padding=1,
-                        use_batch_norm=True,
-                    )
+                    ConvBlock(in_channels, out_channels, kernel_size=(3, 3), padding=1)
                 )
 
-            convs.append(nn.MaxPool2d(self._pool_kernel_size, stride=2))
-            convs.append(nn.Dropout(p=self._dropout_keep_prob))
+            convs.append(nn.MaxPool2d((2, 2), stride=2))
+            convs.append(nn.Dropout(p=0.1))
 
         convs = nn.Sequential(*convs)
 
