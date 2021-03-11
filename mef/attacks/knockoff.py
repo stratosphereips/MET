@@ -288,10 +288,10 @@ class KnockOff(Base):
                     action_prob = probs[action]
                     probs = np.delete(probs, action)
                     h_func = np.delete(h_func, action)
-                    # We need to make sure that probs still add up to 1
-                    probs += np.float32((action_prob / self._num_actions))
                     self._num_actions -= 1
                     self._y[self._y > action] -= 1
+                    # We need to make sure that probs still add up to 1
+                    probs += np.float32((action_prob / self._num_actions))
 
             # Query the victim model
             self._logger.info("Getting victim predictions on sampled data")
