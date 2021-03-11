@@ -25,7 +25,7 @@ VICT_TRAINING_EPOCHS = 200
 SUB_TRAINING_EPOCHS = 100
 BATCH_SIZE = 64
 SEED = 200916
-
+BOUNDS = (-2.1179, 2.64)  # for foolbox attacks
 IMAGENET_NORMALIZATION = T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 
 TestSettings = namedtuple(
@@ -47,7 +47,6 @@ test_settings = (
     TestSettings(
         "influence_of_victim_model_training_dataset",
         datasets=[
-            # Dataset("OIModular", OIModular, 5),
             Dataset("Indoor67", Indoor67, 67),
             Dataset("Caltech256", Caltech256, 256),
         ],
@@ -169,12 +168,6 @@ ATTACKS_CONFIG = {
 def getr_args():
     parser = ArgumentParser(description="Model extraction attacks STL10 test")
     parser.add_argument(
-        "--oimodular_dir",
-        default="./cache/data",
-        type=str,
-        help="Path to OpenImagesModular dataset (Default: ./cache/data)",
-    )
-    parser.add_argument(
         "--indoor67_dir",
         default="./cache/data",
         type=str,
@@ -252,7 +245,11 @@ if __name__ == "__main__":
                     ]
 
                 test_transform = T.Compose(
-                    [*test_transform, T.ToTensor(), IMAGENET_NORMALIZATION,]
+                    [
+                        *test_transform,
+                        T.ToTensor(),
+                        IMAGENET_NORMALIZATION,
+                    ]
                 )
 
                 train_kwargs = {"transform": train_transform}
@@ -271,6 +268,7 @@ if __name__ == "__main__":
                     dataset_dir = args.caltech256_dir
 
                 train_set = dataset.class_(dataset_dir, **train_kwargs)
+                train_set, val_set = split_dataset(train_set, 0.2)
                 test_set = dataset.class_(dataset_dir, **test_kwargs)
 
                 # Prepare victim model
@@ -280,7 +278,7 @@ if __name__ == "__main__":
                     smaller_resolution=True if sample_dims[-1] == 128 else False,
                 )
                 victim_optimizer = torch.optim.SGD(
-                    victim_model.parameters(), lr=0.1, momentum=0.5
+                    victim_model.parameters(), lr=0.1, momentum=0.5, nesterov=True
                 )
                 victim_loss = torch.nn.functional.cross_entropy
                 lr_scheduler = torch.optim.lr_scheduler.StepLR(
@@ -295,7 +293,10 @@ if __name__ == "__main__":
                     VICT_TRAINING_EPOCHS,
                     BATCH_SIZE,
                     args.num_workers,
+                    val_set=val_set,
                     test_set=test_set,
+                    evaluation_frequency=1,
+                    patience=20,
                     lr_scheduler=lr_scheduler,
                     gpus=args.gpus,
                     save_loc=save_loc.joinpath(
@@ -350,7 +351,10 @@ if __name__ == "__main__":
                                     else False,
                                 )
                                 substitute_optimizer = torch.optim.SGD(
-                                    substitute_model.parameters(), lr=0.01, momentum=0.5
+                                    substitute_model.parameters(),
+                                    lr=0.01,
+                                    momentum=0.5,
+                                    nesterov=True,
                                 )
                                 lr_scheduler = torch.optim.lr_scheduler.StepLR(
                                     substitute_optimizer, step_size=60
@@ -370,15 +374,21 @@ if __name__ == "__main__":
                                 if attack.name == "active-thief":
                                     kwargs["selection_strategy"] = attack.type
                                     kwargs["budget"] = attack.budget
-                                elif attack.name == "knockoff":
+                                    kwargs["bounds"] = BOUNDS
+                                elif attack.name == "knockoff-nets":
                                     sampling_strategy, reward_type = attack.type.split(
                                         "-"
                                     )
                                     kwargs["sampling_strategy"] = sampling_strategy
                                     kwargs["reward_type"] = reward_type
                                     kwargs["budget"] = attack.budget
+                                    kwargs["online_optimizer"] = torch.optim.SGD(
+                                        kwargs["substitute_model"].parameters(),
+                                        lr=0.0005,
+                                        momentum=0.5,
+                                    )
                                 elif attack.name == "blackbox":
-                                    kwargs["budget"] = attack.budget
+                                    kwargs["bounds"] = BOUNDS
 
                                 attack_instance = ATTACKS_DICT[attack.name](**kwargs)
 
@@ -404,9 +414,7 @@ if __name__ == "__main__":
 
                                 # Prepare substitute dataset
                                 if sample_dims[-1] == 128:
-                                    test_transform = [
-                                        T.Resize((128, 128))
-                                    ]
+                                    test_transform = [T.Resize((128, 128))]
                                 else:
                                     test_transform = [
                                         T.Resize(256),
@@ -420,35 +428,22 @@ if __name__ == "__main__":
                                         IMAGENET_NORMALIZATION,
                                     ]
                                 )
-                                imagenet_train = ImageNet1000(
+                                substitute_data = ImageNet1000(
                                     root=args.imagenet_dir,
                                     transform=imagenet_transform,
-                                    seed=SEED,
-                                )
-                                imagenet_val = ImageNet1000(
-                                    root=args.imagenet_dir,
-                                    train=False,
-                                    transform=imagenet_transform,
+                                    size=substitute_dataset_size,
                                     seed=SEED,
                                 )
 
+                                if substitute_dataset_size == "all":
+                                    pass
+
                                 run_kwargs = {
-                                    "sub_data": ConcatDataset(
-                                        [imagenet_train, imagenet_val]
-                                    ),
+                                    "sub_data": substitute_data,
                                     "test_set": test_set,
                                 }
 
-                                if substitute_dataset_size != "all":
-                                    idxs_all = np.arange(len(run_kwargs["sub_data"]))
-                                    idxs_sub = np.random.permutation(idxs_all)[
-                                        : attack.budget
-                                    ]
-                                    run_kwargs["sub_data"] = Subset(
-                                        run_kwargs["sub_data"], idxs_sub
-                                    )
-
-                                if "copycat":
+                                if attack.name == "copycat":
                                     idxs_all = np.arange(len(run_kwargs["sub_data"]))
                                     idxs_sub = np.random.permutation(idxs_all)[
                                         : attack.budget
