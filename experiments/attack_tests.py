@@ -120,7 +120,7 @@ test_settings = (
         ],
     ),
     TestSettings(
-        "influence_of_the_subset_dataset_diversity_on_the_attacks",
+        "influence_of_the_subset_model_on_the_attacks",
         datasets=[Dataset("Indoor67", Indoor67, 67)],
         subsitute_dataset_sizes=[120000],
         victim_output_types=["softmax"],
@@ -147,8 +147,8 @@ ATTACKS_DICT = {
     "ripper": Ripper,
 }
 ATTACKS_CONFIG = {
-    "active-thief": {"iterations": 10, "save_samples": True, "val_size": 0},
-    "blackbox": {"iterations": 6},
+    "active-thief": {"iterations": 10, "save_samples": True, "val_size": 0, "bounds": BOUNDS},
+    "blackbox": {"iterations": 6, "bounds": BOUNDS},
     "copycat": {},
     "knockoff-nets": {"save_samples": True},
     "ripper": {},
@@ -364,7 +364,6 @@ if __name__ == "__main__":
                                 if attack.name == "active-thief":
                                     kwargs["selection_strategy"] = attack.type
                                     kwargs["budget"] = attack.budget
-                                    kwargs["bounds"] = BOUNDS
                                 elif attack.name == "knockoff-nets":
                                     sampling_strategy, reward_type = attack.type.split(
                                         "-"
@@ -377,8 +376,6 @@ if __name__ == "__main__":
                                         lr=0.0005,
                                         momentum=0.5,
                                     )
-                                elif attack.name == "blackbox":
-                                    kwargs["bounds"] = BOUNDS
 
                                 attack_instance = ATTACKS_DICT[attack.name](**kwargs)
 
