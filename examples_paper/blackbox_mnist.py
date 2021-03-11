@@ -107,7 +107,7 @@ if __name__ == "__main__":
         "--mnist_dir",
         default="./data/",
         type=str,
-        help="Path to MNIST dataset (Default: ./data/",
+        help="Path to MNIST dataset (Default: ./data/)",
     )
     args = parser.parse_args()
     args.training_epochs = 10

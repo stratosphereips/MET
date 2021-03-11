@@ -11,6 +11,7 @@ from tqdm import tqdm
 
 from mef.attacks.base import Base
 from mef.utils.pytorch.datasets import CustomLabelDataset, NoYDataset
+from mef.utils.pytorch.functional import get_class_labels
 from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
 from mef.utils.settings import AttackSettings
 
@@ -119,10 +120,15 @@ class BlackBox(Base):
                 x_thief = x_thief.cuda()
                 y_thief = y_thief.cuda()
 
-            criterion = fb.criteria.Misclassification(y_thief)
+            labels = get_class_labels(y_thief)
+            criterion = fb.criteria.Misclassification(labels)
             if "T-RND" in self.attack_settings.adversary_strategy:
-                targets = np.random.default_rng().integers(10, size=len(y_thief))
-                targets = torch.from_numpy(targets)
+                targets = []
+                for label in labels:
+                    classes = np.arange(self._victim_model.num_classes, dtype=np.int64)
+                    classes = np.delete(classes, label.cpu().item())
+                    targets.append(np.random.choice(classes))
+                targets = torch.tensor(targets)
                 if self.base_settings.gpus:
                     targets = targets.cuda()
                 criterion = fb.criteria.TargetedMisclassification(targets)
