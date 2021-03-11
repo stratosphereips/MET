@@ -2,7 +2,7 @@ import pickle
 from argparse import ArgumentParser
 from collections import defaultdict as dd
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Tuple
 
 import foolbox as fb
 import numpy as np
@@ -35,11 +35,13 @@ class ActiveThiefSettings(AttackSettings):
         budget: int,
         init_seed_size: float,
         val_size: float,
+        bounds: Tuple[float, float],
         save_samples: bool,
     ):
         self.iterations = iterations
         self.selection_strategy = selection_strategy.lower()
         self.budget = budget
+        self.bounds = bounds
         self.save_samples = save_samples
 
         # Check configuration
@@ -70,6 +72,7 @@ class ActiveThief(Base):
         budget: int = 20000,
         init_seed_size: float = 0.1,
         val_size: float = 0.2,
+        bounds: Tuple[float, float] = (0, 1),
         save_samples: bool = False,
     ):
 
@@ -80,6 +83,7 @@ class ActiveThief(Base):
             budget,
             init_seed_size,
             val_size,
+            bounds,
             save_samples,
         )
         self._val_dataset = None
@@ -209,7 +213,9 @@ class ActiveThief(Base):
             batch_size=self.base_settings.batch_size,
         )
 
-        fmodel = fb.PyTorchModel(self._substitute_model.model, bounds=(0, 1))
+        fmodel = fb.PyTorchModel(
+            self._substitute_model.model, bounds=self.attack_settings.bounds
+        )
         deepfool = fb.attacks.L2DeepFoolAttack(steps=50, overshoot=0.01)
 
         scores = []
@@ -219,7 +225,8 @@ class ActiveThief(Base):
                 y = y.cuda()
 
             labels = get_class_labels(y)
-            x_adv, _, _ = deepfool(fmodel, x, labels, epsilons=1)
+            criterion = fb.criteria.Misclassification(labels)
+            x_adv, _, _ = deepfool(fmodel, x, criterion, epsilons=1)
 
             # difference as L2-norm
             for el1, el2 in zip(x_adv, x):
