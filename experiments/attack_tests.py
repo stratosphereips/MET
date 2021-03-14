@@ -6,24 +6,22 @@ from collections import namedtuple
 from pathlib import Path
 from typing import Tuple
 
+import numpy as np
 import torch
 import torchvision.transforms as T
 from pytorch_lightning import seed_everything
 from torch.utils.data import Dataset, Subset
 
-from mef.utils.pytorch.functional import soft_cross_entropy
-from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
-
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.attacks import ActiveThief, BlackBox, CopyCat, KnockOff, Ripper
 from mef.utils.experiment import train_victim_model
+from mef.utils.pytorch.functional import soft_cross_entropy
 from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.datasets.vision import Caltech256, ImageNet1000, Indoor67
-
+from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
 from mef.utils.pytorch.models.vision import ResNet
 
-import numpy as np
 
 VICT_TRAINING_EPOCHS = 200
 SUB_TRAINING_EPOCHS = 100
@@ -63,8 +61,6 @@ test_settings = (
             AttackInfo("copycat", "", 20000),
             AttackInfo("active-thief", "entropy", 20000),
             AttackInfo("active-thief", "k-center", 20000),
-            AttackInfo("active-thief", "dfal", 20000),
-            AttackInfo("active-thief", "dfal+k-center", 20000),
             AttackInfo("knockoff-nets", "adaptive-cert", 20000),
             AttackInfo("knockoff-nets", "adaptive-div", 20000),
             AttackInfo("knockoff-nets", "adaptive-loss", 20000),
@@ -83,8 +79,6 @@ test_settings = (
             AttackInfo("copycat", "", 20000),
             AttackInfo("active-thief", "entropy", 20000),
             AttackInfo("active-thief", "k-center", 20000),
-            AttackInfo("blackbox", "", 20000),
-            AttackInfo("copycat", "", 20000),
             AttackInfo("knockoff-nets", "adaptive-cert", 20000),
             AttackInfo("knockoff-nets", "adaptive-div", 20000),
             AttackInfo("knockoff-nets", "adaptive-loss", 20000),
@@ -103,8 +97,6 @@ test_settings = (
             AttackInfo("copycat", "", 20000),
             AttackInfo("active-thief", "entropy", 20000),
             AttackInfo("active-thief", "k-center", 20000),
-            AttackInfo("active-thief", "dfal", 20000),
-            AttackInfo("active-thief", "dfal+k-center", 20000),
             AttackInfo("knockoff-nets", "adaptive-cert", 20000),
             AttackInfo("knockoff-nets", "adaptive-div", 20000),
             AttackInfo("knockoff-nets", "adaptive-loss", 20000),
@@ -123,8 +115,6 @@ test_settings = (
             AttackInfo("copycat", "", 20000),
             AttackInfo("active-thief", "entropy", 20000),
             AttackInfo("active-thief", "k-center", 20000),
-            AttackInfo("active-thief", "dfal", 20000),
-            AttackInfo("active-thief", "dfal+k-center", 20000),
             AttackInfo("knockoff-nets", "adaptive-cert", 20000),
             AttackInfo("knockoff-nets", "adaptive-div", 20000),
             AttackInfo("knockoff-nets", "adaptive-loss", 20000),
@@ -143,8 +133,6 @@ test_settings = (
             AttackInfo("copycat", "", 20000),
             AttackInfo("active-thief", "entropy", 20000),
             AttackInfo("active-thief", "k-center", 20000),
-            AttackInfo("active-thief", "dfal", 20000),
-            AttackInfo("active-thief", "dfal+k-center", 20000),
             AttackInfo("knockoff-nets", "adaptive-cert", 20000),
             AttackInfo("knockoff-nets", "adaptive-div", 20000),
             AttackInfo("knockoff-nets", "adaptive-loss", 20000),
@@ -161,8 +149,8 @@ ATTACKS_DICT = {
     "ripper": Ripper,
 }
 ATTACKS_CONFIG = {
-    "active-thief": {"iterations": 10, "save_samples": True, "val_size": 0},
-    "blackbox": {"iterations": 6},
+    "active-thief": {"iterations": 10, "save_samples": True, "val_size": 0, "bounds": BOUNDS},
+    "blackbox": {"iterations": 6, "bounds": BOUNDS},
     "copycat": {},
     "knockoff-nets": {"save_samples": True},
     "ripper": {},
@@ -383,7 +371,6 @@ if __name__ == "__main__":
                                 if attack.name == "active-thief":
                                     kwargs["selection_strategy"] = attack.type
                                     kwargs["budget"] = attack.budget
-                                    kwargs["bounds"] = BOUNDS
                                 elif attack.name == "knockoff-nets":
                                     sampling_strategy, reward_type = attack.type.split(
                                         "-"
@@ -396,8 +383,6 @@ if __name__ == "__main__":
                                         lr=0.0005,
                                         momentum=0.5,
                                     )
-                                elif attack.name == "blackbox":
-                                    kwargs["bounds"] = BOUNDS
 
                                 attack_instance = ATTACKS_DICT[attack.name](**kwargs)
 
