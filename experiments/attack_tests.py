@@ -1,14 +1,18 @@
+import math
 import os
 import sys
 from argparse import ArgumentParser
 from collections import namedtuple
 from pathlib import Path
+from typing import Tuple
 
-import numpy as np
 import torch
 import torchvision.transforms as T
 from pytorch_lightning import seed_everything
-from torch.utils.data import ConcatDataset, Subset
+from torch.utils.data import Dataset, Subset
+
+from mef.utils.pytorch.functional import soft_cross_entropy
+from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
@@ -17,9 +21,9 @@ from mef.utils.experiment import train_victim_model
 from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.datasets.vision import Caltech256, ImageNet1000, Indoor67
 
-from mef.utils.pytorch.functional import soft_cross_entropy
-from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
 from mef.utils.pytorch.models.vision import ResNet
+
+import numpy as np
 
 VICT_TRAINING_EPOCHS = 200
 SUB_TRAINING_EPOCHS = 100
@@ -41,14 +45,14 @@ TestSettings = namedtuple(
     ],
 )
 AttackInfo = namedtuple("AttackInfo", ["name", "type", "budget"])
-Dataset = namedtuple("Dataset", ["name", "class_", "num_classes"])
+DatasetInfo = namedtuple("Dataset", ["name", "class_", "num_classes"])
 
 test_settings = (
     TestSettings(
         "influence_of_victim_model_training_dataset",
         datasets=[
-            Dataset("Indoor67", Indoor67, 67),
-            Dataset("Caltech256", Caltech256, 256),
+            DatasetInfo("Indoor67", Indoor67, 67),
+            DatasetInfo("Caltech256", Caltech256, 256),
         ],
         subsitute_dataset_sizes=[120000],
         victim_output_types=["softmax"],
@@ -69,7 +73,7 @@ test_settings = (
     ),
     TestSettings(
         "scalability_in_terms_of_sample_sizes",
-        datasets=[Dataset("Indoor67", Indoor67, 67)],
+        datasets=[DatasetInfo("Indoor67", Indoor67, 67)],
         subsitute_dataset_sizes=[120000],
         victim_output_types=["softmax"],
         sample_dims=[(3, 128, 128), (3, 224, 224)],
@@ -89,7 +93,7 @@ test_settings = (
     ),
     TestSettings(
         "influence_in_terms_of_victims_output",
-        datasets=[Dataset("Indoor67", Indoor67, 67)],
+        datasets=[DatasetInfo("Indoor67", Indoor67, 67)],
         subsitute_dataset_sizes=[120000],
         victim_output_types=["softmax", "one_hot"],
         sample_dims=[(3, 128, 128)],
@@ -109,7 +113,7 @@ test_settings = (
     ),
     TestSettings(
         "influence_of_the_subset_dataset_diversity_on_the_attacks",
-        datasets=[Dataset("Indoor67", Indoor67, 67)],
+        datasets=[DatasetInfo("Indoor67", Indoor67, 67)],
         subsitute_dataset_sizes=[120000, "all"],
         victim_output_types=["softmax"],
         sample_dims=[(3, 128, 128)],
@@ -128,8 +132,8 @@ test_settings = (
         ],
     ),
     TestSettings(
-        "influence_of_the_subset_dataset_diversity_on_the_attacks",
-        datasets=[Dataset("Indoor67", Indoor67, 67)],
+        "influence_of_the_subset_model_on_the_attacks",
+        datasets=[DatasetInfo("Indoor67", Indoor67, 67)],
         subsitute_dataset_sizes=[120000],
         victim_output_types=["softmax"],
         sample_dims=[(3, 128, 128), (3, 224, 224)],
@@ -217,6 +221,92 @@ def getr_args():
     return parser.parse_args()
 
 
+def _prepare_victim_model(
+    dataset: DatasetInfo, sample_dims: Tuple[int, int, int]
+) -> Tuple[torch.nn.Module, Dataset]:
+    train_transform = T.Compose(
+        [
+            T.RandomResizedCrop(sample_dims[-1]),
+            T.RandomHorizontalFlip(),
+            T.ToTensor(),
+            IMAGENET_NORMALIZATION,
+        ]
+    )
+    if sample_dims[-1] == 128:
+        test_transform = [
+            T.Resize((128, 128)),
+        ]
+    else:
+        test_transform = [
+            T.Resize(256),
+            T.CenterCrop(224),
+        ]
+
+    test_transform = T.Compose(
+        [
+            *test_transform,
+            T.ToTensor(),
+            IMAGENET_NORMALIZATION,
+        ]
+    )
+
+    train_kwargs = {"transform": train_transform}
+    test_kwargs = {"transform": test_transform, "train": False}
+    if dataset.name == "OIModular":
+        train_kwargs["seed"] = SEED
+        test_kwargs["seed"] = SEED
+        train_kwargs["download"] = (True,)
+        train_kwargs["num_classes"] = 5
+        dataset_dir = args.oimodular_dir
+    elif dataset.name == "Indoor67":
+        dataset_dir = args.indoor67_dir
+    else:
+        train_kwargs["seed"] = SEED
+        test_kwargs["seed"] = SEED
+        dataset_dir = args.caltech256_dir
+
+    train_set = dataset.class_(dataset_dir, **train_kwargs)
+    train_set, val_set = split_dataset(train_set, 0.2)
+    test_set = dataset.class_(dataset_dir, **test_kwargs)
+
+    # Prepare victim model
+    victim_model = ResNet(
+        "resnet_34",
+        num_classes=dataset.num_classes,
+        smaller_resolution=True if sample_dims[-1] == 128 else False,
+    )
+    victim_optimizer = torch.optim.SGD(
+        victim_model.parameters(), lr=0.1, momentum=0.5, nesterov=True
+    )
+    victim_loss = torch.nn.functional.cross_entropy
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(victim_optimizer, step_size=60)
+    train_victim_model(
+        victim_model,
+        victim_optimizer,
+        victim_loss,
+        train_set,
+        dataset.num_classes,
+        VICT_TRAINING_EPOCHS,
+        BATCH_SIZE,
+        args.num_workers,
+        val_set=val_set,
+        test_set=test_set,
+        evaluation_frequency=1,
+        patience=20,
+        lr_scheduler=lr_scheduler,
+        gpus=args.gpus,
+        save_loc=save_loc.joinpath(
+            "Attack-tests",
+            f"dataset:{dataset.name}",
+            f"victim_model",
+            f"sample_dims:{sample_dims}",
+        ),
+        debug=args.debug,
+    )
+
+    return victim_model, test_set
+
+
 if __name__ == "__main__":
     args = getr_args()
 
@@ -226,87 +316,7 @@ if __name__ == "__main__":
         for dataset in test_setting.datasets:
             for sample_dims in test_setting.sample_dims:
                 seed_everything(SEED)
-                train_transform = T.Compose(
-                    [
-                        T.RandomResizedCrop(sample_dims[-1]),
-                        T.RandomHorizontalFlip(),
-                        T.ToTensor(),
-                        IMAGENET_NORMALIZATION,
-                    ]
-                )
-                if sample_dims[-1] == 128:
-                    test_transform = [
-                        T.Resize((128, 128)),
-                    ]
-                else:
-                    test_transform = [
-                        T.Resize(256),
-                        T.CenterCrop(224),
-                    ]
-
-                test_transform = T.Compose(
-                    [
-                        *test_transform,
-                        T.ToTensor(),
-                        IMAGENET_NORMALIZATION,
-                    ]
-                )
-
-                train_kwargs = {"transform": train_transform}
-                test_kwargs = {"transform": test_transform, "train": False}
-                if dataset.name == "OIModular":
-                    train_kwargs["seed"] = SEED
-                    test_kwargs["seed"] = SEED
-                    train_kwargs["download"] = (True,)
-                    train_kwargs["num_classes"] = 5
-                    dataset_dir = args.oimodular_dir
-                elif dataset.name == "Indoor67":
-                    dataset_dir = args.indoor67_dir
-                else:
-                    train_kwargs["seed"] = SEED
-                    test_kwargs["seed"] = SEED
-                    dataset_dir = args.caltech256_dir
-
-                train_set = dataset.class_(dataset_dir, **train_kwargs)
-                train_set, val_set = split_dataset(train_set, 0.2)
-                test_set = dataset.class_(dataset_dir, **test_kwargs)
-
-                # Prepare victim model
-                victim_model = ResNet(
-                    "resnet_34",
-                    num_classes=dataset.num_classes,
-                    smaller_resolution=True if sample_dims[-1] == 128 else False,
-                )
-                victim_optimizer = torch.optim.SGD(
-                    victim_model.parameters(), lr=0.1, momentum=0.5, nesterov=True
-                )
-                victim_loss = torch.nn.functional.cross_entropy
-                lr_scheduler = torch.optim.lr_scheduler.StepLR(
-                    victim_optimizer, step_size=60
-                )
-                train_victim_model(
-                    victim_model,
-                    victim_optimizer,
-                    victim_loss,
-                    train_set,
-                    dataset.num_classes,
-                    VICT_TRAINING_EPOCHS,
-                    BATCH_SIZE,
-                    args.num_workers,
-                    val_set=val_set,
-                    test_set=test_set,
-                    evaluation_frequency=1,
-                    patience=20,
-                    lr_scheduler=lr_scheduler,
-                    gpus=args.gpus,
-                    save_loc=save_loc.joinpath(
-                        "Attack-tests",
-                        f"dataset:{dataset.name}",
-                        f"victim_model",
-                        f"sample_dims:{sample_dims}",
-                    ),
-                    debug=args.debug,
-                )
+                victim_model, test_set = _prepare_victim_model(dataset, sample_dims)
                 for victim_output_type in test_setting.victim_output_types:
                     for attack in test_setting.attacks_to_run:
                         for (
@@ -319,9 +329,8 @@ if __name__ == "__main__":
                                 attack_save_loc = save_loc.joinpath(
                                     "Attack-tests",
                                     f"dataset:{dataset.name}",
-                                    f"substitute_dataset_size:"
-                                    f"{substitute_dataset_size}",
-                                    f"victim_output_type" f":" f"{victim_output_type}",
+                                    f"substitute_dataset_size:{substitute_dataset_size}",
+                                    f"victim_output_type:{victim_output_type}",
                                     f"sample_dims:{sample_dims}",
                                     f"sub_arch:{substitute_model_arch}",
                                     f"attack:{attack}",
@@ -451,5 +460,27 @@ if __name__ == "__main__":
                                     run_kwargs["sub_data"] = Subset(
                                         run_kwargs["sub_data"], idxs_sub
                                     )
+                                elif attack.name == "blackbox":
+                                    # We need to calculate initial seed size
+                                    seed_size = math.floor(
+                                        attack.budget
+                                        * (
+                                            (
+                                                2
+                                                ** attack_instance.attack_settings.iterations
+                                            )
+                                            - 1
+                                        )
+                                    )
+                                    idxs_all = np.arange(len(run_kwargs["sub_data"]))
+                                    if substitute_dataset_size == "all":
+                                        pass
+                                    else:
+                                        idxs_sub = np.random.permutation(idxs_all)[
+                                            :seed_size
+                                        ]
+                                        run_kwargs["sub_data"] = Subset(
+                                            run_kwargs["sub_data"], idxs_sub
+                                        )
 
                                 attack_instance(**run_kwargs)

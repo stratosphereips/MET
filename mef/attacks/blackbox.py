@@ -96,7 +96,7 @@ class BlackBox(Base):
             return fb.attacks.LinfBasicIterativeAttack(rel_stepsize=1, steps=1)
         elif self.attack_settings.adversary_strategy in ["N I-FGSM", "T-RND I-FGSM"]:
             return fb.attacks.LinfBasicIterativeAttack(
-                steps=11, abs_stepsize=self.attack_settings.lmbda
+                steps=11, abs_stepsize=self.attack_settings.lmbda/11
             )
 
     def _create_synthetic_samples(self, query_sets: List[Dataset]):

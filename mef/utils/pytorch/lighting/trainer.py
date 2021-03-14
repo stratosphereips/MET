@@ -52,14 +52,14 @@ def get_trainer(
     precision: int,
     logger: bool,
 ) -> Tuple[Trainer, Union[ModelCheckpoint, bool]]:
-    callbacks, checkpoint_cb = _prepare_callbacks(
-        validation, patience, save_loc, iteration, debug, accuracy
-    )
-
     if evaluation_frequency is None:
         evaluation_frequency = 100
     if patience is None:
         patience = 1
+
+    callbacks, checkpoint_cb = _prepare_callbacks(
+        validation, patience, save_loc, iteration, debug, accuracy
+    )
 
     # Prepare trainer
     trainer = Trainer(
