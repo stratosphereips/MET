@@ -3,6 +3,7 @@ from typing import Callable, List, Optional, Tuple, Union
 
 import pytorch_lightning as pl
 import torch
+import torchmetrics
 import torch.nn.functional as F
 from pytorch_lightning.core.decorators import auto_move_data
 
@@ -26,8 +27,8 @@ class _MefModel(pl.LightningModule, ABC):
         self.model = model
         self.num_classes = num_classes
 
-        self._val_accuracy = pl.metrics.Accuracy(compute_on_step=False)
-        self._f1_macro = pl.metrics.F1(
+        self._val_accuracy = torchmetrics.Accuracy(compute_on_step=False)
+        self._f1_macro = torchmetrics.F1(
             self.num_classes, average="macro", compute_on_step=False
         )
         self.test_labels = None
@@ -43,17 +44,13 @@ class _MefModel(pl.LightningModule, ABC):
 
         preds = self._shared_step_output(x)
 
-
-        # preds is expected to in shape of [B] for binary and [B, C] for
-        # multiclass
-        if preds.size()[-1] == 1:
-            preds = preds.squeeze()
+        # preds is expected to be int type if containing only labels in muli-class setting
+        if self.num_classes > 2 and preds.ndim == 1:
+            preds = preds.int()
 
         # y is expected to be in shape of [B]
-        if y.ndim != 1:
+        if y.size(-1) != 1:
             y = get_class_labels(y)
-            if y.size()[-1] == 1:
-                y = y.squeeze()
 
         self._val_accuracy(preds, y)
         self._f1_macro(preds, y)
