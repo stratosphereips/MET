@@ -26,10 +26,10 @@ def get_prob_vector(logits: torch.Tensor):
 
 def get_class_labels(input: torch.Tensor):
     # If dtype is not float the input already consists of class labels
-    if input.dtype != torch.float:
+    if not input.is_floating_point():
         return input
 
-    if input.size()[-1] == 1 or input.ndim == 1:
+    if input.ndim == 1:
         return torch.round(input)
     else:
         return torch.argmax(input, dim=-1)

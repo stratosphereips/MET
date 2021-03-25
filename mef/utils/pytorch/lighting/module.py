@@ -44,12 +44,8 @@ class _MefModel(pl.LightningModule, ABC):
 
         preds = self._shared_step_output(x)
 
-        # preds is expected to be int type if containing only labels in muli-class setting
-        if self.num_classes > 2 and preds.ndim == 1:
-            preds = preds.int()
-
         # y is expected to be in shape of [B]
-        if y.size() != 1:
+        if y.ndim != 1:
             y = get_class_labels(y)
 
         self._val_accuracy(preds, y)
