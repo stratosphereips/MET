@@ -73,14 +73,6 @@ class BlackBox(Base):
             help="Number of iterations of the attacks (Default: 6)",
         )
         parser.add_argument(
-            "--budget",
-            default=20000,
-            type=int,
-            help="Size of the budget (Default: 20000). For "
-            "the blackbox attack, this is only used as "
-            "upper limit.",
-        )
-        parser.add_argument(
             "--lmbda",
             default=0.1,
             type=float,
