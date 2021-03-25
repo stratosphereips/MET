@@ -49,7 +49,7 @@ class _MefModel(pl.LightningModule, ABC):
             preds = preds.int()
 
         # y is expected to be in shape of [B]
-        if y.size(-1) != 1:
+        if y.size() != 1:
             y = get_class_labels(y)
 
         self._val_accuracy(preds, y)
