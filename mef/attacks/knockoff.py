@@ -2,7 +2,7 @@ import pickle
 from argparse import ArgumentParser
 from collections import defaultdict as dd
 from dataclasses import dataclass
-from typing import Union
+from typing import Union, Callable
 
 import numpy as np
 import torch
@@ -120,7 +120,7 @@ class KnockOff(Base):
         )
         idx_x = np.arange(len(self._thief_dataset))
         idx_sampled = np.random.permutation(idx_x)[: self.attack_settings.budget]
-        selected_data = Subset(self._thief_dataset, self._selected_idxs)
+        selected_data = Subset(self._thief_dataset, idx_sampled)
 
         self._logger.info("Getting fake labels from victim model")
         y = self._get_predictions(self._victim_model, selected_data)
@@ -186,7 +186,7 @@ class KnockOff(Base):
 
     def _reward_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> np.ndarray:
         # Compute reward
-        reward = soft_cross_entropy(y_hat, y)
+        reward = self._online_loss(y_hat, y)
 
         return reward.numpy()
 
