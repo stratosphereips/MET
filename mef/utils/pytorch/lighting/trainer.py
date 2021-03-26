@@ -26,9 +26,9 @@ def _prepare_callbacks(
         checkpoint_name = "{epoch}-{" + monitor + ":.2f}"
         if iteration is not None:
             checkpoint_name = "iteration={}-".format(iteration) + checkpoint_name
-        filepath = save_loc.joinpath(checkpoint_name)
         checkpoint_cb = ModelCheckpoint(
-            filepath=filepath.__str__(),
+            dirpath=save_loc.joinpath("checkpoints"),
+            filename=checkpoint_name,
             mode="max",
             monitor=monitor,
             verbose=True,
