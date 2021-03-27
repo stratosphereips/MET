@@ -1,10 +1,15 @@
+from collections import namedtuple
 from typing import Tuple, Union
 
 import torch
 import torch.nn as nn
 
-from mef.utils.pytorch.blocks import ConvBlock
 from mef.utils.pytorch.models.vision.base import Base
+
+ConvBlock = namedtuple(
+    "ConvBlock", ["in_channels", "out_channels", "kernel_size", "stride", "padding"],
+)
+MaxPoolLayer = namedtuple("MaxPoolLayer", ["kernel_size", "stride"])
 
 
 class GenericCNN(Base):
@@ -12,9 +17,18 @@ class GenericCNN(Base):
         self,
         dims,
         num_classes,
-        conv_out_channels=(32, 64, 128),
+        conv_blocks=(
+            ConvBlock(3, 32, 3, 1, 1),
+            ConvBlock(32, 32, 3, 1, 1),
+            MaxPoolLayer(2, 2),
+            ConvBlock(32, 64, 3, 1, 1),
+            ConvBlock(64, 64, 3, 1, 1),
+            MaxPoolLayer(2, 2),
+            ConvBlock(64, 128, 3, 1, 1),
+            ConvBlock(128, 128, 3, 1, 1),
+            MaxPoolLayer(2, 2),
+        ),
         fc_layers=(),
-        convs_in_block=2,
         dropout_keep_prob=0.1,
         return_hidden=False,
     ):
@@ -22,9 +36,8 @@ class GenericCNN(Base):
 
         self._return_hidden = return_hidden
         self._dims = dims
-        self._conv_out_channels = conv_out_channels
+        self._conv_blocks = conv_blocks
         self._fc_layers = fc_layers
-        self._convs_in_block = convs_in_block
         self._dropout_keep_prob = dropout_keep_prob
 
         self._convs = self._build_convs()
@@ -52,21 +65,30 @@ class GenericCNN(Base):
         return logits
 
     def _build_convs(self):
-        conv_out_channels = [self._dims[0]] + list(self._conv_out_channels)
         convs = []
-        for idx, out_channels in enumerate(conv_out_channels[1:], start=1):
-            for block_idx in range(self._convs_in_block):
-                if block_idx != 0:
-                    in_channels = convs[-1].conv.out_channels
-                else:
-                    in_channels = conv_out_channels[idx - 1]
+        for layer in self._conv_blocks:
+            if isinstance(layer, ConvBlock):
+                convs.extend(
+                    [
+                        nn.Conv2d(
+                            layer.in_channels,
+                            layer.out_channels,
+                            layer.kernel_size,
+                            layer.stride,
+                            layer.padding,
 
-                convs.append(
-                    ConvBlock(in_channels, out_channels, kernel_size=(3, 3), padding=1)
+                        ),
+                        nn.BatchNorm2d(layer.out_channels),
+                        nn.ReLU(inplace=True),
+                    ]
                 )
-
-            convs.append(nn.MaxPool2d((2, 2), stride=2))
-            convs.append(nn.Dropout(p=0.1))
+            else:
+                convs.extend(
+                    [
+                        nn.MaxPool2d(layer.kernel_size, layer.stride),
+                        nn.Dropout2d(p=self._dropout_keep_prob),
+                    ]
+                )
 
         convs = nn.Sequential(*convs)
 
