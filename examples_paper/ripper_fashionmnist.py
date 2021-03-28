@@ -13,36 +13,46 @@ from mef.utils.pytorch.models.generators import Sngan
 from mef.attacks.ripper import Ripper
 from mef.utils.experiment import train_victim_model
 from mef.utils.ios import mkdir_if_missing
-from mef.utils.pytorch.datasets.vision import Cifar10
+from mef.utils.pytorch.datasets.vision import FashionMnist
 from mef.utils.pytorch.lighting.module import Generator, TrainableModel, VictimModel
 from mef.utils.pytorch.functional import soft_cross_entropy
-from mef.utils.pytorch.models.vision import AlexNetSmall, HalfAlexNetSmall
+from mef.utils.pytorch.models.vision import LeNet, HalfLeNet
+from mef.utils.pytorch.blocks import ConvBlock, MaxPoolLayer
 
-IMAGENET_TRAIN_SIZE = 100000
 LATENT_DIM = 128
-DIMS = (3, 32, 32)
+DIMS = (1, 32, 32)
 NUM_CLASSES = 10
 
 
 def set_up(args):
     seed_everything(args.seed)
 
-    victim_model = AlexNetSmall(DIMS, NUM_CLASSES)
-    substitute_model = HalfAlexNetSmall(DIMS, NUM_CLASSES)
-    generator = Sngan(args.generator_checkpoint, resolution=DIMS[2], gpu=args.gpus)
+    vgg16_layers_config = [
+        ConvBlock(1, 6, 5, 1, 0),
+        MaxPoolLayer(2, 2),
+        ConvBlock(6, 16, 5, 1, 0),
+        MaxPoolLayer(2, 2),
+    ]
+
+    victim_model = LeNet(NUM_CLASSES)
+    substitute_model = HalfLeNet(NUM_CLASSES)
+    generator = Sngan(
+        args.generator_checkpoint,
+        resolution=32,
+        transform=T.Compose([T.Grayscale()]),
+    )
 
     # Prepare data
     print("Preparing data")
-    # The GANs created by the authors of the attack are pretrained on
-    # CIFAR100 scaled to
-    # [-1, 1]
-    transform = T.Compose(
-        [T.Resize(DIMS[-1]), T.ToTensor(), T.Normalize((0.5,), (0.5,))]
+    transform = T.Compose([T.Pad(2), T.ToTensor(), T.Normalize((0.5,), (0.5,))])
+    train_set = FashionMnist(
+        root=args.fashion_mnist_dir, transform=transform, download=True
     )
-    train_set = Cifar10(root=args.cifar10_dir, transform=transform)
-    test_set = Cifar10(root=args.cifar10_dir, train=False, transform=transform)
+    test_set = FashionMnist(
+        root=args.fashion_mnist_dir, train=False, transform=transform, download=True
+    )
 
-    optimizer = torch.optim.Adam(victim_model.parameters(), weight_decay=1e-3)
+    optimizer = torch.optim.Adam(victim_model.parameters())
     loss = F.cross_entropy
 
     victim_training_epochs = 200
@@ -55,6 +65,7 @@ def set_up(args):
         victim_training_epochs,
         args.batch_size,
         args.num_workers,
+        test_set=test_set,
         save_loc=Path(args.save_loc).joinpath("victim"),
         gpus=args.gpus,
         deterministic=args.deterministic,
@@ -72,11 +83,6 @@ def set_up(args):
         soft_cross_entropy,
     )
 
-    if args.gpus:
-        victim_model.cuda()
-        substitute_model.cuda()
-        generator.cuda()
-
     return victim_model, substitute_model, generator, test_set
 
 
@@ -88,7 +94,7 @@ if __name__ == "__main__":
         help="Location of torch_mimicry checkpoint " "for SNGAN.",
     )
     parser.add_argument(
-        "--cifar10_dir",
+        "--fashion_mnist_dir",
         default="./data/",
         type=str,
         help="Path to CIFAR10 dataset (Default: ./data/)",
