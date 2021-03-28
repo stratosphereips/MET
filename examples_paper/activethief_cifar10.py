@@ -2,14 +2,15 @@ import os
 import sys
 from pathlib import Path
 
+from pytorch_lightning import seed_everything
 import torch
 import torch.nn.functional as F
-from pytorch_lightning import seed_everything
 from torchvision.transforms import transforms as T
+from torch.utils.data import ConcatDataset
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
-from mef.attacks.activethief import ActiveThief
+from mef.attacks import ActiveThief, CopyCat
 from mef.utils.experiment import train_victim_model
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.pytorch.datasets import split_dataset
@@ -29,15 +30,13 @@ def set_up(args):
     seed_everything(args.seed)
 
     victim_model = GenericCNN(dims=DIMS, num_classes=NUM_CLASSES, dropout_keep_prob=0.2)
-    substitute_model = GenericCNN(dims=DIMS, num_classes=NUM_CLASSES, dropout_keep_prob=0.2)
-
-    if args.gpus:
-        victim_model.cuda()
-        substitute_model.cuda()
+    substitute_model = GenericCNN(
+        dims=DIMS, num_classes=NUM_CLASSES, dropout_keep_prob=0.2
+    )
 
     # Prepare data
     print("Preparing data")
-    transform = T.Compose([T.Resize(DIMS[1:3]), T.ToTensor()])
+    transform = T.Compose([T.ToTensor()])
     train_set = Cifar10(root=args.cifar10_dir, transform=transform)
     test_set = Cifar10(root=args.cifar10_dir, train=False, transform=transform)
 
@@ -59,20 +58,20 @@ def set_up(args):
     val_dataset = imagenet_val
 
     train_set, val_set = split_dataset(train_set, 0.2)
-    optimizer = torch.optim.Adam(victim_model.parameters(), weight_decay=1e-3)
+    optimizer = torch.optim.Adam(victim_model.parameters())
     loss = F.cross_entropy
 
-    victim_training_epochs = 1000
     train_victim_model(
         victim_model,
         optimizer,
         loss,
         train_set,
         NUM_CLASSES,
-        victim_training_epochs,
+        args.training_epochs,
         args.batch_size,
         args.num_workers,
         val_set,
+        test_set=test_set,
         patience=args.patience,
         save_loc=Path(args.save_loc).joinpath("victim"),
         gpus=args.gpus,
@@ -111,6 +110,7 @@ if __name__ == "__main__":
     mkdir_if_missing(args.save_loc)
 
     victim_model, substitute_model, thief_dataset, test_set, val_dataset = set_up(args)
+
     af = ActiveThief(
         victim_model,
         substitute_model,
