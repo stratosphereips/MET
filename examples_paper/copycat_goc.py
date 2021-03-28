@@ -60,14 +60,18 @@ class GOCData:
 
     def _setup(self):
         cifar10 = dict()
-        cifar10["train"] = Cifar10(self.cifar10_dir, transform=self.transform)
+        cifar10["train"] = Cifar10(
+            self.cifar10_dir, transform=self.transform, download=True
+        )
         cifar10["test"] = Cifar10(
-            self.cifar10_dir, train=False, transform=self.transform
+            self.cifar10_dir, train=False, transform=self.transform, download=True
         )
 
         stl10 = dict()
-        stl10["train"] = Stl10(self.stl10_dir, transform=self.transform)
-        stl10["test"] = Stl10(self.stl10_dir, train=False, transform=self.transform)
+        stl10["train"] = Stl10(self.stl10_dir, transform=self.transform, download=True)
+        stl10["test"] = Stl10(
+            self.stl10_dir, train=False, transform=self.transform, download=True
+        )
 
         # Replace car with automobile to make the class name same as in the
         # cifar10
@@ -148,6 +152,10 @@ def set_up(args):
         torch.optim.SGD(substitute_model.parameters(), lr=0.01, momentum=0.8),
         F.cross_entropy,
     )
+
+    if args.gpus:
+        victim_model.cuda()
+        substitute_model.cuda()
 
     return (
         victim_model,
