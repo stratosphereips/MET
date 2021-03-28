@@ -20,6 +20,7 @@ from mef.utils.pytorch.models.vision import ResNet
 
 NUM_CLASSES = 256
 DIMS = (3, 224, 224)
+IMAGENET_NORMALIZATION = T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 
 
 def set_up(args):
@@ -28,18 +29,24 @@ def set_up(args):
     victim_model = ResNet(resnet_type="resnet_34", num_classes=NUM_CLASSES)
     substitute_model = ResNet(resnet_type="resnet_34", num_classes=NUM_CLASSES)
 
-    if args.gpus:
-        victim_model.cuda()
-        substitute_model.cuda()
-
     # Prepare data
-    transform = T.Compose([T.Resize(DIMS[1:3]), T.ToTensor()])
-
-    train_set = Caltech256(args.caltech256_dir, transform=transform, seed=args.seed)
-    test_set = Caltech256(
-        args.caltech256_dir, train=False, transform=transform, seed=args.seed
+    train_transform = T.Compose(
+        [
+            T.RandomResizedCrop(224),
+            T.RandomHorizontalFlip(),
+            T.ToTensor(),
+            IMAGENET_NORMALIZATION,
+        ]
     )
-    sub_dataset = ImageNet1000(args.imagenet_dir, transform=transform, seed=args.seed)
+    test_transform = T.Compose(
+        [T.Resize(256), T.CenterCrop(224), T.ToTensor(), IMAGENET_NORMALIZATION]
+    )
+
+    train_set = Caltech256(args.caltech256_dir, transform=train_transform, seed=args.seed)
+    test_set = Caltech256(
+        args.caltech256_dir, train=False, transform=test_transform, seed=args.seed
+    )
+    sub_dataset = ImageNet1000(args.imagenet_dir, transform=test_transform, seed=args.seed)
 
     vict_optimizer = torch.optim.SGD(victim_model.parameters(), lr=0.1, momentum=0.5)
     loss = F.cross_entropy
@@ -55,6 +62,7 @@ def set_up(args):
         victim_train_epochs,
         args.batch_size,
         args.num_workers,
+        test_set=test_set,
         lr_scheduler=lr_scheduler,
         save_loc=Path(args.save_loc).joinpath("victim"),
         gpus=args.gpus,
@@ -114,7 +122,7 @@ if __name__ == "__main__":
         substitute_model,
         args.sampling_strategy,
         args.reward_type,
-        torch.optim.SGD(self._substitute_model.parameters(), lr=0.0005, momentum=0.5),
+        torch.optim.SGD(substitute_model.parameters(), lr=0.0005, momentum=0.5),
         args.budget,
     )
 

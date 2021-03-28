@@ -42,10 +42,6 @@ def set_up(args):
         fc_layers=(100,),
     )
 
-    if args.gpus:
-        victim_model.cuda()
-        substitute_model.cuda()
-
     # Prepare data
     print("Preparing data")
     transform = T.Compose([T.Resize(DIMS[-1]), T.ToTensor()])

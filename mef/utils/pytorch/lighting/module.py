@@ -33,6 +33,10 @@ class _MefModel(pl.LightningModule, ABC):
         )
         self.test_labels = None
 
+    def cuda(self):
+        self.to("cuda")
+        self.model.to(self.device)
+
     @abstractmethod
     def _shared_step_output(self, x: torch.Tensor) -> torch.Tensor:
         pass
@@ -139,7 +143,12 @@ class TrainableModel(_MefModel):
 
 
 class VictimModel(_MefModel):
-    def __init__(self, model: torch.nn.Module, num_classes: int, output_type: str):
+    def __init__(
+        self,
+        model: torch.nn.Module,
+        num_classes: int,
+        output_type: str,
+    ):
         super().__init__(model, num_classes)
 
         if output_type.lower() not in [

@@ -27,10 +27,10 @@ class GOCData:
         self.imagenet_dir = imagenet_dir
         self.stl10_dir = stl10_dir
         self.cifar10_dir = cifar10_dir
-        self.dims = (3, 224, 224)
+        self.dims = (3, 32, 32)
 
         # Imagenet values
-        self.transform = T.Compose([T.Resize((224, 224)), T.ToTensor()])
+        self.transform = T.Compose([T.Resize((32, 32)), T.ToTensor(), T.Normalize((0.5,), (0.5,))])
 
         self.test_set = None
         self.od_dataset = None
@@ -117,10 +117,6 @@ def set_up(args):
 
     victim_model = Vgg(vgg_type="vgg_16", num_classes=9)
     substitute_model = Vgg(vgg_type="vgg_16", num_classes=9)
-
-    if args.gpus:
-        victim_model.cuda()
-        substitute_model.cuda()
 
     print("Preparing data")
     goc = GOCData(args.imagenet_dir, args.cifar10_dir, args.stl10_dir)

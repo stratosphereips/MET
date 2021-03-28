@@ -32,6 +32,10 @@ class Base(ABC):
         self._victim_model = victim_model
         self._substitute_model = substitute_model
 
+        if self.base_settings.gpus:
+            self._victim_model.cuda()
+            self._substitute_model.cuda()
+
     @classmethod
     def _add_base_args(cls, parser: ArgumentParser) -> None:
         parser.add_argument(

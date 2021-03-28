@@ -82,6 +82,7 @@ def train_victim_model(
         victim = TrainableModel(
             victim_model, num_classes, optimizer, loss, lr_scheduler
         )
+
         if gpus:
             victim.cuda()
 
