@@ -5,11 +5,7 @@ import torch
 import torch.nn as nn
 
 from mef.utils.pytorch.models.vision.base import Base
-
-ConvBlock = namedtuple(
-    "ConvBlock", ["in_channels", "out_channels", "kernel_size", "stride", "padding"],
-)
-MaxPoolLayer = namedtuple("MaxPoolLayer", ["kernel_size", "stride"])
+from mef.utils.pytorch.blocks import ConvBlock, MaxPoolLayer
 
 
 class GenericCNN(Base):
@@ -29,7 +25,7 @@ class GenericCNN(Base):
             MaxPoolLayer(2, 2),
         ),
         fc_layers=(),
-        dropout_keep_prob=0.1,
+        dropout_keep_prob=0.5,
         return_hidden=False,
     ):
         super().__init__(num_classes)
