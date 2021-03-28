@@ -47,7 +47,7 @@ class HalfAlexNetSmall(nn.Module):
     def __init__(self, dims: Tuple[int, int, int], num_classes: int):
         super().__init__()
         self.features = nn.Sequential(
-            nn.Conv2d(3, 24, kernel_size=5, stride=1, padding=2),
+            nn.Conv2d(dims[0], 24, kernel_size=5, stride=1, padding=2),
             nn.ReLU(inplace=True),
             nn.LocalResponseNorm(2),
             nn.MaxPool2d(kernel_size=3, stride=2),
