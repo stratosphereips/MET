@@ -19,13 +19,16 @@ def _prepare_callbacks(
     checkpoint_cb = False
     if validation and not debug:
         monitor = "val_acc" if accuracy else "val_f1"
-        callbacks = [
-            EarlyStopping(monitor=monitor, verbose=True, mode="max", patience=patience)
-        ]
+
+        if patience is not None:
+            callbacks = [
+                EarlyStopping(monitor=monitor, verbose=True, mode="max", patience=patience)
+            ]
 
         checkpoint_name = "{epoch}-{" + monitor + ":.2f}"
         if iteration is not None:
             checkpoint_name = "iteration={}-".format(iteration) + checkpoint_name
+
         checkpoint_cb = ModelCheckpoint(
             dirpath=save_loc.joinpath("checkpoints"),
             filename=checkpoint_name,
