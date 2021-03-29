@@ -13,15 +13,20 @@ from mef.utils.settings import AttackSettings
 
 class GeneratorRandomDataset(IterableDataset):
     def __init__(
-        self, generator: Generator, victim_model: VictimModel, batch_size: int
+        self,
+        generator: Generator,
+        victim_model: VictimModel,
+        batch_size: int,
+        batches_per_epoch: int,
     ):
         self._generator = generator
         self._victim_model = victim_model
         self._batch_size = batch_size
+        self._batches_per_epoch = batches_per_epoch
 
     def __iter__(self):
         u = 3
-        for _ in range(100):
+        for _ in range(self._batches_per_epoch):
             latent_vectors = np.random.uniform(
                 -u, u, size=(self._batch_size, self._generator.latent_dim)
             )
@@ -36,15 +41,38 @@ class GeneratorRandomDataset(IterableDataset):
 
 class GeneratorOptimizedDataset(IterableDataset):
     def __init__(
-        self, generator: Generator, victim_model: VictimModel, batch_size: int
+        self,
+        generator: Generator,
+        victim_model: VictimModel,
+        batch_size: int,
+        batches_per_epoch: int,
+        population_size: int,
+        max_iterations: int,
+        threshold_type: str,
+        threshold_value: float,
     ):
         self._generator = generator
         self._victim_model = victim_model
         self._batch_size = batch_size
+        self._batches_per_epoch = batches_per_epoch
+
+        self._population_size = population_size
+        # Parameters for optimization loop
+        self._max_iterations = max_iterations
+        self._threshold_type = threshold_type
+        self._threshold_value = threshold_value
 
     @staticmethod
-    def _loss(y_hat: np.ndarray, y: np.ndarray) -> np.ndarray:
-        return np.sum(np.power(y_hat - y, 2))
+    def _loss(y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        return (y_hat - y).pow(2).sum()
+
+    def _optimization_condition(self, c: float, it: int):
+        if self._threshold_type == "loss":
+            # Loss threshold
+            return c >= self._threshold_value and it < self._max_iterations
+        else:
+            # Confidence threshold
+            return c < self._threshold_value and it < self._max_iterations
 
     def _optimize(self) -> Tuple[torch.Tensor, torch.Tensor]:
         batch = []
@@ -52,38 +80,33 @@ class GeneratorOptimizedDataset(IterableDataset):
 
         # Hyperparameters from paper
         u = 3
-        t = 0.02  # t - threshold value
-        pop_size = 30  # K - population size
-        max_iterations = 10
         for _ in range(self._batch_size):
-            c = np.inf
+            c = np.inf if self._threshold_type == "loss" else 0
             it = 0
             specimens = np.random.uniform(
-                -u, u, size=(pop_size, self._generator.latent_dim)
+                -u, u, size=(self._population_size, self._generator.latent_dim)
             )
             specimens = specimens.astype(np.float32)
             target_label = np.random.randint(
                 self._victim_model.num_classes, size=(1, 1)
             )
-            y = np.eye(self._victim_model.num_classes)[target_label]
-            y = y.astype(np.float32)
-            while c >= t and it < max_iterations:
+            y = torch.eye(self._victim_model.num_classes)[target_label]
+            while self._optimization_condition(c, it):
                 it += 1
                 with torch.no_grad():
                     images = self._generator(torch.from_numpy(specimens))
 
-                    # The original implementation expects the classifier to
-                    # return logits
                     y_hats = self._victim_model(images)[0]
-                    y_hats = y_hats.detach().cpu().numpy()
+                    y_hats = y_hats.detach().cpu()
 
-                losses = [self._loss(y_hat, y) for y_hat in y_hats]
-                indexes = np.argsort(losses)
-                image = images[indexes[0]]
-                label = y_hats[indexes[0]]
+                losses = torch.stack([self._loss(y_hat, y) for y_hat in y_hats])
+                sorted_losses, sorted_idx = torch.sort(losses)
+                # Select min
+                image = images[sorted_idx[0]]
+                label = y_hats[sorted_idx[0]]
 
                 # select k (elite size) fittest specimens
-                specimens = specimens[indexes[:10]]
+                specimens = specimens[sorted_idx[:10]]
                 specimens = np.concatenate(
                     [
                         specimens,
@@ -97,16 +120,20 @@ class GeneratorOptimizedDataset(IterableDataset):
                         ).astype(np.float32),
                     ]
                 )
-                c = np.amin(losses)
+                c = (
+                    sorted_losses[0]
+                    if self._threshold_type == "loss"
+                    else label[target_label]
+                )
 
             batch.append(image)
-            labels.append(torch.from_numpy(label))
+            labels.append(label)
 
         return torch.stack(batch), torch.stack(labels)
 
     def __iter__(self) -> Tuple[torch.Tensor, torch.Tensor]:
         # Generates batch_size * 100 labels each training epoch
-        for _ in range(100):
+        for _ in range(self._batches_per_epoch):
             images, labels = self._optimize()
             yield images, labels
 
@@ -115,14 +142,38 @@ class GeneratorOptimizedDataset(IterableDataset):
 class RipperSettings(AttackSettings):
     latent_dim: int
     generated_data: str
+    batches_per_epoch: int
+    population_size: int
+    # Parameters for optimization loop
+    max_iterations: int
+    threshold_type: str
+    threshold_value: float
 
-    def __init__(self, generated_data: str):
+    def __init__(
+        self,
+        generated_data: str,
+        batches_per_epoch: int,
+        population_size: int,
+        max_iterations: int,
+        threshold_type: str,
+        threshold_value: float,
+    ):
         self.generated_data = generated_data
+        self.batches_per_epoch = batches_per_epoch
+        self.population_size = population_size
+        self.max_iterations = max_iterations
+        self.threshold_type = threshold_type.lower()
+        self.threshold_value = threshold_value
 
         # Check configuration
         if self.generated_data not in ["random", "optimized"]:
             raise ValueError(
-                "Ripper's generated_data must be one of {random, " "optimized}"
+                "Ripper's generated_data must be one of {random, optimized}"
+            )
+
+        if self.threshold_type not in ["loss", "confidence"]:
+            raise ValueError(
+                "Ripper's threshold_type must be one of {loss, confidence}"
             )
 
 
@@ -133,10 +184,22 @@ class Ripper(Base):
         substitute_model: TrainableModel,
         generator: Generator,
         generated_data: str = "optimized",
+        batches_per_epoch: int = 100,
+        population_size: int = 30,
+        max_iterations: int = 10,
+        threshold_type: str = "loss",
+        threshold_value: float = 0.02,
     ):
 
         super().__init__(victim_model, substitute_model)
-        self.attack_settings = RipperSettings(generated_data)
+        self.attack_settings = RipperSettings(
+            generated_data,
+            batches_per_epoch,
+            population_size,
+            max_iterations,
+            threshold_type,
+            threshold_value,
+        )
 
         # Ripper's specific attributes
         self._generator = generator
@@ -148,23 +211,64 @@ class Ripper(Base):
             "--generated_data",
             default="optimized",
             type=str,
-            help="Type of generated data from generator. Can "
-            "be one of {random, optimized} (Default: "
-            "optimized)",
+            help="Type of generated data from generator. Can be one of {random, optimized} (Default: optimized)",
+        )
+        parser.add_argument(
+            "--batches_per_epoch",
+            default=100,
+            type=int,
+            help="How many batches should be created per epochs. (Default: 100)",
+        )
+        parser.add_argument(
+            "--population_size",
+            default=30,
+            type=int,
+            help="Population size to be used in the evolutionary algorithm. (Default: 10)",
+        )
+        parser.add_argument(
+            "--max_iterations",
+            default=10,
+            type=int,
+            help="Maximum number of iteration of the evolutionary algorithm. (Default: 10)",
+        )
+        # TODO: add explanation
+        parser.add_argument(
+            "--threshold_type",
+            default="loss",
+            type=str,
+            help="Type of threhold for the evolutionary algorithm. Can be one of {loss, confidence} (Default: loss)",
+        )
+        parser.add_argument(
+            "--threshold_value",
+            default=0.02,
+            type=float,
+            help="Value for threshold. (Default: 0.02)",
         )
 
         return parser
 
     def _get_student_dataset(self):
         self._generator.eval()
+        self._generator._generator.eval()
         self._victim_model.eval()
+        self._victim_model.model.eval()
         if self.attack_settings.generated_data == "random":
             return GeneratorRandomDataset(
-                self._generator, self._victim_model, self.base_settings.batch_size
+                self._generator,
+                self._victim_model,
+                self.base_settings.batch_size,
+                self.attack_settings.batches_per_epoch,
             )
         else:
             return GeneratorOptimizedDataset(
-                self._generator, self._victim_model, self.base_settings.batch_size
+                self._generator,
+                self._victim_model,
+                self.base_settings.batch_size,
+                self.attack_settings.batches_per_epoch,
+                self.attack_settings.population_size,
+                self.attack_settings.max_iterations,
+                self.attack_settings.threshold_type,
+                self.attack_settings.threshold_value,
             )
 
     def _check_args(self, test_set: Type[Dataset]) -> None:
@@ -184,7 +288,7 @@ class Ripper(Base):
             "Ripper's attack budget: {}".format(
                 self.trainer_settings.training_epochs
                 * self.base_settings.batch_size
-                * 100
+                * self.attack_settings.batches_per_epoch
             )
         )
 

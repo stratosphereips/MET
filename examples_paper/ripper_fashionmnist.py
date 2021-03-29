@@ -27,19 +27,10 @@ NUM_CLASSES = 10
 def set_up(args):
     seed_everything(args.seed)
 
-    vgg16_layers_config = [
-        ConvBlock(1, 6, 5, 1, 0),
-        MaxPoolLayer(2, 2),
-        ConvBlock(6, 16, 5, 1, 0),
-        MaxPoolLayer(2, 2),
-    ]
-
     victim_model = LeNet(NUM_CLASSES)
     substitute_model = HalfLeNet(NUM_CLASSES)
     generator = Sngan(
-        args.generator_checkpoint,
-        resolution=32,
-        transform=T.Compose([T.Grayscale()]),
+        args.generator_checkpoint, resolution=32, transform=T.Compose([T.Grayscale()]),
     )
 
     # Prepare data
@@ -81,6 +72,7 @@ def set_up(args):
         NUM_CLASSES,
         torch.optim.Adam(substitute_model.parameters()),
         soft_cross_entropy,
+        batch_accuracy=True,
     )
 
     return victim_model, substitute_model, generator, test_set
@@ -105,7 +97,17 @@ if __name__ == "__main__":
     mkdir_if_missing(args.save_loc)
 
     victim_model, substitute_model, generator, test_set = set_up(args)
-    rp = Ripper(victim_model, substitute_model, generator, args.generated_data)
+    rp = Ripper(
+        victim_model,
+        substitute_model,
+        generator,
+        args.generated_data,
+        args.batches_per_epoch,
+        args.population_size,
+        args.max_iterations,
+        args.threshold_type,
+        args.threshold_value,
+    )
 
     # Baset settings
     rp.base_settings.save_loc = Path(args.save_loc)
@@ -118,6 +120,7 @@ if __name__ == "__main__":
 
     # Trainer settings
     rp.trainer_settings.training_epochs = args.training_epochs
+    rp.trainer_settings.evaluation_frequency = 1
     rp.trainer_settings.precision = args.precision
     rp.trainer_settings.use_accuracy = args.accuracy
 
