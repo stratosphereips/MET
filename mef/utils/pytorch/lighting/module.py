@@ -16,6 +16,10 @@ class Generator(pl.LightningModule):
         self._generator = generator
         self.latent_dim = latent_dim
 
+    def cuda(self):
+        self.to("cuda")
+        self._generator.to(self.device)
+
     @auto_move_data
     def forward(self, z):
         return self._generator(z)
@@ -85,11 +89,13 @@ class TrainableModel(_MefModel):
         optimizer: torch.optim.Optimizer,
         loss: Callable,
         lr_scheduler: Optional[Callable] = None,
+        batch_accuracy: bool = False,
     ):
         super().__init__(model, num_classes)
         self.optimizer = optimizer
         self._loss = loss
         self._lr_scheduler = lr_scheduler
+        self._batch_accuracy = batch_accuracy
 
     @staticmethod
     def _output_to_list(output: torch.Tensor) -> List[torch.Tensor]:
@@ -114,7 +120,7 @@ class TrainableModel(_MefModel):
     def training_step(
         self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
-        x, y = batch
+        x, targets = batch
 
         # Dataloader adds one more dimension corresponding to batch size,
         # which means the datasets created by generators in Ripper
@@ -123,13 +129,17 @@ class TrainableModel(_MefModel):
         # B, L]
         if len(x.size()) == 5 and x.size()[0] == 1:
             x = x.squeeze(dim=0)
-        if len(y.size()) == 3 and y.size()[0] == 1:
-            y = y.squeeze(dim=0)
+        if len(targets.size()) == 3 and targets.size()[0] == 1:
+            targets = targets.squeeze(dim=0)
 
         preds = self(x)[0]
-        loss = self._loss(preds, y)
+        loss = self._loss(preds, targets)
 
-        self.log_dict({"train_loss": loss})
+        if self._batch_accuracy:
+            batch_acc = preds.max(1)[1].eq(targets.max(1)[1])
+            batch_acc = batch_acc.float().mean().detach().cpu()
+            self.log("batch_acc", batch_acc, prog_bar=True)
+
         return loss
 
     def configure_optimizers(
