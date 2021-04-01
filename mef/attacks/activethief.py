@@ -158,9 +158,7 @@ class ActiveThief(Base):
 
         min_dists = []
         with torch.no_grad():
-            for preds_rest_batch, _ in tqdm(
-                loader, desc="Calculating distance " "from initial centers"
-            ):
+            for preds_rest_batch, _ in tqdm(loader):
                 if self.base_settings.gpu:
                     preds_rest_batch = preds_rest_batch.cuda()
 
