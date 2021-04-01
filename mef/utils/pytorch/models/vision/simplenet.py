@@ -11,11 +11,11 @@ from mef.utils.pytorch.models.vision.base import Base
 class SimpleNet(Base):
     """https://paperswithcode.com/paper/lets-keep-it-simple-using-simple"""
 
-    def __init__(self, num_classes: int, return_hidden: bool = False):
+    def __init__(self, dims: Tuple[int, int, int], num_classes: int, return_hidden: bool = False):
         super().__init__(num_classes)
 
         self._return_hidden = return_hidden
-        self._layers = self._make_layers()
+        self._layers = self._make_layers(dims[0])
 
         self._pool = lambda a: F.max_pool2d(a, kernel_size=a.size()[2:])
         self._drop = nn.Dropout(p=0.1)
@@ -39,7 +39,7 @@ class SimpleNet(Base):
 
         return logits
 
-    def _make_layers(self) -> nn.Sequential:
+    def _make_layers(self, input_channels: int) -> nn.Sequential:
 
         ConvBlock = namedtuple(
             "ConvBlock",
@@ -48,7 +48,7 @@ class SimpleNet(Base):
         MaxPoolLayer = namedtuple("MaxPoolLayer", ["kernel_size", "stride"])
 
         layers = [
-            ConvBlock(3, 64, 3, 1, 1),
+            ConvBlock(input_channels, 64, 3, 1, 1),
             ConvBlock(64, 128, 3, 1, 1),
             ConvBlock(128, 128, 3, 1, 1),
             ConvBlock(128, 128, 3, 1, 1),
