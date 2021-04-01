@@ -111,12 +111,12 @@ class AtlasThief(Base):
         optimizer = torch.optim.Adam(correct_model.parameters())
         correct_model = TrainableModel(correct_model, 2, optimizer, loss)
 
-        if self.base_settings.gpus:
+        if self.base_settings.gpu:
             correct_model.cuda()
 
         train_dataloader = DataLoader(
             dataset=train_set,
-            pin_memory=self.base_settings.gpus != 0,
+            pin_memory=self.base_settings.gpu,
             num_workers=self.base_settings.num_workers,
             shuffle=True,
             batch_size=self.base_settings.batch_size,

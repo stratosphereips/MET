@@ -40,12 +40,12 @@ class KnockOffSettings(AttackSettings):
         # Check configuration
         if self.sampling_strategy not in ["random", "adaptive"]:
             raise ValueError(
-                "Knockoff's sampling strategy must be one of {random, " "adaptive}"
+                "Knockoff's sampling strategy must be one of {random, adaptive}"
             )
 
         if self.reward_type not in ["cert", "div", "loss", "all"]:
             raise ValueError(
-                "Knockoff's reward type must be one of {cert, div, loss, " "all}"
+                "Knockoff's reward type must be one of {cert, div, loss, all}"
             )
 
 
@@ -65,7 +65,6 @@ class KnockOff(Base):
         self.attack_settings = KnockOffSettings(
             sampling_strategy, reward_type, budget, save_samples
         )
-        self.trainer_settings._validation = False
 
         # KnockOff's specific attributes
         self._online_optimizer = online_optimizer
@@ -150,13 +149,13 @@ class KnockOff(Base):
         self._substitute_model.train()
         loader = DataLoader(
             dataset=data,
-            pin_memory=self.base_settings.gpus != 0,
+            pin_memory=self.base_settings.gpu,
             num_workers=self.base_settings.num_workers,
             batch_size=self.base_settings.batch_size,
         )
 
         for x, y_output in tqdm(loader, desc="Online training"):
-            if self.base_settings.gpus:
+            if self.base_settings.gpu:
                 x = x.cuda()
                 y_output = y_output.cuda()
 
@@ -229,7 +228,7 @@ class KnockOff(Base):
         else:
             loader = DataLoader(
                 dataset=self._thief_dataset,
-                pin_memory=self.base_settings.gpus != 0,
+                pin_memory=self.base_settings.gpu,
                 num_workers=self.base_settings.num_workers,
                 batch_size=self.base_settings.batch_size,
             )

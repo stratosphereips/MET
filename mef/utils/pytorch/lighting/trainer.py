@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
+import numpy as np
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
@@ -45,7 +46,7 @@ def get_trainer(
     save_loc: Path,
     iteration: int,
     training_epochs: int,
-    gpus: int,
+    gpu: bool,
     validation: bool,
     evaluation_frequency: int,
     patience: int,
@@ -56,9 +57,7 @@ def get_trainer(
     logger: bool,
 ) -> Tuple[Trainer, Union[ModelCheckpoint, bool]]:
     if evaluation_frequency is None:
-        evaluation_frequency = 100
-    if patience is None:
-        patience = 1
+        evaluation_frequency = np.inf
 
     callbacks, checkpoint_cb = _prepare_callbacks(
         validation, patience, save_loc, iteration, debug, accuracy
@@ -67,17 +66,18 @@ def get_trainer(
     # Prepare trainer
     trainer = Trainer(
         default_root_dir=save_loc.__str__(),
-        gpus=gpus if gpus else None,
-        auto_select_gpus=True if gpus else False,
+        gpus=1 if gpu else None,
+        auto_select_gpus=True if gpu else False,
         max_epochs=training_epochs,
+        min_epochs=training_epochs,
         check_val_every_n_epoch=evaluation_frequency,
         deterministic=deterministic,
         checkpoint_callback=checkpoint_cb,
         callbacks=callbacks,
         fast_dev_run=debug,
         weights_summary=None,
-        precision=precision if gpus else 32,
-        logger=logger,
+        precision=precision if gpu else 32,
+        logger=logger, 
     )
 
     return trainer, checkpoint_cb
@@ -95,7 +95,7 @@ def get_trainer_with_settings(
         Path(base_settings.save_loc).joinpath(model_name),
         iteration,
         trainer_settings.training_epochs,
-        base_settings.gpus,
+        base_settings.gpu,
         validation,
         trainer_settings.evaluation_frequency,
         trainer_settings.patience,

@@ -11,15 +11,14 @@ from ..utils.pytorch.lighting.module import TrainableModel, VictimModel
 class CopyCat(Base):
     def __init__(self, victim_model: VictimModel, substitute_model: TrainableModel):
         super().__init__(victim_model, substitute_model)
-        self.trainer_settings._validation = False
 
     @classmethod
     def _get_attack_parser(cls) -> ArgumentParser:
         return ArgumentParser(description="CopyCat attack")
 
-    def _check_args(self, sub_data: Dataset, test_set: Dataset):
+    def _check_args(self, sub_data: Dataset, test_set: Dataset) -> None:
         if not isinstance(sub_data, Dataset):
-            self._logger.error("Substitute dataset must be Pytorch's " "dataset.")
+            self._logger.error("Substitute dataset must be Pytorch's dataset.")
             raise TypeError()
         if not isinstance(test_set, Dataset):
             self._logger.error("Test set must be Pytorch's dataset.")

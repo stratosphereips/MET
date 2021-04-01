@@ -139,7 +139,7 @@ def set_up(args):
         args.batch_size,
         args.num_workers,
         save_loc=Path(args.save_loc).joinpath("victim"),
-        gpus=args.gpus,
+        gpu=args.gpu,
         deterministic=args.deterministic,
         debug=args.debug,
         precision=args.precision,
@@ -153,7 +153,7 @@ def set_up(args):
         F.cross_entropy,
     )
 
-    if args.gpus:
+    if args.gpu:
         victim_model.cuda()
         substitute_model.cuda()
 
@@ -184,7 +184,7 @@ if __name__ == "__main__":
 
     # Baset settings
     copycat.base_settings.save_loc = Path(args.save_loc)
-    copycat.base_settings.gpus = args.gpus
+    copycat.base_settings.gpu = args.gpu
     copycat.base_settings.num_workers = args.num_workers
     copycat.base_settings.batch_size = args.batch_size
     copycat.base_settings.seed = args.seed

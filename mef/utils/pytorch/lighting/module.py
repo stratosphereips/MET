@@ -16,16 +16,16 @@ class Generator(pl.LightningModule):
         self._generator = generator
         self.latent_dim = latent_dim
 
-    def cuda(self):
+    def cuda(self) -> None:
         self.to("cuda")
         self._generator.to(self.device)
 
     @auto_move_data
-    def forward(self, z):
+    def forward(self, z: torch.Tensor) -> torch.Tensor:
         return self._generator(z)
 
 
-class _MefModel(pl.LightningModule, ABC):
+class _MetModel(pl.LightningModule, ABC):
     def __init__(self, model: torch.nn.Module, num_classes: int):
         super().__init__()
         self.model = model
@@ -37,7 +37,7 @@ class _MefModel(pl.LightningModule, ABC):
         )
         self.test_labels = None
 
-    def cuda(self):
+    def cuda(self) -> None:
         self.to("cuda")
         self.model.to(self.device)
 
@@ -70,7 +70,7 @@ class _MefModel(pl.LightningModule, ABC):
     ) -> torch.Tensor:
         return self._shared_step(batch, "val")
 
-    def test_step(self, batch, batch_idx: int) -> torch.Tensor:
+    def test_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
         return self._shared_step(batch, "test")
 
     def test_epoch_end(self, test_step_outputs: List[torch.Tensor]) -> None:
@@ -81,7 +81,7 @@ class _MefModel(pl.LightningModule, ABC):
         return
 
 
-class TrainableModel(_MefModel):
+class TrainableModel(_MetModel):
     def __init__(
         self,
         model: torch.nn.Module,
@@ -107,7 +107,7 @@ class TrainableModel(_MefModel):
             return list([output])
 
     @auto_move_data
-    def forward(self, x: torch.Tensor) -> Union[List[torch.Tensor]]:
+    def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
         output = self.model(x)
 
         return self._output_to_list(output)
@@ -152,7 +152,7 @@ class TrainableModel(_MefModel):
         return [self.optimizer], [self._lr_scheduler]
 
 
-class VictimModel(_MefModel):
+class VictimModel(_MetModel):
     def __init__(
         self,
         model: torch.nn.Module,
@@ -161,7 +161,8 @@ class VictimModel(_MefModel):
     ):
         super().__init__(model, num_classes)
 
-        if output_type.lower() not in [
+        self.output_type = output_type.lower()
+        if self.output_type not in [
             "one_hot",
             "raw",
             "logits",
@@ -174,8 +175,6 @@ class VictimModel(_MefModel):
                 "one_hot, raw, logits, labels, sigmoid,"
                 "softmax}"
             )
-
-        self.output_type = output_type.lower()
 
     def _transform_output(self, output: torch.Tensor) -> torch.Tensor:
         if self.output_type == "one_hot":

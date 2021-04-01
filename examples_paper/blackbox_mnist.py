@@ -80,7 +80,7 @@ def set_up(args):
         num_workers=args.num_workers,
         test_set=test_set,
         save_loc=Path(args.save_loc).joinpath("victim"),
-        gpus=args.gpus,
+        gpu=args.gpu,
         deterministic=args.deterministic,
         debug=args.debug,
         precision=args.precision,
@@ -117,7 +117,7 @@ if __name__ == "__main__":
 
     # Baset settings
     bb.base_settings.save_loc = Path(args.save_loc)
-    bb.base_settings.gpus = args.gpus
+    bb.base_settings.gpu = args.gpu
     bb.base_settings.num_workers = args.num_workers
     bb.base_settings.batch_size = args.batch_size
     bb.base_settings.seed = args.seed

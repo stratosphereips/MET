@@ -18,11 +18,7 @@ def _download(url: str, fname: Path):
     resp = requests.get(url, stream=True)
     total = int(resp.headers.get("content-length", 0))
     with open(fname, "wb") as file, tqdm(
-        desc=str(fname),
-        total=total,
-        unit="iB",
-        unit_scale=True,
-        unit_divisor=1024,
+        desc=str(fname), total=total, unit="iB", unit_scale=True, unit_divisor=1024,
     ) as bar:
         for data in resp.iter_content(chunk_size=1024):
             size = file.write(data)

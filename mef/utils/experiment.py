@@ -26,7 +26,7 @@ def train_victim_model(
     accuracy: bool = False,
     lr_scheduler: Optional[Callable] = None,
     save_loc: str = "./cache/",
-    gpus: int = 0,
+    gpu: bool = False,
     deterministic: bool = True,
     debug: bool = False,
     precision=32,
@@ -35,7 +35,7 @@ def train_victim_model(
         Path(save_loc),
         None,
         training_epochs,
-        gpus,
+        gpu,
         val_set is not None,
         evaluation_frequency,
         patience,
@@ -57,7 +57,7 @@ def train_victim_model(
         victim = TrainableModel(
             victim_model, num_classes, optimizer, loss, lr_scheduler
         )
-        if gpus:
+        if gpu:
             victim.cuda()
     except FileNotFoundError:
         # Prepare secret model
@@ -65,7 +65,7 @@ def train_victim_model(
 
         train_dataloader = DataLoader(
             dataset=train_set,
-            pin_memory=gpus != 0,
+            pin_memory=gpu,
             num_workers=num_workers,
             shuffle=True,
             batch_size=batch_size,
@@ -74,7 +74,7 @@ def train_victim_model(
         if val_set is not None:
             val_dataloader = DataLoader(
                 dataset=val_set,
-                pin_memory=gpus != 0,
+                pin_memory=gpu,
                 num_workers=num_workers,
                 batch_size=batch_size,
             )
@@ -83,7 +83,7 @@ def train_victim_model(
             victim_model, num_classes, optimizer, loss, lr_scheduler
         )
 
-        if gpus:
+        if gpu:
             victim.cuda()
 
         trainer.fit(victim, train_dataloader, val_dataloader)
@@ -101,7 +101,7 @@ def train_victim_model(
     if test_set is not None:
         test_dataloader = DataLoader(
             dataset=test_set,
-            pin_memory=gpus != 0,
+            pin_memory=gpu,
             num_workers=num_workers,
             batch_size=batch_size,
         )

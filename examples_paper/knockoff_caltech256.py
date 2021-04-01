@@ -65,7 +65,7 @@ def set_up(args):
         test_set=test_set,
         lr_scheduler=lr_scheduler,
         save_loc=Path(args.save_loc).joinpath("victim"),
-        gpus=args.gpus,
+        gpu=args.gpu,
         deterministic=args.deterministic,
         debug=args.debug,
         precision=args.precision,
@@ -128,7 +128,7 @@ if __name__ == "__main__":
 
     # Baset settings
     ko.base_settings.save_loc = Path(args.save_loc)
-    ko.base_settings.gpus = args.gpus
+    ko.base_settings.gpu = args.gpu
     ko.base_settings.num_workers = args.num_workers
     ko.base_settings.batch_size = args.batch_size
     ko.base_settings.seed = args.seed

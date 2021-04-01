@@ -26,7 +26,7 @@ class ActiveThiefSettings(AttackSettings):
     init_seed_size: int
     val_size: int
     k: int
-    idxs: bool
+    save_samples: bool
 
     def __init__(
         self,
@@ -148,12 +148,12 @@ class ActiveThief(Base):
     ) -> np.ndarray:
         loader = DataLoader(
             dataset=NoYDataset(preds_sub_rest),
-            pin_memory=self.base_settings.gpus != 0,
+            pin_memory=self.base_settings.gpu,
             num_workers=self.base_settings.num_workers,
             batch_size=self.base_settings.batch_size,
         )
 
-        if self.base_settings.gpus:
+        if self.base_settings.gpu:
             init_centers = init_centers.cuda()
 
         min_dists = []
@@ -161,7 +161,7 @@ class ActiveThief(Base):
             for preds_rest_batch, _ in tqdm(
                 loader, desc="Calculating distance " "from initial centers"
             ):
-                if self.base_settings.gpus:
+                if self.base_settings.gpu:
                     preds_rest_batch = preds_rest_batch.cuda()
 
                 # To save memory we are only keeping the minimal distance
@@ -181,14 +181,14 @@ class ActiveThief(Base):
             selected_points.append(min_dists_max_ids)
             new_centers = preds_sub_rest[min_dists_max_ids]
 
-            if self.base_settings.gpus:
+            if self.base_settings.gpu:
                 new_centers = new_centers.cuda()
 
             new_centers_dists_min_vals = []
             with torch.no_grad():
                 for preds_rest_batch, _ in loader:
 
-                    if self.base_settings.gpus:
+                    if self.base_settings.gpu:
                         preds_rest_batch = preds_rest_batch.cuda()
 
                     batch_dists = torch.cdist(preds_rest_batch, new_centers, p=2)
@@ -208,7 +208,7 @@ class ActiveThief(Base):
         self._substitute_model.eval()
         loader = DataLoader(
             dataset=data_rest,
-            pin_memory=self.base_settings.gpus != 0,
+            pin_memory=self.base_settings.gpu,
             num_workers=self.base_settings.num_workers,
             batch_size=self.base_settings.batch_size,
         )
@@ -216,11 +216,11 @@ class ActiveThief(Base):
         fmodel = fb.PyTorchModel(
             self._substitute_model.model, bounds=self.attack_settings.bounds
         )
-        deepfool = fb.attacks.L2DeepFoolAttack(steps=50, overshoot=0.01)
+        deepfool = fb.attacks.L2DeepFoolAttack(steps=30, candidates=3, overshoot=0.01)
 
         scores = []
         for x, y in tqdm(loader, desc="Getting dfal scores"):
-            if self.base_settings.gpus:
+            if self.base_settings.gpu:
                 x = x.cuda()
                 y = y.cuda()
 

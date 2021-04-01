@@ -1,6 +1,7 @@
 import argparse
+import warnings
 from dataclasses import dataclass
-from typing import Tuple, Type
+from typing import Tuple, Iterator
 
 import numpy as np
 import torch
@@ -10,8 +11,8 @@ from mef.attacks.base import Base
 from mef.utils.pytorch.lighting.module import Generator, TrainableModel, VictimModel
 from mef.utils.settings import AttackSettings
 
-
-class GeneratorRandomDataset(IterableDataset):
+# TODO: rework these both random and optimized datasets so they don't have to use __len__
+class _GeneratorRandomDataset(IterableDataset):
     def __init__(
         self,
         generator: Generator,
@@ -24,9 +25,12 @@ class GeneratorRandomDataset(IterableDataset):
         self._batch_size = batch_size
         self._batches_per_epoch = batches_per_epoch
 
-    def __iter__(self):
-        u = 3
+    def __len__(self) -> int:
+        return self._batches_per_epoch
+
+    def _get_sample(self) -> Tuple[torch.Tensor, torch.Tensor]:
         for _ in range(self._batches_per_epoch):
+            u = 3
             latent_vectors = np.random.uniform(
                 -u, u, size=(self._batch_size, self._generator.latent_dim)
             )
@@ -38,8 +42,13 @@ class GeneratorRandomDataset(IterableDataset):
 
             yield images, labels
 
+    def __iter__(self) -> Iterator[Tuple[torch.Tensor, torch.Tensor]]:
+        # Generates batch_size * batches_per_epoch labels each training epoch
+        return iter(self._get_sample())
 
-class GeneratorOptimizedDataset(IterableDataset):
+
+
+class _GeneratorOptimizedDataset(IterableDataset):
     def __init__(
         self,
         generator: Generator,
@@ -66,13 +75,16 @@ class GeneratorOptimizedDataset(IterableDataset):
     def _loss(y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         return (y_hat - y).pow(2).sum()
 
-    def _optimization_condition(self, c: float, it: int):
+    def _optimization_condition(self, c: float, it: int) -> bool:
         if self._threshold_type == "loss":
             # Loss threshold
             return c >= self._threshold_value and it < self._max_iterations
         else:
             # Confidence threshold
             return c < self._threshold_value and it < self._max_iterations
+
+    def __len__(self) -> int:
+        return self._batches_per_epoch
 
     def _optimize(self) -> Tuple[torch.Tensor, torch.Tensor]:
         batch = []
@@ -131,11 +143,14 @@ class GeneratorOptimizedDataset(IterableDataset):
 
         return torch.stack(batch), torch.stack(labels)
 
-    def __iter__(self) -> Tuple[torch.Tensor, torch.Tensor]:
-        # Generates batch_size * 100 labels each training epoch
+    def _get_sample(self) -> Tuple[torch.Tensor, torch.Tensor]:
         for _ in range(self._batches_per_epoch):
             images, labels = self._optimize()
             yield images, labels
+
+    def __iter__(self) -> Iterator[Tuple[torch.Tensor, torch.Tensor]]:
+        # Generates batch_size * 100 labels each training epoch
+        return iter(self._get_sample())
 
 
 @dataclass
@@ -247,20 +262,20 @@ class Ripper(Base):
 
         return parser
 
-    def _get_student_dataset(self):
+    def _get_student_dataset(self) -> IterableDataset:
         self._generator.eval()
         self._generator._generator.eval()
         self._victim_model.eval()
         self._victim_model.model.eval()
         if self.attack_settings.generated_data == "random":
-            return GeneratorRandomDataset(
+            return _GeneratorRandomDataset(
                 self._generator,
                 self._victim_model,
                 self.base_settings.batch_size,
                 self.attack_settings.batches_per_epoch,
             )
         else:
-            return GeneratorOptimizedDataset(
+            return _GeneratorOptimizedDataset(
                 self._generator,
                 self._victim_model,
                 self.base_settings.batch_size,
@@ -271,7 +286,7 @@ class Ripper(Base):
                 self.attack_settings.threshold_value,
             )
 
-    def _check_args(self, test_set: Type[Dataset]) -> None:
+    def _check_args(self, test_set: Dataset) -> None:
         if not isinstance(test_set, Dataset):
             self._logger.error("Test set must be Pytorch's dataset.")
             raise TypeError()
@@ -280,7 +295,7 @@ class Ripper(Base):
 
         return
 
-    def _run(self, test_set: Type[Dataset]) -> None:
+    def _run(self, test_set: Dataset) -> None:
         self._check_args(test_set)
         self._logger.info("########### Starting Ripper attack ##########")
         # Get budget of the attack
@@ -296,6 +311,9 @@ class Ripper(Base):
         # thief dataset
         self._thief_dataset = self._get_student_dataset()
 
-        self._train_substitute_model(self._thief_dataset, self._test_set)
+        # Random and optimized datasets rise warnings with number of workes and __len__
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self._train_substitute_model(self._thief_dataset, self._test_set)
 
         return

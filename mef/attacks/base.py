@@ -49,8 +49,9 @@ class Base(ABC):
             default="./cache/",
             help="Path where the attacks file should be saved (Default: ./cache/)",
         )
+        # TODO: rework this so it supports multiple gpu and selection of gpu
         parser.add_argument(
-            "--gpus", type=int, default=0, help="Number of gpus to be used (Default: 0)"
+            "--gpu", action="store_true", help="Whether to use gpu (Default: False)"
         )
         parser.add_argument(
             "--num_workers",
@@ -130,7 +131,7 @@ class Base(ABC):
         else:
             train_dataloader = DataLoader(
                 dataset=train_set,
-                pin_memory=self.base_settings.gpus != 0,
+                pin_memory=self.base_settings.gpu,
                 num_workers=self.base_settings.num_workers,
                 shuffle=True,
                 batch_size=self.base_settings.batch_size,
@@ -140,7 +141,7 @@ class Base(ABC):
         if val_set is not None:
             val_dataloader = DataLoader(
                 dataset=val_set,
-                pin_memory=self.base_settings.gpus != 0,
+                pin_memory=self.base_settings.gpu,
                 num_workers=self.base_settings.num_workers,
                 batch_size=self.base_settings.batch_size,
             )
@@ -161,7 +162,7 @@ class Base(ABC):
             self._substitute_model.load_state_dict(checkpoint["state_dict"])
 
         # For some reason the model after fit is on CPU and not GPU
-        if self.base_settings.gpus:
+        if self.base_settings.gpu:
             self._substitute_model.cuda()
 
         return
@@ -171,7 +172,7 @@ class Base(ABC):
     ) -> float:
         test_dataloader = DataLoader(
             dataset=test_set,
-            pin_memory=self.base_settings.gpus != 0,
+            pin_memory=self.base_settings.gpu,
             num_workers=self.base_settings.num_workers,
             batch_size=self.base_settings.batch_size,
         )
@@ -207,7 +208,7 @@ class Base(ABC):
 
         return
 
-    def _save_final_subsitute(self):
+    def _save_final_subsitute(self) -> None:
         final_model_dir = self.base_settings.save_loc.joinpath("substitute")
         mkdir_if_missing(final_model_dir)
         final_model_loc = final_model_dir.joinpath(
@@ -230,7 +231,7 @@ class Base(ABC):
         model.eval()
         loader = DataLoader(
             dataset=data,
-            pin_memory=self.base_settings.gpus != 0,
+            pin_memory=self.base_settings.gpu,
             num_workers=self.base_settings.num_workers,
             batch_size=self.base_settings.batch_size,
         )
@@ -279,7 +280,7 @@ class Base(ABC):
         # torch.set_deterministic(self.base_settings.deterministic)
 
         # TODO: add self._device attribute + parameter to mefmodel
-        if self.base_settings.gpus:
+        if self.base_settings.gpu:
             self._victim_model.cuda()
             self._substitute_model.cuda()
             if hasattr(self, "_generator"):

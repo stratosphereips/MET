@@ -19,7 +19,9 @@ from mef.utils.settings import AttackSettings
 @dataclass
 class BlackBoxSettings(AttackSettings):
     iterations: int
+    bounds: Tuple[float, float]
     lmbda: float
+    adversary_strategy: str
 
     def __init__(
         self,
@@ -61,7 +63,6 @@ class BlackBox(Base):
         self.attack_settings = BlackBoxSettings(
             iterations, bounds, lmbda, adversary_strategy
         )
-        self.trainer_settings._validation = False
 
     @classmethod
     def _get_attack_parser(cls) -> ArgumentParser:
@@ -81,7 +82,7 @@ class BlackBox(Base):
 
         return parser
 
-    def _select_adversary_attack(self):
+    def _select_adversary_attack(self) -> fb.attacks.Attack:
         if self.attack_settings.adversary_strategy == "N FGSM":
             return fb.attacks.FGSM()
         elif self.attack_settings.adversary_strategy == "T-RND FGSM":
@@ -91,11 +92,11 @@ class BlackBox(Base):
                 steps=11, abs_stepsize=self.attack_settings.lmbda/11
             )
 
-    def _create_synthetic_samples(self, query_sets: List[Dataset]):
+    def _create_synthetic_samples(self, query_sets: List[Dataset]) -> torch.Tensor:
         thief_dataset = ConcatDataset(query_sets)
         loader = DataLoader(
             dataset=thief_dataset,
-            pin_memory=self.base_settings.gpus != 0,
+            pin_memory=self.base_settings.gpu,
             num_workers=self.base_settings.num_workers,
             batch_size=self.base_settings.batch_size,
         )
@@ -108,7 +109,7 @@ class BlackBox(Base):
         for x_thief, y_thief in tqdm(
             loader, desc="Generating synthetic samples", total=len(loader)
         ):
-            if self.base_settings.gpus:
+            if self.base_settings.gpu:
                 x_thief = x_thief.cuda()
                 y_thief = y_thief.cuda()
 
@@ -121,7 +122,7 @@ class BlackBox(Base):
                     classes = np.delete(classes, label.cpu().item())
                     targets.append(np.random.choice(classes))
                 targets = torch.tensor(targets)
-                if self.base_settings.gpus:
+                if self.base_settings.gpu:
                     targets = targets.cuda()
                 criterion = fb.criteria.TargetedMisclassification(targets)
 

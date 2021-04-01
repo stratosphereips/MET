@@ -42,7 +42,7 @@ def getr_args():
         "should be located (Default: ./cache/data)",
     )
     parser.add_argument(
-        "--gpus", type=int, default=0, help="Number of gpus to be used (Default: 0)"
+        "--gpu", type=int, default=0, help="Number of gpu to be used (Default: 0)"
     )
 
     return parser.parse_args()
@@ -82,6 +82,6 @@ if __name__ == "__main__":
         16,
         val_set,
         test_set,
-        gpus=args.gpus,
+        gpu=args.gpu,
         save_loc=f"./cache/OIModular{args.num_classes}/",
     )

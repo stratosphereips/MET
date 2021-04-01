@@ -28,7 +28,7 @@ def getr_args():
         "downloaded to (Default: ./cache/data)",
     )
     parser.add_argument(
-        "--gpus", type=int, default=0, help="Number of gpus to be used (Default: 0)"
+        "--gpu", type=int, default=0, help="Number of gpu to be used (Default: 0)"
     )
     parser.add_argument(
         "--num_workers",
@@ -73,7 +73,7 @@ if __name__ == "__main__":
         val_set=test_set,
         test_set=test_set,
         patience=PATIENCE,
-        gpus=args.gpus,
+        gpu=args.gpu,
         evaluation_frequency=EVALUATION_FREQUENCY,
         save_loc="./cache/Simplenet-vs-Simpnet-cifar10/SimpleNet/victim",
     )
@@ -93,7 +93,7 @@ if __name__ == "__main__":
         val_set=test_set,
         test_set=test_set,
         patience=PATIENCE,
-        gpus=args.gpus,
+        gpu=args.gpu,
         evaluation_frequency=EVALUATION_FREQUENCY,
         save_loc="./cache/Simplenet-vs-Simpnet-cifar10" "/SimpNet-5M",
     )
@@ -113,7 +113,7 @@ if __name__ == "__main__":
         val_set=test_set,
         test_set=test_set,
         patience=PATIENCE,
-        gpus=args.gpus,
+        gpu=args.gpu,
         evaluation_frequency=EVALUATION_FREQUENCY,
         save_loc="./cache/Simplenet-vs-Simpnet-cifar10" "/SimpNet-8M",
     )

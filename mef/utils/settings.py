@@ -19,7 +19,7 @@ class TrainerSettings:
 @dataclass
 class BaseSettings:
     save_loc: Path = Path("./cache/")
-    gpus: int = 0
+    gpu: bool = False
     num_workers: int = 1
     batch_size: int = 32
     seed: int = None
