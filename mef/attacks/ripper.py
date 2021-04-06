@@ -314,6 +314,6 @@ class Ripper(Base):
         # Random and optimized datasets rise warnings with number of workes and __len__
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            self._train_substitute_model(self._thief_dataset, self._test_set)
+            self._train_substitute_model(self._thief_dataset)
 
         return
