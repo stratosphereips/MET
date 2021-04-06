@@ -69,7 +69,6 @@ def get_trainer(
         gpus=1 if gpu else None,
         auto_select_gpus=True if gpu else False,
         max_epochs=training_epochs,
-        min_epochs=training_epochs,
         check_val_every_n_epoch=evaluation_frequency,
         deterministic=deterministic,
         checkpoint_callback=checkpoint_cb,
