@@ -345,7 +345,7 @@ class ActiveThief(Base):
 
             val_set = CustomLabelDataset(val_set, y_val)
             if self.attack_settings.save_samples:
-                self._selected_samples["idxs"].extend(idxs_val)
+                self._selected_samples["idxs"].extend(selected_points)
                 self._selected_samples["labels"].append(y_val)
 
             val_label_counts = dict(
@@ -374,7 +374,7 @@ class ActiveThief(Base):
         y_query = self._get_predictions(self._victim_model, query_set)
         query_sets.append(CustomLabelDataset(query_set, y_query))
         if self.attack_settings.save_samples:
-            self._selected_samples["idxs"].extend(idxs_query)
+            self._selected_samples["idxs"].extend(selected_points)
             self._selected_samples["labels"].append(y_query)
 
         # Get victim model metrics on test set
@@ -441,7 +441,7 @@ class ActiveThief(Base):
             query_sets.append(CustomLabelDataset(query_set, y_query))
 
             if self.attack_settings.save_samples:
-                self._selected_samples["idxs"].extend(idxs_query)
+                self._selected_samples["idxs"].extend(selected_points)
                 self._selected_samples["labels"].append(y_query)
 
         if self.attack_settings.save_samples:
