@@ -54,9 +54,9 @@ class KnockOff(Base):
         self,
         victim_model: VictimModel,
         substitute_model: TrainableModel,
+        online_optimizer: torch.optim.Optimizer,
         sampling_strategy: str = "adaptive",
         reward_type: str = "cert",
-        online_optimizer: torch.optim.Optimizer = None,
         budget: int = 20000,
         save_samples: bool = False,
     ):
@@ -359,14 +359,14 @@ class KnockOff(Base):
             self._logger.info("Starting random sampling strategy")
             transfer_data = self._random_strategy()
         else:
-            original_state_dict = self._substitute_model.state_dict()
+            original_state_dict = self._substitute_model.model.state_dict()
             self._logger.info(
                 "Starting adaptive sampling strategy with {} reward type".format(
                     self.attack_settings.reward_type
                 )
             )
             transfer_data = self._adaptive_strategy()
-            self._substitute_model.load_state_dict(original_state_dict)
+            self._substitute_model.model.load_state_dict(original_state_dict)
 
         if self.attack_settings.save_samples:
             idxs_filepath = self.base_settings.save_loc.joinpath("selected_samples.pl")

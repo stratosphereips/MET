@@ -120,9 +120,9 @@ if __name__ == "__main__":
     ko = KnockOff(
         victim_model,
         substitute_model,
+        torch.optim.SGD(substitute_model.parameters(), lr=0.0005, momentum=0.5),
         args.sampling_strategy,
         args.reward_type,
-        torch.optim.SGD(substitute_model.parameters(), lr=0.0005, momentum=0.5),
         args.budget,
     )
 

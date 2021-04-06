@@ -26,12 +26,16 @@ class ActiveThiefSettings(AttackSettings):
     init_seed_size: int
     val_size: int
     k: int
+    deepfool_max_steps: int
+    centers_per_iteration: int
     save_samples: bool
 
     def __init__(
         self,
         iterations: int,
         selection_strategy: str,
+        centers_per_iteration: int,
+        deepfool_max_steps: int,
         budget: int,
         init_seed_size: float,
         val_size: float,
@@ -40,6 +44,8 @@ class ActiveThiefSettings(AttackSettings):
     ):
         self.iterations = iterations
         self.selection_strategy = selection_strategy.lower()
+        self.centers_per_iteration = centers_per_iteration
+        self.deepfool_max_steps = deepfool_max_steps
         self.budget = budget
         self.bounds = bounds
         self.save_samples = save_samples
@@ -67,9 +73,11 @@ class ActiveThief(Base):
         self,
         victim_model: VictimModel,
         substitute_model: TrainableModel,
-        iterations: int = 10,
         selection_strategy: str = "entropy",
+        iterations: int = 10,
         budget: int = 20000,
+        centers_per_iteration: int = 1,
+        deepfool_max_steps: int = 50,
         init_seed_size: float = 0.1,
         val_size: float = 0.2,
         bounds: Tuple[float, float] = (0, 1),
@@ -80,6 +88,8 @@ class ActiveThief(Base):
         self.attack_settings = ActiveThiefSettings(
             iterations,
             selection_strategy,
+            centers_per_iteration,
+            deepfool_max_steps,
             budget,
             init_seed_size,
             val_size,
@@ -105,13 +115,25 @@ class ActiveThief(Base):
             "--iterations",
             default=10,
             type=int,
-            help="Number of iterations of the attacks (" "Default: " "10)",
+            help="Number of iterations of the attacks (Default: 10)",
         )
         parser.add_argument(
             "--budget",
             default=20000,
             type=int,
             help="Size of the budget (Default: 20000)",
+        )
+        parser.add_argument(
+            "--centers_per_iteration",
+            default=1,
+            type=int,
+            help="Number of new centers selected in each iteration of k-center strategy (Default: 1)",
+        )
+        parser.add_argument(
+            "--deepfool_max_steps",
+            default=50,
+            type=int,
+            help="Maximum number of steps deepfool attack should take in dfal strategy (Default: 1)",
         )
         parser.add_argument(
             "--init_seed_size",
@@ -163,21 +185,18 @@ class ActiveThief(Base):
                     preds_rest_batch = preds_rest_batch.cuda()
 
                 # To save memory we are only keeping the minimal distance
-                # for each y from initial centers
+                # for each y from centers
                 batch_dists = torch.cdist(preds_rest_batch, init_centers, p=2)
                 batch_dists_min_vals, _ = torch.min(batch_dists, dim=-1)
                 min_dists.append(batch_dists_min_vals)
 
         min_dists = torch.cat(min_dists)
         selected_points = []
-        # In the paper they are selecting one center in each iteration,
-        # this is however extremely slow even with optimization. We thus
-        # select 5 samples each iteration
-        for _ in tqdm(range(k // 5), desc="Selecting best points"):
-            min_dists_max_ids = torch.argsort(min_dists, dim=-1, descending=True)[:5]
+        for _ in tqdm(range(k // self.attack_settings.centers_per_iteration), desc="Selecting best points"):
+            min_dists_max_idxs = torch.argsort(min_dists, dim=-1, descending=True)[:self.attack_settings.centers_per_iteration]
 
-            selected_points.append(min_dists_max_ids)
-            new_centers = preds_sub_rest[min_dists_max_ids]
+            selected_points.append(min_dists_max_idxs)
+            new_centers = preds_sub_rest[min_dists_max_idxs]
 
             if self.base_settings.gpu:
                 new_centers = new_centers.cuda()
@@ -214,7 +233,7 @@ class ActiveThief(Base):
         fmodel = fb.PyTorchModel(
             self._substitute_model.model, bounds=self.attack_settings.bounds
         )
-        deepfool = fb.attacks.L2DeepFoolAttack(steps=30, candidates=3, overshoot=0.01)
+        deepfool = fb.attacks.L2DeepFoolAttack(steps=self.attack_settings.deepfool_max_steps, candidates=3, overshoot=0.01)
 
         scores = []
         for x, y in tqdm(loader, desc="Getting dfal scores"):
@@ -236,35 +255,31 @@ class ActiveThief(Base):
         self, data_rest: CustomLabelDataset, query_sets: ConcatDataset
     ) -> np.ndarray:
         selection_strategy = self.attack_settings.selection_strategy
-        budget = self.attack_settings.budget
-        k = self.attack_settings.k
 
         self._logger.info(
             "Selecting {} samples using the {} strategy from"
-            " the remaining thief dataset".format(k, selection_strategy)
+            " the remaining thief dataset".format(self.attack_settings.k, selection_strategy)
         )
 
         if selection_strategy == "entropy":
-            selected_points = self._entropy_strategy(k, data_rest)
+            selected_points = self._entropy_strategy(self.attack_settings.k, data_rest)
         elif selection_strategy == "random":
-            selected_points = self._random_strategy(k, data_rest)
+            selected_points = self._random_strategy(self.attack_settings.k, data_rest)
         elif selection_strategy == "k-center":
             # Get initial centers
             init_centers = self._get_predictions(self._substitute_model, query_sets)
-            # Substitute model returns logits
             init_centers = get_prob_vector(init_centers)
-            selected_points = self._kcenter_strategy(k, data_rest.targets, init_centers)
+            selected_points = self._kcenter_strategy(self.attack_settings.k, data_rest.targets, init_centers)
         elif selection_strategy == "dfal":
-            selected_points = self._deepfool_strategy(k, data_rest)
+            selected_points = self._deepfool_strategy(self.attack_settings.k, data_rest)
         elif selection_strategy == "dfal+k-center":
-            idxs_dfal_best = self._deepfool_strategy(budget, data_rest)
+            idxs_dfal_best = self._deepfool_strategy(self.attack_settings.budget, data_rest)
             preds_sub_dfal_best = data_rest.targets[idxs_dfal_best]
             # Get initial centers
             init_centers = self._get_predictions(self._substitute_model, query_sets)
-            # Substitute model returns logits
             init_centers = get_prob_vector(init_centers)
             idxs_kcenter_best = self._kcenter_strategy(
-                k, preds_sub_dfal_best, init_centers
+                self.attack_settings.k, preds_sub_dfal_best, init_centers
             )
             selected_points = idxs_dfal_best[idxs_kcenter_best]
         else:
@@ -314,23 +329,24 @@ class ActiveThief(Base):
         if self.trainer_settings.evaluation_frequency is not None:
             self._logger.info("Preparing validation dataset")
             if self._val_dataset is None:
-                idxs_val = np.random.permutation(idxs_rest)[
+                selected_points = np.random.permutation(idxs_rest)[
                     : self.attack_settings.val_size
                 ]
-                idxs_rest = np.setdiff1d(idxs_rest, idxs_val)
-                val_set = Subset(self._thief_dataset, idxs_val)
+                idxs_rest = np.setdiff1d(idxs_rest, selected_points)
+                val_set = Subset(self._thief_dataset, selected_points)
                 y_val = self._get_predictions(self._victim_model, val_set)
             else:
                 idxs_val = np.arange(len(self._val_dataset))
-                idxs_val = np.random.permutation(idxs_val)[
+                selected_points = np.random.permutation(idxs_val)[
                     : self.attack_settings.val_size
                 ]
-                val_set = Subset(self._val_dataset, idxs_val)
+                val_set = Subset(self._val_dataset, selected_points)
                 y_val = self._get_predictions(self._victim_model, val_set)
 
             val_set = CustomLabelDataset(val_set, y_val)
             if self.attack_settings.save_samples:
-                self._selected_samples["val_data"].extend(idxs_val)
+                self._selected_samples["idxs"].extend(idxs_val)
+                self._selected_samples["labels"].append(y_val)
 
             val_label_counts = dict(
                 list(enumerate([0] * self._victim_model.num_classes))
@@ -350,11 +366,11 @@ class ActiveThief(Base):
         self._logger.info("Preparing initial random query set")
         query_sets = []
 
-        idxs_query = np.random.permutation(idxs_rest)[
+        selected_points = np.random.permutation(idxs_rest)[
             : self.attack_settings.init_seed_size
         ]
-        idxs_rest = np.setdiff1d(idxs_rest, idxs_query)
-        query_set = Subset(self._thief_dataset, idxs_query)
+        idxs_rest = np.setdiff1d(idxs_rest, selected_points)
+        query_set = Subset(self._thief_dataset, selected_points)
         y_query = self._get_predictions(self._victim_model, query_set)
         query_sets.append(CustomLabelDataset(query_set, y_query))
         if self.attack_settings.save_samples:
@@ -366,14 +382,15 @@ class ActiveThief(Base):
         vict_test_acc = self._test_model(self._victim_model, self._test_set)
 
         # Save substitute model state_dict for retraining from scratch
-        sub_orig_state_dict = self._substitute_model.state_dict()
+        sub_orig_state_dict = self._substitute_model.model.state_dict()
         optim_orig_state_dict = self._substitute_model.optimizer.state_dict()
 
         for it in range(self.attack_settings.iterations + 1):
             self._logger.info("---------- Iteration: {} ----------".format(it + 1))
 
             # Reset substitute model and optimizer
-            self._substitute_model.load_state_dict(sub_orig_state_dict)
+            self._substitute_model.reset_metrics()
+            self._substitute_model.model.load_state_dict(sub_orig_state_dict)
             self._substitute_model.optimizer.load_state_dict(optim_orig_state_dict)
 
             # Step 3: The substitute model is trained with union of all the
@@ -410,15 +427,15 @@ class ActiveThief(Base):
 
             # Step 5: An active learning subset selection strategy is used
             # to select set of k samples
-            idxs_query = self._select_samples(data_rest, ConcatDataset(query_sets))
-            idxs_query = idxs_rest[np.unique(idxs_query)]
+            selected_points = self._select_samples(data_rest, ConcatDataset(query_sets))
+            idxs_query = idxs_rest[np.unique(selected_points)]
             idxs_rest = np.setdiff1d(idxs_rest, idxs_query)
             query_set = Subset(self._thief_dataset, idxs_query)
 
             # Step 2: Attacker queries current picked samples to secret
             # model for labeling
             self._logger.info(
-                "Getting predictions for the current query set " "from the victim model"
+                "Getting predictions for the current query set from the victim model"
             )
             y_query = self._get_predictions(self._victim_model, query_set)
             query_sets.append(CustomLabelDataset(query_set, y_query))

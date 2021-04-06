@@ -114,9 +114,11 @@ if __name__ == "__main__":
     af = ActiveThief(
         victim_model,
         substitute_model,
-        args.iterations,
         args.selection_strategy,
+        args.iterations,
         args.budget,
+        args.centers_per_iteration,
+        args.deepfool_max_steps,
     )
 
     # Baset settings
