@@ -24,17 +24,17 @@ class KnockOffSettings(AttackSettings):
     budget: int
     init_seed_size: int
     val_size: int
-    k: int
+    samples_per_iteration: int
     save_samples: bool
 
     def __init__(
-        self, sampling_strategy: str, reward_type: str, budget: int, save_samples: bool
+        self, sampling_strategy: str, reward_type: str, budget: int, samples_per_iteration: int, save_samples: bool
     ):
         self.sampling_strategy = sampling_strategy.lower()
         self.reward_type = reward_type.lower()
         self.budget = budget
-        self.k = 4
-        self.iterations = self.budget // self.k
+        self.samples_per_iteration = samples_per_iteration
+        self.iterations = self.budget // self.samples_per_iteration
         self.save_samples = save_samples
 
         # Check configuration
@@ -58,12 +58,13 @@ class KnockOff(Base):
         sampling_strategy: str = "adaptive",
         reward_type: str = "cert",
         budget: int = 20000,
+        samples_per_iteration: int = 4,
         save_samples: bool = False,
     ):
 
         super().__init__(victim_model, substitute_model)
         self.attack_settings = KnockOffSettings(
-            sampling_strategy, reward_type, budget, save_samples
+            sampling_strategy, reward_type, budget, samples_per_iteration, save_samples
         )
 
         # KnockOff's specific attributes
@@ -104,6 +105,12 @@ class KnockOff(Base):
             help="Size of the budget (Default: 20000)",
         )
         parser.add_argument(
+            "--samples_per_iteration",
+            default=4,
+            type=int,
+            help="Number of samples selected in each iteration (Default: 4).",
+        )
+        parser.add_argument(
             "--idxs",
             action="store_true",
             help="Whether to save idxs of samples selected "
@@ -135,7 +142,7 @@ class KnockOff(Base):
         if len(idx_action) == 0:
             return False
 
-        idx_sampled = np.random.permutation(idx_action)[: self.attack_settings.k]
+        idx_sampled = np.random.permutation(idx_action)[: self.attack_settings.samples_per_iteration]
 
         # Mark selected samples from possible samples for selection
         self._y[idx_sampled] = -1
