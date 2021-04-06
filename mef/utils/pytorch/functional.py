@@ -16,20 +16,23 @@ def soft_cross_entropy(
         return torch.mean(torch.sum(-targets * F.log_softmax(logits, dim=-1), dim=-1))
 
 
-def get_prob_vector(logits: torch.Tensor) -> torch.Tensor:
-    if logits.size()[-1] == 1:
-        sig_output = torch.sigmoid(logits)
+def get_prob_vector(input_: torch.Tensor) -> torch.Tensor:
+    if input_.sum() == 1:
+        return input_
+
+    if input_.size()[-1] == 1:
+        sig_output = torch.sigmoid(input_)
         return torch.stack(list(map(lambda y: torch.tensor([1 - y, y]), sig_output)))
     else:
-        return torch.softmax(logits, dim=-1)
+        return torch.softmax(input_, dim=-1)
 
 
-def get_class_labels(input: torch.Tensor) -> torch.Tensor:
+def get_class_labels(input_: torch.Tensor) -> torch.Tensor:
     # If dtype is not float the input already consists of class labels
-    if not input.is_floating_point():
-        return input
+    if not input_.is_floating_point():
+        return input_
 
-    if input.ndim == 1:
-        return torch.round(input)
+    if input_.size()[-1] == 1:
+        return torch.round(input_).int()
     else:
-        return torch.argmax(input, dim=-1)
+        return torch.argmax(input_, dim=-1).int()
