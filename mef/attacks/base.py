@@ -219,9 +219,7 @@ class Base(ABC):
                 final_model_loc.__str__()
             )
         )
-        torch.save(
-            dict(state_dict=self._substitute_model.state_dict()), final_model_loc
-        )
+        self._substitute_model.save(final_model_loc)
 
         return
 
