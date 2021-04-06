@@ -9,7 +9,7 @@ from pl_bolts.datamodules.sklearn_datamodule import TensorDataset
 from torch.utils.data import ConcatDataset, DataLoader, Dataset
 from tqdm import tqdm
 
-from mef.attacks.base import Base
+from mef.attacks.base import AttackBase
 from mef.utils.pytorch.datasets import CustomLabelDataset, NoYDataset
 from mef.utils.pytorch.functional import get_class_labels
 from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
@@ -48,7 +48,7 @@ class BlackBoxSettings(AttackSettings):
             )
 
 
-class BlackBox(Base):
+class BlackBox(AttackBase):
     def __init__(
         self,
         victim_model: VictimModel,

@@ -11,7 +11,7 @@ from torch.distributions import Categorical
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset
 from tqdm import tqdm
 
-from .base import Base
+from .base import AttackBase
 from ..utils.pytorch.datasets import CustomLabelDataset, NoYDataset
 from ..utils.pytorch.functional import get_class_labels, get_prob_vector
 from ..utils.pytorch.lighting.module import TrainableModel, VictimModel
@@ -68,7 +68,7 @@ class ActiveThiefSettings(AttackSettings):
         self.k = (self.budget - self.val_size - self.init_seed_size) // self.iterations
 
 
-class ActiveThief(Base):
+class ActiveThief(AttackBase):
     def __init__(
         self,
         victim_model: VictimModel,

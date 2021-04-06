@@ -17,7 +17,7 @@ from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
 from mef.utils.settings import BaseSettings, TrainerSettings
 
 
-class Base(ABC):
+class AttackBase(ABC):
     attack_settings = None
     base_settings = BaseSettings()
     trainer_settings = TrainerSettings()

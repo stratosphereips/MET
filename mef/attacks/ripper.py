@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, IterableDataset
 
-from mef.attacks.base import Base
+from mef.attacks.base import AttackBase
 from mef.utils.pytorch.lighting.module import Generator, TrainableModel, VictimModel
 from mef.utils.settings import AttackSettings
 
@@ -192,7 +192,7 @@ class RipperSettings(AttackSettings):
             )
 
 
-class Ripper(Base):
+class Ripper(AttackBase):
     def __init__(
         self,
         victim_model: VictimModel,

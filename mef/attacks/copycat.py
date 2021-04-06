@@ -3,12 +3,12 @@ from argparse import ArgumentParser
 from torch.utils.data import Dataset
 
 from mef.utils.pytorch.datasets import CustomLabelDataset, split_dataset
-from .base import Base
+from .base import AttackBase
 from ..utils.pytorch.functional import get_class_labels
 from ..utils.pytorch.lighting.module import TrainableModel, VictimModel
 
 
-class CopyCat(Base):
+class CopyCat(AttackBase):
     def __init__(self, victim_model: VictimModel, substitute_model: TrainableModel):
         super().__init__(victim_model, substitute_model)
 

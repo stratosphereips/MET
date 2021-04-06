@@ -12,7 +12,7 @@ from pytorch_lightning.core.decorators import auto_move_data
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset
 from tqdm import tqdm
 
-from mef.attacks.base import Base
+from mef.attacks.base import AttackBase
 from mef.utils.pytorch.datasets import CustomLabelDataset, NoYDataset
 from mef.utils.pytorch.functional import get_class_labels
 from mef.utils.pytorch.lighting.module import TrainableModel
@@ -51,7 +51,7 @@ class AtlasThiefSettings(AttackSettings):
         self.k = (self.budget - self.val_size - self.init_seed_size) // self.iterations
 
 
-class AtlasThief(Base):
+class AtlasThief(AttackBase):
     def __init__(
         self,
         victim_model,

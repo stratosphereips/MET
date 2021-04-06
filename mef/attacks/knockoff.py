@@ -10,7 +10,7 @@ import torch.nn.functional as F
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset
 from tqdm import tqdm
 
-from mef.attacks.base import Base
+from mef.attacks.base import AttackBase
 from mef.utils.pytorch.datasets import CustomLabelDataset, split_dataset
 from mef.utils.pytorch.functional import get_prob_vector, soft_cross_entropy
 from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
@@ -49,7 +49,7 @@ class KnockOffSettings(AttackSettings):
             )
 
 
-class KnockOff(Base):
+class KnockOff(AttackBase):
     def __init__(
         self,
         victim_model: VictimModel,
