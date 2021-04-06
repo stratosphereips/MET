@@ -8,4 +8,4 @@
 __pycache__/
 /experiments/data/
 /experiments/cache/
-.vscode/settings.json
+.vscode
