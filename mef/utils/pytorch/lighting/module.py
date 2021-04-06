@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Callable, List, Optional, Tuple, Union
 
 import pytorch_lightning as pl
@@ -41,6 +42,16 @@ class _MetModel(pl.LightningModule, ABC):
         self.to("cuda")
         self.model.to(self.device)
 
+    def reset_metrics(self):
+        self._val_accuracy = torchmetrics.Accuracy(compute_on_step=False)
+        self._f1_macro = torchmetrics.F1(
+            self.num_classes, average="macro", compute_on_step=False
+        )
+
+    @abstractmethod
+    def save(self, save_loc: Path):
+        pass
+
     @abstractmethod
     def _shared_step_output(self, x: torch.Tensor) -> torch.Tensor:
         pass
@@ -51,10 +62,8 @@ class _MetModel(pl.LightningModule, ABC):
         x, y = batch
 
         preds = self._shared_step_output(x)
-
-        # y is expected to be in shape of [B]
-        if y.ndim != 1:
-            y = get_class_labels(y)
+        preds = get_class_labels(preds)
+        y = get_class_labels(y)
 
         self._val_accuracy(preds, y)
         self._f1_macro(preds, y)
@@ -96,6 +105,10 @@ class TrainableModel(_MetModel):
         self._loss = loss
         self._lr_scheduler = lr_scheduler
         self._batch_accuracy = batch_accuracy
+
+    def save(self, save_loc: Path):
+        torch.save(dict(state_dict=self.model.state_dict()), save_loc)
+        return 
 
     @staticmethod
     def _output_to_list(output: torch.Tensor) -> List[torch.Tensor]:
@@ -175,6 +188,9 @@ class VictimModel(_MetModel):
                 "one_hot, raw, logits, labels, sigmoid,"
                 "softmax}"
             )
+
+    def save(self, save_loc: Path):
+        pass
 
     def _transform_output(self, output: torch.Tensor) -> torch.Tensor:
         if self.output_type == "one_hot":
