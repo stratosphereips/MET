@@ -12,7 +12,7 @@ from sklearn.preprocessing import StandardScaler
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
 from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
-from mef.attacks import ActiveThief, AtlasThief
+from mef.attacks import ActiveThief, KnockOff
 from mef.utils.ios import mkdir_if_missing
 
 NUM_CLASSES = 2
@@ -31,7 +31,7 @@ class Ember2018(nn.Module):
 
 
 class EmberSubsitute(nn.Module):
-    def __init__(self, scaler, return_hidden):
+    def __init__(self, scaler, return_hidden=False):
         super().__init__()
         self._layer1 = nn.Sequential(
             nn.Linear(in_features=2381, out_features=2400),
@@ -99,7 +99,7 @@ def prepare_ember2018_data(data_dir):
 
     X_test_path = Path(data_dir).joinpath("X_test.dat")
     y_test_path = Path(data_dir).joinpath("y_test.dat")
-    y_test = np.memmap(y_test_path, dtype=np.float32, mode="readwrite")
+    y_test = np.memmap(y_test_path, dtype=np.float32, mode="readwrite").astype(np.int32)
     N = y_test.shape[0]
     X_test = np.memmap(X_test_path, dtype=np.float32, mode="readwrite", shape=(N, 2381))
 
@@ -120,11 +120,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--ember2018_model_dir", type=str, help="Path to Ember2018 dataset"
     )
-    parser.add_argument(
-        "--atlasthief",
-        action="store_true",
-        help="Use atlasthief for the attack (Default: False)",
-    )
     args = parser.parse_args()
     mkdir_if_missing(args.save_loc)
 
@@ -134,43 +129,34 @@ if __name__ == "__main__":
     # Prepare models
     victim_model = Ember2018(args.ember2018_model_dir, args.seed)
     victim_model = VictimModel(victim_model, NUM_CLASSES, "raw")
-    substitute_model = EmberSubsitute(scaler, args.atlasthief)
+    substitute_model = EmberSubsitute(scaler)
     substitute_model = TrainableModel(
         substitute_model,
         NUM_CLASSES,
         torch.optim.Adam(substitute_model.parameters()),
         torch.nn.BCEWithLogitsLoss(),
     )
-
-    if args.gpu:
-        victim_model.cuda()
-        substitute_model.cuda()
-
-    if args.atlasthief:
-        af = AtlasThief(victim_model, substitute_model, args.iterations, args.budget)
-    else:
-        af = ActiveThief(
-            victim_model,
-            substitute_model,
-            args.iterations,
-            args.selection_strategy,
-            args.budget,
-        )
+    
+    attack = ActiveThief(
+        victim_model,
+        substitute_model,
+        args.selection_strategy,
+        args.iterations,
+        args.budget,
+    )
 
     # Baset settings
-    af.base_settings.save_loc = Path(args.save_loc)
-    af.base_settings.gpu = args.gpu
-    af.base_settings.num_workers = args.num_workers
-    af.base_settings.batch_size = args.batch_size
-    af.base_settings.seed = args.seed
-    af.base_settings.deterministic = args.deterministic
-    af.base_settings.debug = args.debug
+    attack.base_settings.save_loc = Path(args.save_loc)
+    attack.base_settings.gpu = args.gpu
+    attack.base_settings.num_workers = args.num_workers
+    attack.base_settings.batch_size = args.batch_size
+    attack.base_settings.seed = args.seed
+    attack.base_settings.deterministic = args.deterministic
+    attack.base_settings.debug = args.debug
 
     # Trainer settings
-    af.trainer_settings.training_epochs = args.training_epochs
-    af.trainer_settings.patience = args.patience
-    af.trainer_settings.evaluation_frequency = args.evaluation_frequency
-    af.trainer_settings.precision = args.precision
-    af.trainer_settings.use_accuracy = args.accuracy
+    attack.trainer_settings.training_epochs = args.training_epochs
+    attack.trainer_settings.precision = args.precision
+    attack.trainer_settings.use_accuracy = args.accuracy
 
-    af(thief_dataset, test_set)
+    attack(thief_dataset, test_set)
