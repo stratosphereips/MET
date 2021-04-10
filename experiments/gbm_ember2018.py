@@ -136,7 +136,7 @@ if __name__ == "__main__":
         torch.optim.Adam(substitute_model.parameters()),
         torch.nn.BCEWithLogitsLoss(),
     )
-    
+
     attack = ActiveThief(
         victim_model,
         substitute_model,

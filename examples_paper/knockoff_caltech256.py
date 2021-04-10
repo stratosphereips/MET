@@ -42,11 +42,15 @@ def set_up(args):
         [T.Resize(256), T.CenterCrop(224), T.ToTensor(), IMAGENET_NORMALIZATION]
     )
 
-    train_set = Caltech256(args.caltech256_dir, transform=train_transform, seed=args.seed)
+    train_set = Caltech256(
+        args.caltech256_dir, transform=train_transform, seed=args.seed
+    )
     test_set = Caltech256(
         args.caltech256_dir, train=False, transform=test_transform, seed=args.seed
     )
-    sub_dataset = ImageNet1000(args.imagenet_dir, transform=test_transform, seed=args.seed)
+    sub_dataset = ImageNet1000(
+        args.imagenet_dir, transform=test_transform, seed=args.seed
+    )
 
     vict_optimizer = torch.optim.SGD(victim_model.parameters(), lr=0.1, momentum=0.5)
     loss = F.cross_entropy

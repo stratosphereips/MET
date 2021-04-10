@@ -30,7 +30,9 @@ class GOCData:
         self.dims = (3, 32, 32)
 
         # Imagenet values
-        self.transform = T.Compose([T.Resize((32, 32)), T.ToTensor(), T.Normalize((0.5,), (0.5,))])
+        self.transform = T.Compose(
+            [T.Resize((32, 32)), T.ToTensor(), T.Normalize((0.5,), (0.5,))]
+        )
 
         self.test_set = None
         self.od_dataset = None

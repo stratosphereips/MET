@@ -107,13 +107,12 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     args.training_epochs = 10
-    args.lmbda = 64/255
+    args.lmbda = 64 / 255
 
     mkdir_if_missing(args.save_loc)
 
     victim_model, substitute_model, thief_dataset, test_set = set_up(args)
-    bb = BlackBox(victim_model, substitute_model, BOUNDS, args.iterations,
-                  args.lmbda)
+    bb = BlackBox(victim_model, substitute_model, BOUNDS, args.iterations, args.lmbda)
 
     # Baset settings
     bb.base_settings.save_loc = Path(args.save_loc)

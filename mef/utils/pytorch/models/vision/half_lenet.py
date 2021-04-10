@@ -6,16 +6,28 @@ from mef.utils.pytorch.models.vision.base import Base
 
 class HalfLeNet(Base):
     def __init__(
-        self, num_classes, return_hidden=False,
+        self,
+        num_classes,
+        return_hidden=False,
     ):
         super().__init__(num_classes)
         self._return_hidden = return_hidden
 
         self._convs = [
-            nn.Conv2d(in_channels=1, out_channels=3, kernel_size=5, stride=1,),
+            nn.Conv2d(
+                in_channels=1,
+                out_channels=3,
+                kernel_size=5,
+                stride=1,
+            ),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2),
-            nn.Conv2d(in_channels=3, out_channels=8, kernel_size=5, stride=1,),
+            nn.Conv2d(
+                in_channels=3,
+                out_channels=8,
+                kernel_size=5,
+                stride=1,
+            ),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2),
         ]

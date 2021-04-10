@@ -30,7 +30,9 @@ def set_up(args):
     victim_model = LeNet(NUM_CLASSES)
     substitute_model = HalfLeNet(NUM_CLASSES)
     generator = Sngan(
-        args.generator_checkpoint, resolution=32, transform=T.Compose([T.Grayscale()]),
+        args.generator_checkpoint,
+        resolution=32,
+        transform=T.Compose([T.Grayscale()]),
     )
 
     # Prepare data

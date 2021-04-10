@@ -11,7 +11,9 @@ from mef.utils.pytorch.models.vision.base import Base
 class SimpleNet(Base):
     """https://paperswithcode.com/paper/lets-keep-it-simple-using-simple"""
 
-    def __init__(self, dims: Tuple[int, int, int], num_classes: int, return_hidden: bool = False):
+    def __init__(
+        self, dims: Tuple[int, int, int], num_classes: int, return_hidden: bool = False
+    ):
         super().__init__(num_classes)
 
         self._return_hidden = return_hidden
