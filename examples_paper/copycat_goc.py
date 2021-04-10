@@ -155,10 +155,6 @@ def set_up(args):
         F.cross_entropy,
     )
 
-    if args.gpu:
-        victim_model.cuda()
-        substitute_model.cuda()
-
     return (
         victim_model,
         substitute_model,
