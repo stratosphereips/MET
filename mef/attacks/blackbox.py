@@ -1,19 +1,19 @@
 from argparse import ArgumentParser
 from dataclasses import dataclass
-from typing import List, Tuple
+from pathlib import Path
+from typing import List, Tuple, Union
 
 import foolbox as fb
 import numpy as np
 import torch
-from pl_bolts.datamodules.sklearn_datamodule import TensorDataset
-from torch.utils.data import ConcatDataset, DataLoader, Dataset
-from tqdm import tqdm
-
 from mef.attacks.base import AttackBase
 from mef.utils.pytorch.datasets import CustomLabelDataset, NoYDataset
 from mef.utils.pytorch.functional import get_class_labels
 from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
 from mef.utils.settings import AttackSettings
+from pl_bolts.datamodules.sklearn_datamodule import TensorDataset
+from torch.utils.data import ConcatDataset, DataLoader, Dataset
+from tqdm import tqdm
 
 
 @dataclass
@@ -57,9 +57,10 @@ class BlackBox(AttackBase):
         iterations: int = 6,
         lmbda: float = 0.1,
         adversary_strategy: str = "N FGSM",
+        *args: Union[int, bool, Path],
+        **kwargs: Union[int, bool, Path]
     ):
-
-        super().__init__(victim_model, substitute_model)
+        super().__init__(victim_model, substitute_model, *args, **kwargs)
         self.attack_settings = BlackBoxSettings(
             iterations, bounds, lmbda, adversary_strategy
         )
@@ -77,7 +78,7 @@ class BlackBox(AttackBase):
             "--lmbda",
             default=0.1,
             type=float,
-            help="Value of lambda in Jacobian augmentation (Default: 0.1)",
+            help="Value of lambda in Jacobian augmentation, it represents the epsilon value in the FGSM method. (Default: 0.1)",
         )
 
         return parser
@@ -89,29 +90,35 @@ class BlackBox(AttackBase):
             return fb.attacks.LinfBasicIterativeAttack(rel_stepsize=1, steps=1)
         elif self.attack_settings.adversary_strategy in ["N I-FGSM", "T-RND I-FGSM"]:
             return fb.attacks.LinfBasicIterativeAttack(
-                steps=11, abs_stepsize=self.attack_settings.lmbda/11
+                steps=11, abs_stepsize=self.attack_settings.lmbda / 11
             )
 
     def _create_synthetic_samples(self, query_sets: List[Dataset]) -> torch.Tensor:
         thief_dataset = ConcatDataset(query_sets)
         loader = DataLoader(
             dataset=thief_dataset,
-            pin_memory=self.base_settings.gpu,
+            pin_memory=True if self.base_settings.gpu is not None else False,
             num_workers=self.base_settings.num_workers,
             batch_size=self.base_settings.batch_size,
         )
-        model = fb.PyTorchModel(
-            self._substitute_model.model, bounds=self.attack_settings.bounds
+        device = (
+            f"cuda:{self.base_settings.gpu}"
+            if self.base_settings.gpu is not None
+            else "cpu"
         )
+        model = fb.PyTorchModel(
+            self._substitute_model.model, bounds=self.attack_settings.bounds, device=device
+        )
+
         attack = self._select_adversary_attack()
 
         x_query_set = []
         for x_thief, y_thief in tqdm(
             loader, desc="Generating synthetic samples", total=len(loader)
         ):
-            if self.base_settings.gpu:
-                x_thief = x_thief.cuda()
-                y_thief = y_thief.cuda()
+            if self.base_settings.gpu is not None:
+                x_thief = x_thief.cuda(f"cuda:{self.base_settings.gpu}")
+                y_thief = y_thief.cuda(f"cuda:{self.base_settings.gpu}")
 
             labels = get_class_labels(y_thief)
             criterion = fb.criteria.Misclassification(labels)
@@ -122,8 +129,8 @@ class BlackBox(AttackBase):
                     classes = np.delete(classes, label.cpu().item())
                     targets.append(np.random.choice(classes))
                 targets = torch.tensor(targets)
-                if self.base_settings.gpu:
-                    targets = targets.cuda()
+                if self.base_settings.gpu is not None:
+                    targets = targets.cuda(f"cuda:{self.base_settings.gpu}")
                 criterion = fb.criteria.TargetedMisclassification(targets)
 
             x_synthetic_new, _, _ = attack(

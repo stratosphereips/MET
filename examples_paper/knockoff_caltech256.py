@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from pytorch_lightning import seed_everything
 from torch.utils.data import ConcatDataset
 from torchvision.transforms import transforms as T
+import numpy as np
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
@@ -48,26 +49,27 @@ def set_up(args):
     test_set = Caltech256(
         args.caltech256_dir, train=False, transform=test_transform, seed=args.seed
     )
-    sub_dataset = ImageNet1000(
-        args.imagenet_dir, transform=test_transform, seed=args.seed
+    imagenet = ImageNet1000(args.imagenet_dir, transform=test_transform, seed=args.seed)
+    caltech_train_no_aug = Caltech256(
+        args.caltech256_dir,
+        transform=test_transform,
+        seed=args.seed,
     )
 
-    vict_optimizer = torch.optim.SGD(victim_model.parameters(), lr=0.1, momentum=0.5)
-    loss = F.cross_entropy
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(vict_optimizer, step_size=60)
-
-    victim_train_epochs = 200
+    vict_training_epochs = 200
     train_victim_model(
         victim_model,
-        vict_optimizer,
-        loss,
+        torch.optim.SGD,
+        F.cross_entropy,
         train_set,
         NUM_CLASSES,
-        victim_train_epochs,
+        vict_training_epochs,
         args.batch_size,
         args.num_workers,
+        optimizer_args={"lr": 0.1, "momentum": 0.5},
         test_set=test_set,
-        lr_scheduler=lr_scheduler,
+        lr_scheduler=torch.optim.lr_scheduler.StepLR,
+        lr_scheduler_args={"step_size": 60},
         save_loc=Path(args.save_loc).joinpath("victim"),
         gpu=args.gpu,
         deterministic=args.deterministic,
@@ -76,32 +78,35 @@ def set_up(args):
     )
     victim_model = VictimModel(victim_model, NUM_CLASSES, output_type="softmax")
 
-    sub_optimizer = torch.optim.SGD(
-        substitute_model.parameters(), lr=0.01, momentum=0.5
-    )
     substitute_model = TrainableModel(
         substitute_model,
         NUM_CLASSES,
-        sub_optimizer,
+        torch.optim.SGD,
         soft_cross_entropy,
-        torch.optim.lr_scheduler.StepLR(sub_optimizer, step_size=60),
+        torch.optim.lr_scheduler.StepLR,
+        optimizer_args={"lr": 0.01, "momentum": 0.5},
+        lr_scheduler_args={"step_size": 60},
     )
 
     # Because we are using adaptive_flat we are using the same experiment
     # setup as in the paper, where it is assumed that the attacker has access
     # to all available data
-    sub_dataset = ConcatDataset([sub_dataset, train_set, test_set])
-    sub_dataset.num_classes = 1256
-    sub_dataset.datasets[1].targets = [
-        y + 1000 for y in sub_dataset.datasets[1].targets
-    ]
-    sub_dataset.datasets[2].targets = [
-        y + 1000 for y in sub_dataset.datasets[2].targets
-    ]
-    sub_dataset.targets = []
-    sub_dataset.targets.extend(sub_dataset.datasets[0].targets)
-    sub_dataset.targets.extend(sub_dataset.datasets[1].targets)
-    sub_dataset.targets.extend(sub_dataset.datasets[2].targets)
+
+    if args.sampling_strategy != "random":
+        sub_dataset = ConcatDataset([imagenet, caltech_train_no_aug, test_set])
+        sub_dataset.num_classes = 1256
+        sub_dataset.datasets[1].targets = [
+            y + 1000 for y in sub_dataset.datasets[1].targets
+        ]
+        sub_dataset.datasets[2].targets = [
+            y + 1000 for y in sub_dataset.datasets[2].targets
+        ]
+        sub_dataset.targets = []
+        sub_dataset.targets.extend(sub_dataset.datasets[0].targets)
+        sub_dataset.targets.extend(sub_dataset.datasets[1].targets)
+        sub_dataset.targets.extend(sub_dataset.datasets[2].targets)
+    else:
+        sub_dataset = ConcatDataset([caltech_train_no_aug, test_set])
 
     return victim_model, substitute_model, sub_dataset, test_set
 

@@ -127,19 +127,17 @@ def set_up(args):
     print("Preparing data")
     goc = GOCData(args.imagenet_dir, args.cifar10_dir, args.stl10_dir)
 
-    optimizer = torch.optim.SGD(victim_model.parameters(), lr=0.1, momentum=0.5)
-    loss = F.cross_entropy
-
     victim_training_epochs = 20
     train_victim_model(
         victim_model,
-        optimizer,
-        loss,
+        torch.optim.SGD,
+        F.cross_entropy,
         goc.od_dataset,
         NUM_CLASSES,
         victim_training_epochs,
         args.batch_size,
         args.num_workers,
+        optimizer_args={"lr": 0.1, "momentum": 0.5},
         save_loc=Path(args.save_loc).joinpath("victim"),
         gpu=args.gpu,
         deterministic=args.deterministic,
@@ -151,8 +149,9 @@ def set_up(args):
     substitute_model = TrainableModel(
         substitute_model,
         NUM_CLASSES,
-        torch.optim.SGD(substitute_model.parameters(), lr=0.01, momentum=0.8),
+        torch.optim.SGD,
         F.cross_entropy,
+        optimizer_args={"lr": 0.1, "momentum": 0.5},
     )
 
     return (

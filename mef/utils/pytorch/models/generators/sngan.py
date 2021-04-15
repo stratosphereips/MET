@@ -29,9 +29,13 @@ class Sngan(nn.Module):
         self._generator.restore_checkpoint(checkpoint_file)
         self._transform = transform
 
-    def cuda(self):
-        self.to("cuda")
-        self._generator.cuda()
+    def cuda(self, device: int = None):
+        if device is not None:
+            self.to(f"cuda:{device}")
+            self._generator.cuda(device)
+        else:
+            self.to("cuda")
+            self._generator.cuda()
 
     def forward(self, z):
         x = self._generator(z)

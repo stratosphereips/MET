@@ -33,6 +33,6 @@ def get_class_labels(input_: torch.Tensor) -> torch.Tensor:
         return input_
 
     if input_.size()[-1] == 1:
-        return torch.round(input_).int()
+        return torch.round(input_).long()
     else:
-        return torch.argmax(input_, dim=-1).int()
+        return torch.argmax(input_, dim=-1).long()

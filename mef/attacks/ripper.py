@@ -1,15 +1,16 @@
 import argparse
 import warnings
 from dataclasses import dataclass
-from typing import Tuple, Iterator
+from pathlib import Path
+from typing import Iterator, Tuple, Union, Optional
 
 import numpy as np
 import torch
-from torch.utils.data import Dataset, IterableDataset
-
 from mef.attacks.base import AttackBase
 from mef.utils.pytorch.lighting.module import Generator, TrainableModel, VictimModel
 from mef.utils.settings import AttackSettings
+from torch.utils.data import Dataset, IterableDataset
+
 
 # TODO: rework these both random and optimized datasets so they don't have to use __len__
 class _GeneratorRandomDataset(IterableDataset):
@@ -45,7 +46,6 @@ class _GeneratorRandomDataset(IterableDataset):
     def __iter__(self) -> Iterator[Tuple[torch.Tensor, torch.Tensor]]:
         # Generates batch_size * batches_per_epoch labels each training epoch
         return iter(self._get_sample())
-
 
 
 class _GeneratorOptimizedDataset(IterableDataset):
@@ -204,9 +204,10 @@ class Ripper(AttackBase):
         max_iterations: int = 10,
         threshold_type: str = "loss",
         threshold_value: float = 0.02,
+        *args: Union[int, bool, Path],
+        **kwargs: Union[int, bool, Path]
     ):
-
-        super().__init__(victim_model, substitute_model)
+        super().__init__(victim_model, substitute_model, *args, **kwargs)
         self.attack_settings = RipperSettings(
             generated_data,
             batches_per_epoch,
@@ -215,9 +216,9 @@ class Ripper(AttackBase):
             threshold_type,
             threshold_value,
         )
-
         # Ripper's specific attributes
         self._generator = generator
+        self._val_set = None
 
     @classmethod
     def _get_attack_parser(cls):
@@ -286,17 +287,23 @@ class Ripper(AttackBase):
                 self.attack_settings.threshold_value,
             )
 
-    def _check_args(self, test_set: Dataset) -> None:
+    def _check_args(self, test_set: Dataset, val_set: Optional[Dataset] = None) -> None:
         if not isinstance(test_set, Dataset):
             self._logger.error("Test set must be Pytorch's dataset.")
             raise TypeError()
+
+        if val_set is not None:
+            if not isinstance(val_set, Dataset):
+                self._logger.error("Test set must be Pytorch's dataset.")
+                raise TypeError()
+            self._val_set = val_set
 
         self._test_set = test_set
 
         return
 
-    def _run(self, test_set: Dataset) -> None:
-        self._check_args(test_set)
+    def _run(self, test_set: Dataset, val_set: Optional[Dataset] = None) -> None:
+        self._check_args(test_set, val_set)
         self._logger.info("########### Starting Ripper attack ##########")
         # Get budget of the attack
         self._logger.info(
@@ -314,6 +321,6 @@ class Ripper(AttackBase):
         # Random and optimized datasets rise warnings with number of workes and __len__
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            self._train_substitute_model(self._thief_dataset)
+            self._train_substitute_model(self._thief_dataset, self._val_set)
 
         return

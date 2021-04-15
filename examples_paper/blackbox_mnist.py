@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from pytorch_lightning import seed_everything
-from torch.utils.data import Subset
+from torch.utils.data import Subset, DataLoader
 from torchvision.transforms import transforms as T
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
@@ -14,14 +14,16 @@ sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 from mef.attacks.blackbox import BlackBox
 from mef.utils.experiment import train_victim_model
 from mef.utils.ios import mkdir_if_missing
+from mef.utils.pytorch.blocks import ConvBlock, MaxPoolLayer
+from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.datasets.vision import Mnist
 from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
 from mef.utils.pytorch.models.vision import GenericCNN
 
 NUM_CLASSES = 10
-SAMPLES_PER_CLASS = 15
+SAMPLES_PER_CLASS = 10
 DIMS = (1, 28, 28)
-BOUNDS = (0, 1)
+BOUNDS = (-1, 1)
 
 
 def set_up(args):
@@ -30,29 +32,51 @@ def set_up(args):
     victim_model = GenericCNN(
         dims=DIMS,
         num_classes=NUM_CLASSES,
-        conv_out_channels=(32, 64),
-        convs_in_block=1,
-        fc_layers=(100,),
+        conv_blocks=(
+            ConvBlock(1, 32, 3, 1, 1),
+            MaxPoolLayer(2, 2),
+            ConvBlock(32, 64, 3, 1, 1),
+            MaxPoolLayer(2, 2),
+        ),
+        fc_layers=(200,),
     )
     substitute_model = GenericCNN(
         dims=DIMS,
         num_classes=NUM_CLASSES,
-        conv_out_channels=(32, 64),
-        convs_in_block=1,
-        fc_layers=(100,),
+        conv_blocks=(
+            ConvBlock(1, 32, 3, 1, 1),
+            MaxPoolLayer(2, 2),
+            ConvBlock(32, 64, 3, 1, 1),
+            MaxPoolLayer(2, 2),
+        ),
+        fc_layers=(200,),
     )
 
     # Prepare data
     print("Preparing data")
-    transform = T.Compose([T.Resize(DIMS[-1]), T.ToTensor()])
-    mnist = dict()
-    mnist["train"] = Mnist(root=args.mnist_dir, transform=transform, download=True)
-    mnist["test"] = Mnist(
+    transform = T.Compose(
+        [T.Resize(DIMS[-1]), T.ToTensor(), T.Normalize((0.5,), (0.5,))]
+    )
+    train_set = Mnist(root=args.mnist_dir, transform=transform, download=True)
+    test_set = Mnist(
         root=args.mnist_dir, train=False, transform=transform, download=True
     )
 
+    train_set, pre_attacker_set = split_dataset(train_set, 0.1)
+
     # Get from each class same number of samples
-    targets = np.array(mnist["test"].targets)
+    loader = DataLoader(
+        dataset=pre_attacker_set,
+        pin_memory=False,
+        num_workers=args.num_workers,
+        batch_size=args.batch_size,
+    )
+    targets = []
+    for _, labels in loader:
+        targets.append(labels)
+    targets = torch.cat(targets)
+
+    targets = np.array(targets)
     idx_adversary = []
     for cls in range(NUM_CLASSES):
         idx_cls = np.where(targets == cls)[0]
@@ -60,20 +84,16 @@ def set_up(args):
 
         idx_adversary.extend(idx_selected)
 
-    idx_test = np.random.permutation(len(mnist["test"]))
+    idx_test = np.random.permutation(len(pre_attacker_set))
     idx_test = np.setdiff1d(idx_test, idx_adversary)
 
-    thief_dataset = Subset(mnist["test"], idx_adversary)
-    test_set = Subset(mnist["test"], idx_test)
-
-    optimizer = torch.optim.SGD(victim_model.parameters(), lr=0.01, momentum=0.9)
-    loss = F.cross_entropy
+    thief_dataset = Subset(pre_attacker_set, idx_adversary)
 
     train_victim_model(
         victim_model,
-        optimizer,
-        loss,
-        mnist["train"],
+        torch.optim.Adam,
+        F.cross_entropy,
+        train_set,
         NUM_CLASSES,
         training_epochs=args.training_epochs,
         batch_size=args.batch_size,
@@ -90,7 +110,7 @@ def set_up(args):
     substitute_model = TrainableModel(
         substitute_model,
         NUM_CLASSES,
-        torch.optim.SGD(substitute_model.parameters(), lr=0.01, momentum=0.9),
+        torch.optim.Adam,
         F.cross_entropy,
     )
 
@@ -106,7 +126,8 @@ if __name__ == "__main__":
         help="Path to MNIST dataset (Default: ./data/)",
     )
     args = parser.parse_args()
-    args.training_epochs = 10
+    args.training_epochs = 100
+    args.iterations = 10
     args.lmbda = 64 / 255
 
     mkdir_if_missing(args.save_loc)

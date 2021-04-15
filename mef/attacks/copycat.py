@@ -1,16 +1,24 @@
 from argparse import ArgumentParser
+from pathlib import Path
+from typing import Union
 
 from torch.utils.data import Dataset
 
-from mef.utils.pytorch.datasets import CustomLabelDataset, split_dataset
-from .base import AttackBase
+from ..utils.pytorch.datasets import CustomLabelDataset, split_dataset
 from ..utils.pytorch.functional import get_class_labels
 from ..utils.pytorch.lighting.module import TrainableModel, VictimModel
+from .base import AttackBase
 
 
 class CopyCat(AttackBase):
-    def __init__(self, victim_model: VictimModel, substitute_model: TrainableModel):
-        super().__init__(victim_model, substitute_model)
+    def __init__(
+        self,
+        victim_model: VictimModel,
+        substitute_model: TrainableModel,
+        *args: Union[int, bool, Path],
+        **kwargs: Union[int, bool, Path]
+    ):
+        super().__init__(victim_model, substitute_model, *args, **kwargs)
 
     @classmethod
     def _get_attack_parser(cls) -> ArgumentParser:

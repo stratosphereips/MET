@@ -17,10 +17,19 @@ class GenericCNN(Base):
             ConvBlock(3, 32, 3, 1, 1),
             ConvBlock(32, 32, 3, 1, 1),
             MaxPoolLayer(2, 2),
+            ConvBlock(32, 32, 3, 1, 1),
+            ConvBlock(32, 32, 3, 1, 1),
+            MaxPoolLayer(2, 2),
             ConvBlock(32, 64, 3, 1, 1),
             ConvBlock(64, 64, 3, 1, 1),
             MaxPoolLayer(2, 2),
+            ConvBlock(64, 64, 3, 1, 1),
+            ConvBlock(64, 64, 3, 1, 1),
+            MaxPoolLayer(2, 2),
             ConvBlock(64, 128, 3, 1, 1),
+            ConvBlock(128, 128, 3, 1, 1),
+            MaxPoolLayer(2, 2),
+            ConvBlock(128, 128, 3, 1, 1),
             ConvBlock(128, 128, 3, 1, 1),
             MaxPoolLayer(2, 2),
         ),
@@ -72,7 +81,6 @@ class GenericCNN(Base):
                             layer.kernel_size,
                             layer.stride,
                             layer.padding,
-
                         ),
                         nn.BatchNorm2d(layer.out_channels),
                         nn.ReLU(inplace=True),
@@ -81,7 +89,7 @@ class GenericCNN(Base):
             else:
                 convs.extend(
                     [
-                        nn.MaxPool2d(layer.kernel_size, layer.stride),
+                        nn.MaxPool2d(layer.kernel_size, layer.stride, ceil_mode=True),
                         nn.Dropout2d(p=self._dropout_keep_prob),
                     ]
                 )

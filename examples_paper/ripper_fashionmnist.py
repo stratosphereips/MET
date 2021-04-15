@@ -45,17 +45,14 @@ def set_up(args):
         root=args.fashion_mnist_dir, train=False, transform=transform, download=True
     )
 
-    optimizer = torch.optim.Adam(victim_model.parameters())
-    loss = F.cross_entropy
-
-    victim_training_epochs = 200
+    vict_training_epochs = 200
     train_victim_model(
         victim_model,
-        optimizer,
-        loss,
+        torch.optim.Adam,
+        F.cross_entropy,
         train_set,
         NUM_CLASSES,
-        victim_training_epochs,
+        vict_training_epochs,
         args.batch_size,
         args.num_workers,
         test_set=test_set,
@@ -72,7 +69,7 @@ def set_up(args):
     substitute_model = TrainableModel(
         substitute_model,
         NUM_CLASSES,
-        torch.optim.Adam(substitute_model.parameters()),
+        torch.optim.Adam,
         soft_cross_entropy,
         batch_accuracy=True,
     )
@@ -95,6 +92,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     args.training_epochs = 200
+    args.batch_size = 64
 
     mkdir_if_missing(args.save_loc)
 
@@ -126,4 +124,4 @@ if __name__ == "__main__":
     rp.trainer_settings.precision = args.precision
     rp.trainer_settings.use_accuracy = args.accuracy
 
-    rp(test_set)
+    rp(test_set, test_set)

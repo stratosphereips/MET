@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union, Dict, Any
 
 import pytorch_lightning as pl
 import torch
@@ -16,10 +16,6 @@ class Generator(pl.LightningModule):
         super().__init__()
         self._generator = generator
         self.latent_dim = latent_dim
-
-    def cuda(self) -> None:
-        self.to("cuda")
-        self._generator.to(self.device)
 
     @auto_move_data
     def forward(self, z: torch.Tensor) -> torch.Tensor:
@@ -37,10 +33,6 @@ class _MetModel(pl.LightningModule, ABC):
             self.num_classes, average="macro", compute_on_step=False
         )
         self.test_labels = None
-
-    def cuda(self) -> None:
-        self.to("cuda")
-        self.model.to(self.device)
 
     def reset_metrics(self):
         self._val_accuracy = torchmetrics.Accuracy(compute_on_step=False)
@@ -79,7 +71,9 @@ class _MetModel(pl.LightningModule, ABC):
     ) -> torch.Tensor:
         return self._shared_step(batch, "val")
 
-    def test_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def test_step(
+        self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
+    ) -> torch.Tensor:
         return self._shared_step(batch, "test")
 
     def test_epoch_end(self, test_step_outputs: List[torch.Tensor]) -> None:
@@ -98,17 +92,21 @@ class TrainableModel(_MetModel):
         optimizer: torch.optim.Optimizer,
         loss: Callable,
         lr_scheduler: Optional[Callable] = None,
+        optimizer_args: Dict[str, Any] = None,
+        lr_scheduler_args: Dict[str, Any] = None,
         batch_accuracy: bool = False,
     ):
         super().__init__(model, num_classes)
-        self.optimizer = optimizer
+        self._optimizer = optimizer
+        self._optimizer_args = optimizer_args
         self._loss = loss
         self._lr_scheduler = lr_scheduler
+        self._lr_scheduler_args = lr_scheduler_args
         self._batch_accuracy = batch_accuracy
 
     def save(self, save_loc: Path):
         torch.save(dict(state_dict=self.model.state_dict()), save_loc)
-        return 
+        return
 
     @staticmethod
     def _output_to_list(output: torch.Tensor) -> List[torch.Tensor]:
@@ -160,9 +158,20 @@ class TrainableModel(_MetModel):
     ) -> Union[
         torch.optim.Optimizer, Tuple[List[torch.optim.Optimizer], List[Callable]]
     ]:
+        if self._optimizer_args is not None:
+            optimizer = self._optimizer(self.model.parameters(), **self._optimizer_args)
+        else:
+            optimizer = self._optimizer(self.model.parameters())
+
         if self._lr_scheduler is None:
-            return self.optimizer
-        return [self.optimizer], [self._lr_scheduler]
+            return optimizer
+
+        if self._lr_scheduler_args is not None:
+            lr_scheduler = self._lr_scheduler(optimizer, **self._lr_scheduler_args)
+        else:
+            lr_scheduler = self._lr_scheduler(optimizer)
+
+        return [optimizer], [lr_scheduler]
 
 
 class VictimModel(_MetModel):

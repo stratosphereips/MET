@@ -2,27 +2,45 @@ import datetime
 import time
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser
+from pathlib import Path
 from typing import Optional, Tuple, Union
 
 import numpy as np
 import torch
-from pytorch_lightning import seed_everything
-from torch.utils.data import DataLoader, Dataset, IterableDataset
-from tqdm import tqdm
-
 from mef.utils.ios import mkdir_if_missing
 from mef.utils.logger import set_up_logger
 from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
 from mef.utils.pytorch.lighting.trainer import get_trainer_with_settings
-from mef.utils.settings import BaseSettings, TrainerSettings
+from mef.utils.settings import AttackSettings, BaseSettings, TrainerSettings
+from pytorch_lightning import seed_everything
+from torch.utils.data import DataLoader, Dataset, IterableDataset
+from tqdm import tqdm
 
 
 class AttackBase(ABC):
-    attack_settings = None
-    base_settings = BaseSettings()
-    trainer_settings = TrainerSettings()
-
-    def __init__(self, victim_model: VictimModel, substitute_model: TrainableModel):
+    def __init__(
+        self,
+        victim_model: VictimModel,
+        substitute_model: TrainableModel,
+        training_epochs: int = 1000,
+        patience: int = None,
+        evaluation_frequency: int = None,
+        precision: int = 32,
+        use_accuracy: bool = False,
+        save_loc: Path = Path("./cache/"),
+        gpu: int = None,
+        num_workers: int = 1,
+        batch_size: int = 32,
+        seed: int = None,
+        deterministic: bool = False,
+        debug: bool = False,
+    ):
+        self.trainer_settings = TrainerSettings(
+            training_epochs, patience, evaluation_frequency, precision, use_accuracy
+        )
+        self.base_settings = BaseSettings(
+            save_loc, gpu, num_workers, batch_size, seed, deterministic, debug
+        )
         self._logger = None
         # Datasets
         self._test_set = None
@@ -51,7 +69,7 @@ class AttackBase(ABC):
         )
         # TODO: rework this so it supports multiple gpu and selection of gpu
         parser.add_argument(
-            "--gpu", action="store_true", help="Whether to use gpu (Default: False)"
+            "--gpu", type=int, default=None, help="Whether to use gpu (Default: None)"
         )
         parser.add_argument(
             "--num_workers",
@@ -131,7 +149,7 @@ class AttackBase(ABC):
         else:
             train_dataloader = DataLoader(
                 dataset=train_set,
-                pin_memory=self.base_settings.gpu,
+                pin_memory=True if self.base_settings.gpu is not None else False,
                 num_workers=self.base_settings.num_workers,
                 shuffle=True,
                 batch_size=self.base_settings.batch_size,
@@ -141,12 +159,12 @@ class AttackBase(ABC):
         if val_set is not None:
             val_dataloader = DataLoader(
                 dataset=val_set,
-                pin_memory=self.base_settings.gpu,
+                pin_memory=True if self.base_settings.gpu is not None else False,
                 num_workers=self.base_settings.num_workers,
                 batch_size=self.base_settings.batch_size,
             )
 
-        trainer, checkpoint_cb = get_trainer_with_settings(
+        trainer = get_trainer_with_settings(
             self.base_settings,
             self.trainer_settings,
             model_name="substitute",
@@ -156,14 +174,11 @@ class AttackBase(ABC):
 
         trainer.fit(self._substitute_model, train_dataloader, val_dataloader)
 
-        if not isinstance(checkpoint_cb, bool):
-            # Load state dict of the best model from checkpoint
-            checkpoint = torch.load(checkpoint_cb.best_model_path)
-            self._substitute_model.load_state_dict(checkpoint["state_dict"])
-
-        # For some reason the model after fit is on CPU and not GPU
-        if self.base_settings.gpu:
-            self._substitute_model.cuda()
+        if trainer.checkpoint_callback.best_model_path != "":
+            checkpoint = torch.load(trainer.checkpoint_callback.best_model_path)
+            self._substitute_model.state_dict(checkpoint["state_dict"])
+            if self.base_settings.gpu is not None:
+                self._substitute_model.cuda(self.base_settings.gpu)
 
         return
 
@@ -172,12 +187,12 @@ class AttackBase(ABC):
     ) -> float:
         test_dataloader = DataLoader(
             dataset=test_set,
-            pin_memory=self.base_settings.gpu,
+            pin_memory=True if self.base_settings.gpu is not None else False,
             num_workers=self.base_settings.num_workers,
             batch_size=self.base_settings.batch_size,
         )
 
-        trainer, _ = get_trainer_with_settings(
+        trainer = get_trainer_with_settings(
             self.base_settings, self.trainer_settings, logger=False
         )
         metrics = trainer.test(model, test_dataloader)
@@ -229,7 +244,7 @@ class AttackBase(ABC):
         model.eval()
         loader = DataLoader(
             dataset=data,
-            pin_memory=self.base_settings.gpu,
+            pin_memory=True if self.base_settings.gpu is not None else False,
             num_workers=self.base_settings.num_workers,
             batch_size=self.base_settings.batch_size,
         )
@@ -257,7 +272,7 @@ class AttackBase(ABC):
         return
 
     # TODO: rework this
-    def __call__(self, *args, **kwargs) -> None:
+    def __call__(self, *args: Dataset, **kwargs: Dataset) -> None:
         """
         Starts the attack, the expected input is either (sub_dataset,
         test_set) or (test_set), where each parameter type is either
@@ -277,12 +292,11 @@ class AttackBase(ABC):
         # In 1.7.0 still in BETA
         # torch.set_deterministic(self.base_settings.deterministic)
 
-        # TODO: add self._device attribute + parameter to mefmodel
-        if self.base_settings.gpu:
-            self._victim_model.cuda()
-            self._substitute_model.cuda()
+        if self.base_settings.gpu is not None:
+            self._victim_model.cuda(self.base_settings.gpu)
+            self._substitute_model.cuda(self.base_settings.gpu)
             if hasattr(self, "_generator"):
-                self._generator.cuda()
+                self._generator.cuda(self.base_settings.gpu)
 
         start_time = time.time()
         self._run(*args, **kwargs)

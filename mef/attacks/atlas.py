@@ -1,7 +1,8 @@
 import argparse
 import copy
 from dataclasses import dataclass
-from typing import Type
+from pathlib import Path
+from typing import Type, Union
 
 import numpy as np
 import pytorch_lightning as pl
@@ -60,9 +61,10 @@ class AtlasThief(AttackBase):
         budget=20000,
         init_seed_size=0.1,
         val_size=0.2,
+        *args: Union[int, bool, Path],
+        **kwargs: Union[int, bool, Path],
     ):
-
-        super().__init__(victim_model, substitute_model)
+        super().__init__(victim_model, substitute_model, *args, **kwargs)
         self.attack_settings = AtlasThiefSettings(
             iterations, budget, init_seed_size, val_size
         )
@@ -111,12 +113,12 @@ class AtlasThief(AttackBase):
         optimizer = torch.optim.Adam(correct_model.parameters())
         correct_model = TrainableModel(correct_model, 2, optimizer, loss)
 
-        if self.base_settings.gpu:
-            correct_model.cuda()
+        if self.base_settings.gpu is not None:
+            correct_model.cuda(self.base_settings.gpu)
 
         train_dataloader = DataLoader(
             dataset=train_set,
-            pin_memory=self.base_settings.gpu,
+            pin_memory=True if self.base_settings.gpu is not None else False,
             num_workers=self.base_settings.num_workers,
             shuffle=True,
             batch_size=self.base_settings.batch_size,

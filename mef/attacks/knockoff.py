@@ -2,19 +2,19 @@ import pickle
 from argparse import ArgumentParser
 from collections import defaultdict as dd
 from dataclasses import dataclass
-from typing import Union, Callable
+from pathlib import Path
+from typing import Callable, Union
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset
-from tqdm import tqdm
-
 from mef.attacks.base import AttackBase
 from mef.utils.pytorch.datasets import CustomLabelDataset, split_dataset
 from mef.utils.pytorch.functional import get_prob_vector, soft_cross_entropy
 from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
 from mef.utils.settings import AttackSettings
+from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset
+from tqdm import tqdm
 
 
 @dataclass
@@ -28,7 +28,12 @@ class KnockOffSettings(AttackSettings):
     save_samples: bool
 
     def __init__(
-        self, sampling_strategy: str, reward_type: str, budget: int, samples_per_iteration: int, save_samples: bool
+        self,
+        sampling_strategy: str,
+        reward_type: str,
+        budget: int,
+        samples_per_iteration: int,
+        save_samples: bool,
     ):
         self.sampling_strategy = sampling_strategy.lower()
         self.reward_type = reward_type.lower()
@@ -60,13 +65,13 @@ class KnockOff(AttackBase):
         budget: int = 20000,
         samples_per_iteration: int = 4,
         save_samples: bool = False,
+        *args: Union[int, bool, Path],
+        **kwargs: Union[int, bool, Path]
     ):
-
-        super().__init__(victim_model, substitute_model)
+        super().__init__(victim_model, substitute_model, *args, **kwargs)
         self.attack_settings = KnockOffSettings(
             sampling_strategy, reward_type, budget, samples_per_iteration, save_samples
         )
-
         # KnockOff's specific attributes
         self._online_optimizer = online_optimizer
         self._online_loss = self._substitute_model._loss
@@ -142,7 +147,9 @@ class KnockOff(AttackBase):
         if len(idx_action) == 0:
             return False
 
-        idx_sampled = np.random.permutation(idx_action)[: self.attack_settings.samples_per_iteration]
+        idx_sampled = np.random.permutation(idx_action)[
+            : self.attack_settings.samples_per_iteration
+        ]
 
         # Mark selected samples from possible samples for selection
         self._y[idx_sampled] = -1
@@ -156,15 +163,15 @@ class KnockOff(AttackBase):
         self._substitute_model.train()
         loader = DataLoader(
             dataset=data,
-            pin_memory=self.base_settings.gpu,
+            pin_memory=True if self.base_settings.gpu is not None else False,
             num_workers=self.base_settings.num_workers,
             batch_size=self.base_settings.batch_size,
         )
 
         for x, y_output in tqdm(loader, desc="Online training"):
-            if self.base_settings.gpu:
-                x = x.cuda()
-                y_output = y_output.cuda()
+            if self.base_settings.gpu is not None:
+                x = x.cuda(self.base_settings.gpu)
+                y_output = y_output.cuda(self.base_settings.gpu)
 
             self._online_optimizer.zero_grad()
 
@@ -235,7 +242,7 @@ class KnockOff(AttackBase):
         else:
             loader = DataLoader(
                 dataset=self._thief_dataset,
-                pin_memory=self.base_settings.gpu,
+                pin_memory=True if self.base_settings.gpu is not None else False,
                 num_workers=self.base_settings.num_workers,
                 batch_size=self.base_settings.batch_size,
             )
@@ -366,14 +373,14 @@ class KnockOff(AttackBase):
             self._logger.info("Starting random sampling strategy")
             transfer_data = self._random_strategy()
         else:
-            original_state_dict = self._substitute_model.model.state_dict()
+            original_state_dict = self._substitute_model.state_dict()
             self._logger.info(
                 "Starting adaptive sampling strategy with {} reward type".format(
                     self.attack_settings.reward_type
                 )
             )
             transfer_data = self._adaptive_strategy()
-            self._substitute_model.model.load_state_dict(original_state_dict)
+            self._substitute_model.load_state_dict(original_state_dict)
 
         if self.attack_settings.save_samples:
             idxs_filepath = self.base_settings.save_loc.joinpath("selected_samples.pl")

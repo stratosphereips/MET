@@ -58,13 +58,11 @@ def set_up(args):
     val_dataset = imagenet_val
 
     train_set, val_set = split_dataset(train_set, 0.2)
-    optimizer = torch.optim.Adam(victim_model.parameters())
-    loss = F.cross_entropy
 
     train_victim_model(
         victim_model,
-        optimizer,
-        loss,
+        torch.optim.Adam,
+        F.cross_entropy,
         train_set,
         NUM_CLASSES,
         args.training_epochs,
@@ -84,7 +82,7 @@ def set_up(args):
     substitute_model = TrainableModel(
         substitute_model,
         NUM_CLASSES,
-        torch.optim.Adam(substitute_model.parameters()),
+        torch.optim.Adam,
         soft_cross_entropy,
     )
 
