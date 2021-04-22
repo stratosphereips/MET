@@ -2,6 +2,7 @@ import argparse
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
+import pickle
 from typing import Iterator, Tuple, Union, Optional
 
 import numpy as np
@@ -9,7 +10,10 @@ import torch
 from mef.attacks.base import AttackBase
 from mef.utils.pytorch.lighting.module import Generator, TrainableModel, VictimModel
 from mef.utils.settings import AttackSettings
-from torch.utils.data import Dataset, IterableDataset
+from torch.utils.data import Dataset, IterableDataset, DataLoader
+from tqdm import tqdm
+
+from mef.utils.pytorch.datasets import SavedDataset
 
 
 # TODO: rework these both random and optimized datasets so they don't have to use __len__
@@ -163,6 +167,8 @@ class RipperSettings(AttackSettings):
     max_iterations: int
     threshold_type: str
     threshold_value: float
+    save_dataset: bool
+    dataset_save_loc: Path
 
     def __init__(
         self,
@@ -172,6 +178,8 @@ class RipperSettings(AttackSettings):
         max_iterations: int,
         threshold_type: str,
         threshold_value: float,
+        save_dataset: bool,
+        dataset_save_loc: str,
     ):
         self.generated_data = generated_data
         self.batches_per_epoch = batches_per_epoch
@@ -179,6 +187,8 @@ class RipperSettings(AttackSettings):
         self.max_iterations = max_iterations
         self.threshold_type = threshold_type.lower()
         self.threshold_value = threshold_value
+        self.save_dataset = save_dataset
+        self.dataset_save_loc = Path(dataset_save_loc)
 
         # Check configuration
         if self.generated_data not in ["random", "optimized"]:
@@ -204,8 +214,10 @@ class Ripper(AttackBase):
         max_iterations: int = 10,
         threshold_type: str = "loss",
         threshold_value: float = 0.02,
+        save_dataset: bool = False,
+        dataset_save_loc: str = "./cache",
         *args: Union[int, bool, Path],
-        **kwargs: Union[int, bool, Path]
+        **kwargs: Union[int, bool, Path],
     ):
         super().__init__(victim_model, substitute_model, *args, **kwargs)
         self.attack_settings = RipperSettings(
@@ -215,6 +227,8 @@ class Ripper(AttackBase):
             max_iterations,
             threshold_type,
             threshold_value,
+            save_dataset,
+            dataset_save_loc,
         )
         # Ripper's specific attributes
         self._generator = generator
@@ -247,7 +261,7 @@ class Ripper(AttackBase):
             type=int,
             help="Maximum number of iteration of the evolutionary algorithm. (Default: 10)",
         )
-        # TODO: add explanation
+        # TODO: add better explanation
         parser.add_argument(
             "--threshold_type",
             default="loss",
@@ -260,8 +274,52 @@ class Ripper(AttackBase):
             type=float,
             help="Value for threshold. (Default: 0.02)",
         )
+        parser.add_argument(
+            "--save_dataset",
+            action="store_true",
+            help="Instead of constantly creating new samples, create the samples once, save them and resuse them. The number of saved samples is batch_size * batches_per_epoch. (Default: False)",
+        )
+        parser.add_argument(
+            "--dataset_save_loc",
+            default="./cache/",
+            type=str,
+            help="Name of location, where the dataset samples should be saved. (Default: ./cache/)",
+        )
 
         return parser
+
+    def _create_dataset(self) -> Dataset:
+        labels_filepath = self.attack_settings.dataset_save_loc.joinpath("labels.pl")
+        if not self.attack_settings.dataset_save_loc.joinpath("complete").exists():
+            self.attack_settings.dataset_save_loc.mkdir(parents=True, exist_ok=True)
+            dataset_loader = DataLoader(dataset=self._thief_dataset)
+            all_labels = []
+            i = 0
+            for images, labels in tqdm(
+                dataset_loader, desc="Creating synthetic dataset"
+            ):
+                # Dataloader adds one dimension
+                images = images.squeeze(dim=0)
+                labels = labels.squeeze(dim=0)
+
+                all_labels.append(labels)
+                for image in images:
+                    # Saving as tensor since torchvision image since torchvision save image is not working nicely with normalized images
+                    torch.save(
+                        image.detach().cpu(),
+                        self.attack_settings.dataset_save_loc.joinpath(f"{i}.pt"),
+                    )
+                    i += 1
+
+            all_labels = torch.cat(all_labels).detach().cpu()
+            pickle.dump(all_labels, open(labels_filepath, "wb"))
+
+            # Create empty file as flag that the dataset is already created
+            self.attack_settings.dataset_save_loc.joinpath("complete").touch()
+
+        labels = pickle.load(open(labels_filepath, "rb"))
+
+        return SavedDataset(self.attack_settings.dataset_save_loc, labels)
 
     def _get_student_dataset(self) -> IterableDataset:
         self._generator.eval()
@@ -317,6 +375,9 @@ class Ripper(AttackBase):
         # For consistency between attacks the student dataset is called
         # thief dataset
         self._thief_dataset = self._get_student_dataset()
+
+        if self.attack_settings.save_dataset:
+            self._thief_dataset = self._create_dataset()
 
         # Random and optimized datasets rise warnings with number of workes and __len__
         with warnings.catch_warnings():
