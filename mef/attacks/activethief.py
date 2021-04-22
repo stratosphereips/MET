@@ -26,6 +26,7 @@ class ActiveThiefSettings(AttackSettings):
     budget: int
     init_seed_size: int
     val_size: int
+    k: int
     deepfool_max_steps: int
     centers_per_iteration: int
     kcenter_fast: bool
@@ -205,7 +206,9 @@ class ActiveThief(AttackBase):
                 new_centers = new_centers.cuda(self.base_settings.gpu)
 
             # Calculate distances for new center from unlabeled samples
-            new_centers_dists = torch.cdist(pred_sub_rest, new_centers, p=2).squeeze(dim=0)
+            new_centers_dists = torch.cdist(pred_sub_rest, new_centers, p=2).squeeze(
+                dim=0
+            )
             # For each unlabeled samples we keep only the minimal distance
             dist_mat = torch.minimum(dist_mat, new_centers_dists)
 
@@ -287,7 +290,9 @@ class ActiveThief(AttackBase):
             else "cpu"
         )
         fmodel = fb.PyTorchModel(
-            self._substitute_model.model, bounds=self.attack_settings.bounds, device=device
+            self._substitute_model.model,
+            bounds=self.attack_settings.bounds,
+            device=device,
         )
         deepfool = fb.attacks.L2DeepFoolAttack(
             steps=self.attack_settings.deepfool_max_steps, candidates=3, overshoot=0.01
