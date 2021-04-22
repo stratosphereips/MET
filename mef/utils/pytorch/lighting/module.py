@@ -171,7 +171,14 @@ class TrainableModel(_MetModel):
         else:
             lr_scheduler = self._lr_scheduler(optimizer)
 
-        return [optimizer], [lr_scheduler]
+        if isinstance(lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+            return {
+                "optimizer": optimizer,
+                "lr_scheduler": lr_scheduler,
+                "monitor": "val_f1",  # TODO: remove the hardcoded f1 value
+            }
+        else:
+            return {"optimizer": optimizer, "lr_scheduler": lr_scheduler}
 
 
 class VictimModel(_MetModel):
