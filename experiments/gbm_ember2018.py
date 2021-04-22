@@ -133,7 +133,7 @@ if __name__ == "__main__":
     substitute_model = TrainableModel(
         substitute_model,
         NUM_CLASSES,
-        torch.optim.Adam(substitute_model.parameters()),
+        torch.optim.Adam,
         torch.nn.BCEWithLogitsLoss(),
     )
 
