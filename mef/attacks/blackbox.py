@@ -58,7 +58,7 @@ class BlackBox(AttackBase):
         lmbda: float = 0.1,
         adversary_strategy: str = "N FGSM",
         *args: Union[int, bool, Path],
-        **kwargs: Union[int, bool, Path]
+        **kwargs: Union[int, bool, Path],
     ):
         super().__init__(victim_model, substitute_model, *args, **kwargs)
         self.attack_settings = BlackBoxSettings(
@@ -107,7 +107,9 @@ class BlackBox(AttackBase):
             else "cpu"
         )
         model = fb.PyTorchModel(
-            self._substitute_model.model, bounds=self.attack_settings.bounds, device=device
+            self._substitute_model.model,
+            bounds=self.attack_settings.bounds,
+            device=device,
         )
 
         attack = self._select_adversary_attack()
