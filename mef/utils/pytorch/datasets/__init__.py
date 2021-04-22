@@ -1,5 +1,7 @@
+from pathlib import Path
 from typing import Any, Tuple, Type
 
+from PIL import Image
 import torch
 from torch.utils.data import Dataset, random_split
 
@@ -39,3 +41,20 @@ class NoYDataset(Dataset):
 
     def __len__(self):
         return len(self.data)
+
+
+class SavedDataset(Dataset):
+    def __init__(self, save_loc: Path, targets: torch.Tensor, cuda_device: int = None):
+        self._save_loc = save_loc
+        self.targets = targets
+        self.cuda_device = cuda_device
+
+    def __getitem__(self, index):
+        image = torch.load(
+            self._save_loc.joinpath(f"{index}.pt"),
+        )
+        target = self.targets[index]
+        return image, target
+
+    def __len__(self):
+        return len(self.targets)
