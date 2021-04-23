@@ -4,7 +4,7 @@ import sys
 from argparse import ArgumentParser
 from collections import namedtuple
 from pathlib import Path
-from typing import Tuple
+from typing import Dict, Tuple, Any
 
 import numpy as np
 import torch
@@ -14,22 +14,22 @@ from torch.utils.data import Dataset, Subset
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
+from mef.attacks.base import AttackBase
 from mef.attacks import ActiveThief, BlackBox, CopyCat, KnockOff, Ripper
 from mef.utils.experiment import train_victim_model
-from mef.utils.pytorch.functional import soft_cross_entropy
 from mef.utils.pytorch.datasets import split_dataset
 from mef.utils.pytorch.datasets.vision import (
+    GTSRB,
     Caltech256,
-    ImageNet1000,
-    Indoor67,
     Cifar10,
     FashionMnist,
-    GTSRB,
+    ImageNet1000,
+    Indoor67,
 )
+from mef.utils.pytorch.functional import soft_cross_entropy
 from mef.utils.pytorch.lighting.module import Generator, TrainableModel, VictimModel
 from mef.utils.pytorch.models.generators import Sngan
-from mef.utils.pytorch.models.vision import ResNet, SimpleNet, GenericCNN
-
+from mef.utils.pytorch.models.vision import GenericCNN, ResNet, SimpleNet
 
 VICT_TRAINING_EPOCHS = 200
 SUB_TRAINING_EPOCHS = 100
@@ -46,29 +46,30 @@ TestSettings = namedtuple(
         "datasets",
         "subsitute_dataset_sizes",
         "victim_output_types",
-        "sample_dims",
         "substitute_model_archs",
         "attacks_to_run",
     ],
 )
 AttackInfo = namedtuple("AttackInfo", ["name", "type", "budget"])
 DatasetInfo = namedtuple(
-    "Dataset",
+    "DatasetInfo",
     [
         "name",
         "class_",
         "num_classes",
+        "sample_dims",
         "train_transform",
         "test_transform",
         "imagenet_transform",
     ],
 )
 
-datasets_info = {
+DATASET_INFOS = {
     "FashionMnist": DatasetInfo(
         "FashionMnist",
         FashionMnist,
         10,
+        (1, 32, 32),
         T.Compose(
             [
                 T.Pad(2),
@@ -90,6 +91,7 @@ datasets_info = {
         "Cifar10",
         Cifar10,
         10,
+        (3, 32, 32),
         T.Compose(
             [
                 T.RandomCrop(32, padding=4),
@@ -105,6 +107,7 @@ datasets_info = {
         "GTSRB",
         GTSRB,
         43,
+        (3, 32, 32),
         T.Compose(
             [
                 T.Resize((32, 32)),
@@ -117,13 +120,12 @@ datasets_info = {
     ),
 }
 
-test_settings = (
+TEST_SETTINGS = (
     TestSettings(
         "comparison_of_attacks_on_most_popular_datasets_from_paper",
         datasets=["FashionMnist", "Cifar10", "GTSRB"],
         subsitute_dataset_sizes=[120000],
         victim_output_types=["softmax"],
-        sample_dims=[(3, 32, 32)],
         substitute_model_archs=["simplenet"],
         attacks_to_run=[
             AttackInfo("blackbox", "", 20000),
@@ -258,7 +260,7 @@ ATTACKS_CONFIG = {
 }
 
 
-def getr_args():
+def get_args():
     parser = ArgumentParser(description="Model extraction attacks STL10 test")
     parser.add_argument(
         "--generator_checkpoint_cifar10",
@@ -338,9 +340,7 @@ def getr_args():
     return parser.parse_args()
 
 
-def _prepare_victim_model(
-    dataset: DatasetInfo, sample_dims: Tuple[int, int, int]
-) -> Tuple[torch.nn.Module, Dataset]:
+def _get_train_test_split(dataset_info: DatasetInfo) -> Tuple[Dataset, Dataset]:
     # train_transform = T.Compose(
     #     [
     #         T.RandomResizedCrop(sample_dims[-1]),
@@ -359,33 +359,37 @@ def _prepare_victim_model(
     #         T.CenterCrop(224),
     #     ]
 
-    # test_transform = T.Compose([*test_transform, T.ToTensor(), IMAGENET_NORMALIZATION,])
-
-    train_kwargs = {"transform": dataset.train_transform}
-    test_kwargs = {"transform": dataset.test_transform, "train": False}
-    if dataset.name == "OIModular":
+    train_kwargs = {"transform": dataset_info.train_transform}
+    test_kwargs = {"transform": dataset_info.test_transform, "train": False}
+    if dataset_info.name == "OIModular":
         train_kwargs["seed"] = SEED
         test_kwargs["seed"] = SEED
         train_kwargs["download"] = (True,)
         train_kwargs["num_classes"] = 5
         dataset_dir = args.oimodular_dir
-    elif dataset.name == "Indoor67":
+    elif dataset_info.name == "Indoor67":
         dataset_dir = args.indoor67_dir
-    elif dataset.name == "Cifar10":
+    elif dataset_info.name == "Cifar10":
         dataset_dir = args.cifar10_dir
-    elif dataset.name == "FashionMnist":
+    elif dataset_info.name == "FashionMnist":
         dataset_dir = args.fashion_mnist_dir
-        sample_dims = (1, *sample_dims[1:3])
-    elif dataset.name == "GTSRB":
+    elif dataset_info.name == "GTSRB":
         dataset_dir = args.gtsrb_dir
     else:
         train_kwargs["seed"] = SEED
         test_kwargs["seed"] = SEED
         dataset_dir = args.caltech256_dir
 
-    train_set = dataset.class_(dataset_dir, **train_kwargs)
+    train_set = dataset_info.class_(dataset_dir, **train_kwargs)
+    test_set = dataset_info.class_(dataset_dir, **test_kwargs)
+
+    return train_set, test_set
+
+
+def _prepare_victim_model(
+    dataset_info: DatasetInfo, train_set: Dataset, test_set: Dataset
+) -> torch.nn.Module:
     train_set, val_set = split_dataset(train_set, 0.2)
-    test_set = dataset.class_(dataset_dir, **test_kwargs)
 
     # TODO: make this changeable
     # Prepare victim model
@@ -394,13 +398,15 @@ def _prepare_victim_model(
     #     num_classes=dataset.num_classes,
     #     smaller_resolution=True if sample_dims[-1] == 128 else False,
     # )
-    victim_model = SimpleNet(num_classes=dataset.num_classes, dims=sample_dims)
+    victim_model = SimpleNet(
+        num_classes=dataset_info.num_classes, dims=dataset_info.sample_dims
+    )
     train_victim_model(
         victim_model,
         torch.optim.SGD,
         torch.nn.functional.cross_entropy,
         train_set,
-        dataset.num_classes,
+        dataset_info.num_classes,
         VICT_TRAINING_EPOCHS,
         BATCH_SIZE,
         args.num_workers,
@@ -412,81 +418,61 @@ def _prepare_victim_model(
         lr_scheduler=torch.optim.lr_scheduler.StepLR,
         lr_scheduler_args={"step_size": 60},
         gpu=args.gpu,
-        save_loc=save_loc.joinpath(
+        save_loc=Path(args.save_loc).joinpath(
             "Attack-tests",
-            f"dataset:{dataset.name}",
-            f"victim_model",
-            f"sample_dims:{sample_dims}",
+            f"dataset:{dataset_info.name}",
+            "victim_model",
+            f"sample_dims:{dataset_info.sample_dims}",
         ),
         debug=args.debug,
     )
 
-    return victim_model, test_set
+    return victim_model
 
 
-def _perform_attack(
-    dataset: DatasetInfo,
-    substitute_dataset_size: int,
-    victim_output_type: str,
-    sample_dims: Tuple[int, int, int],
-    substitute_model_arch: str,
-    attack: str,
-):
-    attack_save_loc = save_loc.joinpath(
-        "Attack-tests",
-        f"dataset:{dataset.name}",
-        f"substitute_dataset_size:{substitute_dataset_size}",
-        f"victim_output_type:{victim_output_type}",
-        f"sample_dims:{sample_dims}",
-        f"sub_arch:{substitute_model_arch}",
-        f"attack:{attack}",
-    )
-
-    # Check if the attack is already done
-    final_substitute_model = attack_save_loc.joinpath(
-        "substitute", "final_substitute_model-state_dict.pt"
-    )
-    if final_substitute_model.exists():
-        print(f"{final_substitute_model} exists. Skipping the attack")
-        return
-
+def _prepare_models_for_attack(dataset_info: DatasetInfo) -> Dict[str, Any]:
     # Prepare models for the attack
-    kwargs = {
+    kwargs: Dict[str, Any] = {
         "victim_model": VictimModel(
             victim_model,
-            dataset.num_classes,
+            dataset_info.num_classes,
             victim_output_type,
         )
     }
 
-    if dataset.name == "FashionMnist":
-        sample_dims = (1, *sample_dims[1:3])
-
     # Prepare substitute model
+    substitute_model: torch.nn.Module
     if "resnet" in substitute_model_arch:
         substitute_model = ResNet(
             substitute_model_arch,
-            num_classes=dataset.num_classes,
-            smaller_resolution=True if sample_dims[-1] == 128 else False,
+            num_classes=dataset_info.num_classes,
+            smaller_resolution=True if dataset_info.sample_dims[-1] == 128 else False,
         )
     elif substitute_model_arch == "genericCNN":
         substitute_model = GenericCNN(
-            dims=sample_dims, num_classes=dataset.num_classes, dropout_keep_prob=0.2
+            dims=dataset_info.sample_dims,
+            num_classes=dataset_info.num_classes,
+            dropout_keep_prob=0.2,
         )
     else:
-        substitute_model = SimpleNet(dims=sample_dims, num_classes=dataset.num_classes)
+        substitute_model = SimpleNet(
+            dims=dataset_info.sample_dims, num_classes=dataset_info.num_classes
+        )
 
     substitute_optimizer = torch.optim.Adam
     substitute_loss = soft_cross_entropy
     kwargs["substitute_model"] = TrainableModel(
         substitute_model,
-        dataset.num_classes,
+        dataset_info.num_classes,
         substitute_optimizer,
         substitute_loss,
     )
+    return kwargs
 
-    kwargs.update(ATTACKS_CONFIG[attack.name])
 
+def _add_attack_specific_kwargs(
+    attack: AttackInfo, dataset_info: DatasetInfo, kwargs: Dict[str, Any]
+) -> Dict[str, Any]:
     # Add attack specific key-name arguments
     if attack.name == "active-thief":
         kwargs["selection_strategy"] = attack.type
@@ -505,7 +491,7 @@ def _perform_attack(
             (attack.budget / SUB_TRAINING_EPOCHS) / BATCH_SIZE
         )
         transform = None
-        if dataset.name == "FashionMnist":
+        if dataset_info.name == "FashionMnist":
             transform = T.Compose([T.Grayscale()])
 
         generator = Sngan(
@@ -515,7 +501,91 @@ def _perform_attack(
         )
         kwargs["generator"] = Generator(generator, latent_dim=128)
 
-    attack_instance = ATTACKS_DICT[attack.name](**kwargs)
+    return kwargs
+
+
+def _prepare_adversary_dataset(
+    attack: AttackInfo, attack_instance: AttackBase, dataset_info: DatasetInfo
+) -> Dict[str, Any]:
+    # Prepare substitute dataset
+    # if sample_dims[-1] == 128:
+    #     test_transform = [T.Resize((128, 128))]
+    # else:
+    #     test_transform = [
+    #         T.Resize(256),
+    #         T.CenterCrop(224),
+    #     ]
+
+    # imagenet_transform = T.Compose(
+    #     [*test_transform, T.ToTensor(), IMAGENET_NORMALIZATION,]
+    # )
+    substitute_data = ImageNet1000(
+        root=args.imagenet_dir,
+        transform=dataset_info.imagenet_transform,
+        size=substitute_dataset_size,
+        seed=SEED,
+    )
+
+    if substitute_dataset_size == "all":
+        pass
+
+    if attack.name != "blackbox-ripper":
+        datasets = {"sub_data": substitute_data}
+
+        if attack.budget != len(datasets["sub_data"]):
+            if attack.name == "copycat":
+                idxs_all = np.arange(len(datasets["sub_data"]))
+                idxs_sub = np.random.permutation(idxs_all)[: attack.budget]
+                datasets["sub_data"] = Subset(datasets["sub_data"], idxs_sub)
+            elif attack.name == "blackbox":
+                # We need to calculate initial seed size
+                seed_size = math.floor(
+                    attack.budget / ((2 ** attack_instance.attack_settings.iterations))
+                )
+                idxs_all = np.arange(len(datasets["sub_data"]))
+                if substitute_dataset_size == "all":
+                    pass
+                else:
+                    idxs_sub = np.random.permutation(idxs_all)[:seed_size]
+                    datasets["sub_data"] = Subset(datasets["sub_data"], idxs_sub)
+    else:
+        datasets = {}
+
+    return datasets
+
+
+def _perform_attack(
+    dataset_info: DatasetInfo,
+    substitute_dataset_size: int,
+    victim_output_type: str,
+    substitute_model_arch: str,
+    attack_info: AttackInfo,
+):
+    save_loc = Path(args.save_loc)
+    attack_save_loc = save_loc.joinpath(
+        "Attack-tests",
+        f"dataset:{dataset_info.name}",
+        f"substitute_dataset_size:{substitute_dataset_size}",
+        f"victim_output_type:{victim_output_type}",
+        f"sample_dims:{dataset_info.sample_dims}",
+        f"sub_arch:{substitute_model_arch}",
+        f"attack:{attack_info}",
+    )
+
+    # Check if the attack is already done
+    final_substitute_model = attack_save_loc.joinpath(
+        "substitute", "final_substitute_model-state_dict.pt"
+    )
+    if final_substitute_model.exists():
+        print(f"{final_substitute_model} exists. Skipping the attack")
+        return
+
+    # Prepare attack arguments
+    models = _prepare_models_for_attack(dataset_info)
+    kwargs = {**models, **ATTACKS_CONFIG[attack_info.name]}
+    kwargs = _add_attack_specific_kwargs(attack_info, dataset_info, kwargs)
+
+    attack_instance = ATTACKS_DICT[attack_info.name](**kwargs)
 
     # Base settings
     attack_instance.base_settings.save_loc = attack_save_loc
@@ -531,83 +601,34 @@ def _perform_attack(
     attack_instance.trainer_settings.precision = args.precision
     attack_instance.trainer_settings.use_accuracy = False
 
-    # # Prepare substitute dataset
-    # if sample_dims[-1] == 128:
-    #     test_transform = [T.Resize((128, 128))]
-    # else:
-    #     test_transform = [
-    #         T.Resize(256),
-    #         T.CenterCrop(224),
-    #     ]
+    datasets = _prepare_adversary_dataset(attack_info, attack_instance, dataset_info)
+    datasets["test_set"] = test_set
 
-    # imagenet_transform = T.Compose(
-    #     [*test_transform, T.ToTensor(), IMAGENET_NORMALIZATION,]
-    # )
-    substitute_data = ImageNet1000(
-        root=args.imagenet_dir,
-        transform=dataset.imagenet_transform,
-        size=substitute_dataset_size,
-        seed=SEED,
-    )
-
-    if substitute_dataset_size == "all":
-        pass
-
-    if attack.name != "blackbox-ripper":
-        run_kwargs = {
-            "sub_data": substitute_data,
-            "test_set": test_set,
-        }
-
-        if attack.budget != len(run_kwargs["sub_data"]):
-            if attack.name == "copycat":
-                idxs_all = np.arange(len(run_kwargs["sub_data"]))
-                idxs_sub = np.random.permutation(idxs_all)[: attack.budget]
-                run_kwargs["sub_data"] = Subset(run_kwargs["sub_data"], idxs_sub)
-            elif attack.name == "blackbox":
-                # We need to calculate initial seed size
-                seed_size = math.floor(
-                    attack.budget / ((2 ** attack_instance.attack_settings.iterations))
-                )
-                idxs_all = np.arange(len(run_kwargs["sub_data"]))
-                if substitute_dataset_size == "all":
-                    pass
-                else:
-                    idxs_sub = np.random.permutation(idxs_all)[:seed_size]
-                    run_kwargs["sub_data"] = Subset(run_kwargs["sub_data"], idxs_sub)
-    else:
-        run_kwargs = {"test_set": test_set}
-
-    attack_instance(**run_kwargs)
+    attack_instance(**datasets)
 
     return
 
 
 if __name__ == "__main__":
-    args = getr_args()
+    args = get_args()
 
-    save_loc = Path(args.save_loc)
-
-    for test_setting in test_settings:
+    for test_setting in TEST_SETTINGS:
         print(f"Test:{test_setting.name}")
         for dataset_name in test_setting.datasets:
-            dataset = datasets_info[dataset_name]
-            for sample_dims in test_setting.sample_dims:
-                seed_everything(SEED)
-                victim_model, test_set = _prepare_victim_model(dataset, sample_dims)
-                for victim_output_type in test_setting.victim_output_types:
-                    for attack in test_setting.attacks_to_run:
+            dataset_info = DATASET_INFOS[dataset_name]
+            seed_everything(SEED)
+            train_set, test_set = _get_train_test_split(dataset_info)
+            victim_model = _prepare_victim_model(dataset_info, train_set, test_set)
+            for victim_output_type in test_setting.victim_output_types:
+                for attack_info in test_setting.attacks_to_run:
+                    for substitute_dataset_size in test_setting.subsitute_dataset_sizes:
                         for (
-                            substitute_dataset_size
-                        ) in test_setting.subsitute_dataset_sizes:
-                            for (
-                                substitute_model_arch
-                            ) in test_setting.substitute_model_archs:
-                                _perform_attack(
-                                    dataset,
-                                    substitute_dataset_size,
-                                    victim_output_type,
-                                    sample_dims,
-                                    substitute_model_arch,
-                                    attack,
-                                )
+                            substitute_model_arch
+                        ) in test_setting.substitute_model_archs:
+                            _perform_attack(
+                                dataset_info,
+                                substitute_dataset_size,
+                                victim_output_type,
+                                substitute_model_arch,
+                                attack_info,
+                            )
