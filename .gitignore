@@ -8,4 +8,6 @@
 __pycache__/
 /experiments/data/
 /experiments/cache/
+/experiments/extra/
+.mypy_cache/
 .vscode
