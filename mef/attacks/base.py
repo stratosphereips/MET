@@ -18,6 +18,8 @@ from tqdm import tqdm
 
 
 class AttackBase(ABC):
+    attack_settings: AttackSettings
+
     def __init__(
         self,
         victim_model: VictimModel,
