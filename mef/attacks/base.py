@@ -2,6 +2,7 @@ import datetime
 import time
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser
+from logging import Logger
 from pathlib import Path
 from typing import Optional, Tuple, Union
 
@@ -43,10 +44,10 @@ class AttackBase(ABC):
         self.base_settings = BaseSettings(
             save_loc, gpu, num_workers, batch_size, seed, deterministic, debug
         )
-        self._logger = None
+        self._logger: Logger
         # Datasets
-        self._test_set = None
-        self._thief_dataset = None
+        self._test_set: Dataset
+        self._thief_dataset: Dataset
 
         # Models
         self._victim_model = victim_model
@@ -284,7 +285,7 @@ class AttackBase(ABC):
         :return: None
         """
         self._logger = set_up_logger(
-            f"Mef",
+            "Mef",
             "debug" if self.base_settings.debug else "info",
             self.base_settings.save_loc,
         )
