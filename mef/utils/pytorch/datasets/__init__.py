@@ -1,12 +1,10 @@
 from pathlib import Path
-from typing import Any, Tuple, Type
 
-from PIL import Image
 import torch
 from torch.utils.data import Dataset, random_split
 
 
-def split_dataset(dataset: Type[Dataset], split_size: float):
+def split_dataset(dataset: Dataset, split_size: float):
     split_set_size = int(len(dataset) * split_size)
     rest_set_size = len(dataset) - split_set_size
 
@@ -18,7 +16,7 @@ class CustomLabelDataset(Dataset):
     Dataset that uses existing dataset with custom labels
     """
 
-    def __init__(self, dataset: Type[Dataset], targets: torch.Tensor):
+    def __init__(self, dataset: Dataset, targets: torch.Tensor):
         self.dataset = dataset
         self.targets = targets
         super().__init__()
