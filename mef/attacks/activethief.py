@@ -62,10 +62,11 @@ class ActiveThiefSettings(AttackSettings):
             "k-center",
             "dfal",
             "dfal+k-center",
+            "entropy+k-center",
         ]:
             raise ValueError(
                 "ActiveThief's selection strategy must be one of {"
-                "random, entropy, k-center, dfal, dfal+k-center}"
+                "random, entropy, k-center, dfal, dfal+k-center, entropy+k-center}"
             )
 
         self.init_seed_size = int(self.budget * init_seed_size)
@@ -114,10 +115,7 @@ class ActiveThief(AttackBase):
             "--selection_strategy",
             default="entropy",
             type=str,
-            help="Activethief selection strategy can "
-            "be one of {random, entropy, k-center, "
-            "dfal, dfal+k-center} (Default: "
-            "entropy)",
+            help="Activethief selection strategy can be one of {random, entropy, k-center, dfal, dfal+k-center, entropy+k-center} (Default: entropy)",
         )
         parser.add_argument(
             "--iterations",
@@ -152,21 +150,18 @@ class ActiveThief(AttackBase):
             "--init_seed_size",
             default=0.1,
             type=float,
-            help="Fraction of budget that should be used for "
-            "initial random query (Default: 0.1)",
+            help="Fraction of budget that should be used for initial random query (Default: 0.1)",
         )
         parser.add_argument(
             "--val_size",
             default=0.2,
             type=float,
-            help="Fraction of budget that should be used for "
-            "validation set (Default: 0.2)",
+            help="Fraction of budget that should be used for validation set (Default: 0.2)",
         )
         parser.add_argument(
             "--idxs",
             action="store_true",
-            help="Whether to save idxs of samples selected "
-            "during the attacks. (Default: False)",
+            help="Whether to save idxs of samples selected during the attacks. (Default: False)",
         )
 
         return parser
@@ -342,11 +337,16 @@ class ActiveThief(AttackBase):
             )
         elif selection_strategy == "dfal":
             selected_points = self._deepfool_strategy(self.attack_settings.k, data_rest)
-        elif selection_strategy == "dfal+k-center":
-            idxs_dfal_best = self._deepfool_strategy(
-                self.attack_settings.budget, data_rest
-            )
-            preds_sub_dfal_best = data_rest.targets[idxs_dfal_best]
+        else:  # dfal+k-center or entropy+k-center
+            if "dfal" in selection_strategy:
+                idxs_div_best = self._deepfool_strategy(
+                    self.attack_settings.budget, data_rest
+                )
+            else:
+                idxs_div_best = self._entropy_strategy(
+                    self.attack_settings.budget, data_rest
+                )
+            preds_sub_div_best = data_rest.targets[idxs_div_best]
             # Get initial centers
             init_centers = self._get_predictions(self._substitute_model, query_sets)
             init_centers = get_prob_vector(init_centers)
@@ -357,15 +357,9 @@ class ActiveThief(AttackBase):
                 k_center = self._kcenter_strategy
 
             idxs_kcenter_best = k_center(
-                self.attack_settings.k, preds_sub_dfal_best, init_centers
+                self.attack_settings.k, preds_sub_div_best, init_centers
             )
-            selected_points = idxs_dfal_best[idxs_kcenter_best]
-        else:
-            self._logger.warning(
-                "Selection strategy must be one of {entropy, "
-                "random, k-center, dfal, dfal+k-center}"
-            )
-            raise ValueError
+            selected_points = idxs_div_best[idxs_kcenter_best]
 
         return selected_points
 
@@ -390,17 +384,7 @@ class ActiveThief(AttackBase):
 
         return
 
-    def _run(
-        self, sub_data: Dataset, test_set: Dataset, val_data: Optional[Dataset] = None
-    ) -> None:
-        self._check_args(sub_data, test_set, val_data)
-        self._logger.info("########### Starting ActiveThief attack ###########")
-        # Get budget of the attack
-        self._logger.info(f"ActiveThief's attack budget: {self.attack_settings.budget}")
-
-        idxs_rest = np.arange(len(self._thief_dataset))
-
-        # Prepare validation set
+    def _prepare_val_set(self, idxs_rest: np.ndarray) -> Tuple[np.ndarray, CustomLabelDataset]:
         val_set = None
         if self.trainer_settings.evaluation_frequency is not None:
             self._logger.info("Preparing validation dataset")
@@ -437,6 +421,19 @@ class ActiveThief(AttackBase):
             self._logger.info(
                 f"Validation dataset labels distribution: {val_label_counts}"
             )
+
+        return idxs_rest, val_set
+
+    def _run(
+        self, sub_data: Dataset, test_set: Dataset, val_data: Optional[Dataset] = None
+    ) -> None:
+        self._check_args(sub_data, test_set, val_data)
+        self._logger.info("########### Starting ActiveThief attack ###########")
+        # Get budget of the attack
+        self._logger.info(f"ActiveThief's attack budget: {self.attack_settings.budget}")
+
+        idxs_rest = np.arange(len(self._thief_dataset))
+        idxs_rest, val_set = self._prepare_val_set(idxs_rest)
 
         # Step 1: attacker picks random subset of initial seed samples
         self._logger.info("Preparing initial random query set")
