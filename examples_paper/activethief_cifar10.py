@@ -68,7 +68,7 @@ def set_up(args):
         args.training_epochs,
         args.batch_size,
         args.num_workers,
-        val_set,
+        val_set=val_set,
         test_set=test_set,
         patience=args.patience,
         save_loc=Path(args.save_loc).joinpath("victim"),
