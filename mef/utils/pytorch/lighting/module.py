@@ -1,11 +1,12 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple, Union, Dict, Any
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
+import numpy as np
 import pytorch_lightning as pl
 import torch
-import torchmetrics
 import torch.nn.functional as F
+import torchmetrics
 from pytorch_lightning.core.decorators import auto_move_data
 
 from mef.utils.pytorch.functional import get_class_labels
@@ -103,6 +104,7 @@ class TrainableModel(_MetModel):
         self._lr_scheduler = lr_scheduler
         self._lr_scheduler_args = lr_scheduler_args
         self._batch_accuracy = batch_accuracy
+        self.save_hyperparameters()
 
     def save(self, save_loc: Path):
         torch.save(dict(state_dict=self.model.state_dict()), save_loc)
@@ -187,6 +189,7 @@ class VictimModel(_MetModel):
         model: torch.nn.Module,
         num_classes: int,
         output_type: str,
+        decimals: int = 3,
     ):
         super().__init__(model, num_classes)
 
@@ -198,12 +201,12 @@ class VictimModel(_MetModel):
             "labels",
             "sigmoid",
             "softmax",
+            "round",
         ]:
             raise ValueError(
-                "VictimModel output type must be one of {"
-                "one_hot, raw, logits, labels, sigmoid,"
-                "softmax}"
+                "VictimModel output type must be one of {one_hot, raw, logits, labels, sigmoid, softmax, round}"
             )
+        self._decimals = decimals
 
     def save(self, save_loc: Path):
         pass
@@ -219,6 +222,12 @@ class VictimModel(_MetModel):
             y_hats = torch.sigmoid(output)
         elif self.output_type == "softmax":
             y_hats = torch.softmax(output, dim=-1)
+        elif self.output_type == "round":
+            # TODO: find better solution so it is not neccesary to move between devices
+            output = torch.softmax(output, dim=-1)
+            y_hats = np.around(output.detach().cpu(), decimals=self._decimals).to(
+                output.device
+            )
         elif self.output_type == "labels":
             y_hats = get_class_labels(output)
         else:
