@@ -178,8 +178,11 @@ class AttackBase(ABC):
         trainer.fit(self._substitute_model, train_dataloader, val_dataloader)
 
         if trainer.checkpoint_callback.best_model_path != "":
+            self._logger.info("Loading best training checkpoint of substitute model!")
+            self._substitute_model.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
+            # TODO: workout the reason why the load_from_checkpoint is not loading the correct instance of the model
             checkpoint = torch.load(trainer.checkpoint_callback.best_model_path)
-            self._substitute_model.state_dict(checkpoint["state_dict"])
+            self._substitute_model.model = checkpoint["hyper_parameters"]["model"]
             if self.base_settings.gpu is not None:
                 self._substitute_model.cuda(self.base_settings.gpu)
 
