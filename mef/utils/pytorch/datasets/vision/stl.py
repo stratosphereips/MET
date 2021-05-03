@@ -23,3 +23,4 @@ class Stl10(STL10):
             target_transform,
             download,
         )
+        self.targets = self.labels
