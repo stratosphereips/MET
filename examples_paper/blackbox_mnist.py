@@ -84,8 +84,8 @@ def set_up(args):
 
         idx_adversary.extend(idx_selected)
 
-    idx_test = np.random.permutation(len(pre_attacker_set))
-    idx_test = np.setdiff1d(idx_test, idx_adversary)
+    idx_pre_attacker = np.random.permutation(len(pre_attacker_set))
+    idx_pre_attacker = np.setdiff1d(idx_pre_attacker, idx_adversary)
 
     thief_dataset = Subset(pre_attacker_set, idx_adversary)
 
