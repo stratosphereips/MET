@@ -371,6 +371,11 @@ class Ripper(AttackBase):
                 * self.attack_settings.batches_per_epoch
             )
         )
+        if self.attack_settings.save_dataset:
+            # Since we are generating samples once we have to change batches per epoch so we get equal number of samples
+            self.attack_settings.batches_per_epoch = (
+                self.attack_settings.batches_per_epoch * self.trainer_settings.training_epochs
+            )
 
         # For consistency between attacks the student dataset is called
         # thief dataset
