@@ -15,7 +15,7 @@ def _prepare_callbacks(
     iteration: int,
     debug: bool,
     accuracy: bool,
-) -> List[Union[EarlyStopping, ModelCheckpoint]]:
+) -> Union[List[Union[EarlyStopping, ModelCheckpoint]], None]:
     callbacks = None
     checkpoint_cb = False
     if validation and not debug:
@@ -70,6 +70,7 @@ def get_trainer(
     # Prepare trainer
     trainer = Trainer(
         default_root_dir=save_loc.__str__(),
+        checkpoint_callback=True if callbacks is not None else False,
         gpus=str(gpu),
         max_epochs=training_epochs,
         check_val_every_n_epoch=evaluation_frequency,

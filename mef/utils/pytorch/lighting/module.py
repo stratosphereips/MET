@@ -34,6 +34,7 @@ class _MetModel(pl.LightningModule, ABC):
             self.num_classes, average="macro", compute_on_step=False
         )
         self.test_labels = None
+        self.save_hyperparameters("model", "num_classes")
 
     def reset_metrics(self):
         self._val_accuracy = torchmetrics.Accuracy(compute_on_step=False)
@@ -104,7 +105,14 @@ class TrainableModel(_MetModel):
         self._lr_scheduler = lr_scheduler
         self._lr_scheduler_args = lr_scheduler_args
         self._batch_accuracy = batch_accuracy
-        self.save_hyperparameters()
+        self.save_hyperparameters(
+            "optimizer",
+            "loss",
+            "lr_scheduler",
+            "optimizer_args",
+            "lr_scheduler_args",
+            "batch_accuracy",
+        )
 
     def save(self, save_loc: Path):
         torch.save(dict(state_dict=self.model.state_dict()), save_loc)
