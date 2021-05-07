@@ -34,10 +34,8 @@ from mef.utils.pytorch.models.vision import GenericCNN, ResNet, SimpleNet
 
 VICT_TRAINING_EPOCHS = 200
 SUB_TRAINING_EPOCHS = 100
-BATCH_SIZE = 64
+BATCH_SIZE = 150
 SEEDS = [200916, 211096]
-# BOUNDS = (-2.1179, 2.64)  # for foolbox attacks
-# IMAGENET_NORMALIZATION = T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 BOUNDS = (-1, 1)
 
 TestSettings = namedtuple(
