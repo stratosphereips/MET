@@ -3,14 +3,14 @@ from argparse import ArgumentParser
 from collections import defaultdict as dd
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Union
+from typing import Union, Optional
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 from mef.attacks.base import AttackBase
 from mef.utils.pytorch.datasets import CustomLabelDataset, split_dataset
-from mef.utils.pytorch.functional import get_prob_vector, soft_cross_entropy
+from mef.utils.pytorch.functional import get_prob_vector
 from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
 from mef.utils.settings import AttackSettings
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset
@@ -68,6 +68,30 @@ class KnockOff(AttackBase):
         *args: Union[int, bool, Path],
         **kwargs: Union[int, bool, Path]
     ):
+        """Implementation of KnockOff-Nets attack based on .
+
+        Args:
+            victim_model (VictimModel): Victim model, which is the target of the attack, wrapped inside the VictimModel class.
+            substitute_model (TrainableModel): Substitue model, which the attack will train.
+            online_optimizer (torch.optim.Optimizer): Optimizer that should be used during the online training.
+            sampling_strategy (str, optional): Sampling strategy that should be used. Can be one of {random, adaptive}. Defaults to "adaptive".
+            reward_type (str, optional): Type of reward that should be used with adaptive strategy. Must be one of {cert, div, loss, all}. Defaults to "cert".
+            budget (int, optional): Attack's budget of the attack, representing number of queries that should be sent to the victim model. Defaults to 20000.
+            samples_per_iteration (int, optional): Number of samples that should be selected each iteration during adaptive sampling. Defaults to 4.
+            save_samples (bool, optional): Save the indexes of selected samples together with predictions as dictionary of lists. Defaults to False.
+            training_epochs (int, optional): Number of training epochs for which the substitute model should be trained. Defaults to 1000.
+            patience (int, optional): Patience for the early stopping during training of substiute model. If specified early stopping will be used. Defaults to None.
+            evaluation_frequency (int, optional): Evalution frequency if validation set is available during training of a substitute model. Some attacks will automatically create validation set from adversary dataset if the user did not specify it himself. Defaults to None.
+            precision (int, optional): Number precision that should be used. Currently only used in the pytorch-lighting trainer. Defaults to 32.
+            use_accuracy (bool, optional): Whether to use accuracy during validation for checkpointing or F1-score, which is used by default. Defaults to False.
+            save_loc (Path, optional): Location where log and other files created during the attack should be saved. Defaults to Path("./cache/").
+            gpu (int, optional): Id of the gpu that should be used for the training. Defaults to None.
+            num_workers (int, optional): Number of workers that should be used for data loaders. Defaults to 1.
+            batch_size (int, optional): Batch size that should be used throughout the attack. Defaults to 32.
+            seed (int, optional): Seed that should be used to initialize random generators, to help with reproducibility of results. Defaults to None.
+            deterministic (bool, optional): Whether training should tried to be deterministic. Defaults to False.
+            debug (bool, optional): Adds additional details to the log file and also performs all testing, training with only one batch. Defaults to False.
+        """
         super().__init__(victim_model, substitute_model, *args, **kwargs)
         self.attack_settings = KnockOffSettings(
             sampling_strategy, reward_type, budget, samples_per_iteration, save_samples
@@ -85,8 +109,10 @@ class KnockOff(AttackBase):
         self._reward_var = None
 
     @classmethod
-    def _get_attack_parser(cls) -> ArgumentParser:
-        parser = ArgumentParser(description="KnockOff attack")
+    def _get_attack_parser(
+        cls, parser: Optional[ArgumentParser] = None
+    ) -> ArgumentParser:
+        parser = ArgumentParser(description="KnockOff attack") if parser is None else parser
         parser.add_argument(
             "--sampling_strategy",
             default="adaptive",

@@ -26,18 +26,36 @@ class AttackBase(ABC):
         victim_model: VictimModel,
         substitute_model: TrainableModel,
         training_epochs: int = 1000,
-        patience: int = None,
-        evaluation_frequency: int = None,
+        patience: Optional[int] = None,
+        evaluation_frequency: Optional[int] = None,
         precision: int = 32,
         use_accuracy: bool = False,
         save_loc: Path = Path("./cache/"),
-        gpu: int = None,
+        gpu: Optional[int] = None,
         num_workers: int = 1,
         batch_size: int = 32,
-        seed: int = None,
+        seed: Optional[int] = None,
         deterministic: bool = False,
         debug: bool = False,
     ):
+        """Base class for all of the model extraction attacks. Contains settings for all the individual parts of the tool. And also helper methods for the attacks.
+
+        Args:
+            victim_model (VictimModel): Victim model, which is the target of the attack, wrapped inside the VictimModel class.
+            substitute_model (TrainableModel): Substitue model, which the attack will train.
+            training_epochs (int, optional): Number of training epochs for which the substitute model should be trained. Defaults to 1000.
+            patience (int, optional): Patience for the early stopping during training of substiute model. If specified early stopping will be used. Defaults to None.
+            evaluation_frequency (int, optional): Evalution frequency if validation set is available during training of a substitute model. Some attacks will automatically create validation set from adversary dataset if the user did not specify it himself. Defaults to None.
+            precision (int, optional): Number precision that should be used. Currently only used in the pytorch-lighting trainer. Defaults to 32.
+            use_accuracy (bool, optional): Whether to use accuracy during validation for checkpointing or F1-score, which is used by default. Defaults to False.
+            save_loc (Path, optional): Location where log and other files created during the attack should be saved. Defaults to Path("./cache/").
+            gpu (int, optional): Id of the gpu that should be used for the training. Defaults to None.
+            num_workers (int, optional): Number of workers that should be used for data loaders. Defaults to 1.
+            batch_size (int, optional): Batch size that should be used throughout the attack. Defaults to 32.
+            seed (int, optional): Seed that should be used to initialize random generators, to help with reproducibility of results. Defaults to None.
+            deterministic (bool, optional): Whether training should tried to be deterministic. Defaults to False.
+            debug (bool, optional): Adds additional details to the log file and also performs all testing, training with only one batch. Defaults to False.
+        """
         self.trainer_settings = TrainerSettings(
             training_epochs, patience, evaluation_frequency, precision, use_accuracy
         )
@@ -72,7 +90,10 @@ class AttackBase(ABC):
         )
         # TODO: rework this so it supports multiple gpu and selection of gpu
         parser.add_argument(
-            "--gpu", type=int, default=None, help="Whether to use gpu (Default: None)"
+            "--gpu",
+            type=int,
+            default=None,
+            help="Whether to use gpu. If you want to use gpu write ID of the gpu that should be used. (Default: None)",
         )
         parser.add_argument(
             "--num_workers",
@@ -92,15 +113,12 @@ class AttackBase(ABC):
             "--precision",
             default=32,
             type=int,
-            help="Precision of caluclation in bits must be "
-            "one of {16, 32} (Default: 32)",
+            help="Precision of caluclation in bits must be one of {16, 32} (Default: 32)",
         )
         parser.add_argument(
             "--accuracy",
             action="store_true",
-            help="If accuracy should be used as metric for "
-            "early stopping. If False F1-macro is used "
-            "instead. (Default: False)",
+            help="If accuracy should be used as metric for early stopping. If False F1-macro is used instead. (Default: False)",
         )
         return
 
@@ -129,12 +147,22 @@ class AttackBase(ABC):
 
     @classmethod
     @abstractmethod
-    def _get_attack_parser(cls) -> ArgumentParser:
+    def _get_attack_parser(
+        cls, parser: Optional[ArgumentParser] = None
+    ) -> ArgumentParser:
         pass
 
     @classmethod
-    def get_attack_args(cls) -> ArgumentParser:
-        parser = cls._get_attack_parser()
+    def get_attack_args(cls, parser: Optional[ArgumentParser] = None) -> ArgumentParser:
+        """Creates ArgumentParser with the attack's and tool's parameters. If existing parser is passed to this method, the parameters will be added to it.
+
+        Args:
+            parser (Optional[ArgumentParser], optional): Existing parser to which the parameters should be added. Defaults to None.
+
+        Returns:
+            ArgumentParser: Parser containing the parameters of the attack and tool.
+        """
+        parser = cls._get_attack_parserparser
         cls._add_base_args(parser)
         cls._add_trainer_args(parser)
 
@@ -179,7 +207,9 @@ class AttackBase(ABC):
 
         if trainer.checkpoint_callback is not None:
             self._logger.info("Loading best training checkpoint of substitute model!")
-            self._substitute_model.load_from_checkpoint(trainer.checkpoint_callback.best_model_path)
+            self._substitute_model.load_from_checkpoint(
+                trainer.checkpoint_callback.best_model_path
+            )
             # TODO: workout the reason why the load_from_checkpoint is not loading the correct instance of the model
             checkpoint = torch.load(trainer.checkpoint_callback.best_model_path)
             self._substitute_model.model = checkpoint["hyper_parameters"]["model"]
@@ -246,7 +276,7 @@ class AttackBase(ABC):
 
     def _get_predictions(
         self, model: Union[TrainableModel, VictimModel], data: Dataset
-    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+    ) -> torch.Tensor:
         model.eval()
         loader = DataLoader(
             dataset=data,
@@ -254,21 +284,33 @@ class AttackBase(ABC):
             num_workers=self.base_settings.num_workers,
             batch_size=self.base_settings.batch_size,
         )
-        hidden_layer_outputs = []
+
         y_hats = []
         with torch.no_grad():
             for x, _ in tqdm(loader, desc="Getting predictions"):
                 output = model(x)
                 y_hats.append(output[0].detach().cpu())
-                if len(output) == 2:
-                    hidden_layer_outputs.append(output[1].detach().cpu())
 
-        y_hats = torch.cat(y_hats)
+        return torch.cat(y_hats)
 
-        if len(hidden_layer_outputs) != 0:
-            return y_hats, torch.cat(hidden_layer_outputs)
+    def _get_embeddings(
+        self, model: Union[TrainableModel, VictimModel], data: Dataset
+    ) -> torch.Tensor:
+        model.eval()
+        loader = DataLoader(
+            dataset=data,
+            pin_memory=True if self.base_settings.gpu is not None else False,
+            num_workers=self.base_settings.num_workers,
+            batch_size=self.base_settings.batch_size,
+        )
 
-        return y_hats
+        embeddings = []
+        with torch.no_grad():
+            for x, _ in tqdm(loader, desc="Getting predictions"):
+                output = model(x)
+                embeddings.append(output[1].detach().cpu())
+
+        return torch.cat(embeddings)
 
     def _finalize_attack(self) -> None:
         self._logger.info("########### Final attack metrics ###########")

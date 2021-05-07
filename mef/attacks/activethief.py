@@ -14,7 +14,6 @@ from tqdm import tqdm
 from ..utils.pytorch.datasets import CustomLabelDataset, NoYDataset
 from ..utils.pytorch.functional import get_class_labels, get_prob_vector
 from ..utils.pytorch.lighting.module import TrainableModel, VictimModel
-from ..utils.pytorch.lighting.trainer import get_trainer_with_settings
 from ..utils.settings import AttackSettings
 from .base import AttackBase
 
@@ -27,9 +26,9 @@ class ActiveThiefSettings(AttackSettings):
     init_seed_size: int
     val_size: int
     k: int
-    deepfool_max_steps: int
     centers_per_iteration: int
     kcenter_fast: bool
+    deepfool_max_steps: int
     bounds: Tuple[float, float]
     save_samples: bool
 
@@ -40,9 +39,9 @@ class ActiveThiefSettings(AttackSettings):
         budget: int,
         init_seed_size: float,
         val_size: float,
-        deepfool_max_steps: int,
         centers_per_iteration: int,
         kcenter_fast: bool,
+        deepfool_max_steps: int,
         bounds: Tuple[float, float],
         save_samples: bool,
     ):
@@ -65,8 +64,7 @@ class ActiveThiefSettings(AttackSettings):
             "entropy+k-center",
         ]:
             raise ValueError(
-                "ActiveThief's selection strategy must be one of {"
-                "random, entropy, k-center, dfal, dfal+k-center, entropy+k-center}"
+                "ActiveThief's selection strategy must be one of {random, entropy, k-center, dfal, dfal+k-center, entropy+k-center}"
             )
 
         self.init_seed_size = int(self.budget * init_seed_size)
@@ -82,16 +80,42 @@ class ActiveThief(AttackBase):
         selection_strategy: str = "entropy",
         iterations: int = 10,
         budget: int = 20000,
+        init_seed_size: float = 0.1,
+        val_size: float = 0.2,
         centers_per_iteration: int = 1,
         kcenter_fast: bool = False,
         deepfool_max_steps: int = 50,
-        init_seed_size: float = 0.1,
-        val_size: float = 0.2,
         bounds: Tuple[float, float] = (0, 1),
         save_samples: bool = False,
         *args: Union[int, bool, Path],
         **kwargs: Union[int, bool, Path],
     ):
+        """Implementation of ActiveThief attack proposed in .
+
+        Args:
+            victim_model (VictimModel): Victim model, which is the target of the attack, wrapped inside the VictimModel class.
+            substitute_model (TrainableModel): Substitue model, which the attack will train.
+            selection_strategy (str, optional): ActiveThief's selection strategy must be one of {random, entropy, k-center, dfal, dfal+k-center, entropy+k-center}. Defaults to "entropy".
+            iterations (int, optional): For how many iterations should the attack run for. Defaults to 10.
+            budget (int, optional): Attack's budget of the attack, representing number of queries that should be sent to the victim model. Defaults to 20000.
+            centers_per_iteration (int, optional): Number of new centers that should be selected in each iteration during k-center. Defaults to 1.
+            kcenter_fast (bool, optional): Whether to use vectorized version of the k-center strategy. This version should be used with smaller adversary datasets. Defaults to False.
+            deepfool_max_steps (int, optional): How many steps maximum should the Deepfool attack perform for each sample during dfal selection strategy. Defaults to 50.
+            bounds (Tuple[float, float], optional): Bounds for Deepfool attack represented as tuple (min, max). Defaults to (0, 1).
+            save_samples (bool, optional): Save the indexes of selected samples together with predictions as dictionary of lists. Defaults to False.
+            training_epochs (int, optional): Number of training epochs for which the substitute model should be trained. Defaults to 1000.
+            patience (int, optional): Patience for the early stopping during training of substiute model. If specified early stopping will be used. Defaults to None.
+            evaluation_frequency (int, optional): Evalution frequency if validation set is available during training of a substitute model. Some attacks will automatically create validation set from adversary dataset if the user did not specify it himself. Defaults to None.
+            precision (int, optional): Number precision that should be used. Currently only used in the pytorch-lighting trainer. Defaults to 32.
+            use_accuracy (bool, optional): Whether to use accuracy during validation for checkpointing or F1-score, which is used by default. Defaults to False.
+            save_loc (Path, optional): Location where log and other files created during the attack should be saved. Defaults to Path("./cache/").
+            gpu (int, optional): Id of the gpu that should be used for the training. Defaults to None.
+            num_workers (int, optional): Number of workers that should be used for data loaders. Defaults to 1.
+            batch_size (int, optional): Batch size that should be used throughout the attack. Defaults to 32.
+            seed (int, optional): Seed that should be used to initialize random generators, to help with reproducibility of results. Defaults to None.
+            deterministic (bool, optional): Whether training should tried to be deterministic. Defaults to False.
+            debug (bool, optional): Adds additional details to the log file and also performs all testing, training with only one batch. Defaults to False.
+        """
         super().__init__(victim_model, substitute_model, *args, **kwargs)
         self.attack_settings = ActiveThiefSettings(
             iterations,
@@ -99,9 +123,9 @@ class ActiveThief(AttackBase):
             budget,
             init_seed_size,
             val_size,
-            deepfool_max_steps,
             centers_per_iteration,
             kcenter_fast,
+            deepfool_max_steps,
             bounds,
             save_samples,
         )
@@ -109,8 +133,8 @@ class ActiveThief(AttackBase):
         self._selected_samples = dd(list)
 
     @classmethod
-    def _get_attack_parser(cls) -> ArgumentParser:
-        parser = ArgumentParser(description="ActiveThief attack")
+    def _get_attack_parser(cls, parser:Optional[ArgumentParser]=None) -> ArgumentParser:
+        parser = ArgumentParser(description="ActiveThief attack") if parser is None else parser
         parser.add_argument(
             "--selection_strategy",
             default="entropy",
@@ -384,7 +408,9 @@ class ActiveThief(AttackBase):
 
         return
 
-    def _prepare_val_set(self, idxs_rest: np.ndarray) -> Tuple[np.ndarray, CustomLabelDataset]:
+    def _prepare_val_set(
+        self, idxs_rest: np.ndarray
+    ) -> Tuple[np.ndarray, CustomLabelDataset]:
         val_set = None
         if self.trainer_settings.evaluation_frequency is not None:
             self._logger.info("Preparing validation dataset")

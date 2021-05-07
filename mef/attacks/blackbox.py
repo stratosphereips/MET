@@ -1,7 +1,7 @@
 from argparse import ArgumentParser
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Optional
 
 import foolbox as fb
 import numpy as np
@@ -21,31 +21,30 @@ class BlackBoxSettings(AttackSettings):
     iterations: int
     bounds: Tuple[float, float]
     lmbda: float
-    adversary_strategy: str
+    _adversary_strategy: str
 
     def __init__(
         self,
         iterations: int,
         bounds: Tuple[float, float],
         lmbda: float,
-        adversary_strategy: str,
+        # adversary_strategy: str,
     ):
         self.iterations = iterations
         self.bounds = bounds
         self.lmbda = lmbda
-        self.adversary_strategy = adversary_strategy
+        self._adversary_strategy = "N FGSM"
 
-        # Check configuration
-        if self.adversary_strategy not in [
-            "N FGSM",
-            "T-RND FGSM",
-            "N I-FGSM",
-            "T-RND I-FGSM",
-        ]:
-            raise ValueError(
-                "BlackBox's adversary strategy must be one of {"
-                "N FGSM, T-RND FGSM, N I-FGSM, T-RND I-FGSM}"
-            )
+        # # Check configuration
+        # if self.adversary_strategy not in [
+        #     "N FGSM",
+        #     "T-RND FGSM",
+        #     "N I-FGSM",
+        #     "T-RND I-FGSM",
+        # ]:
+        #     raise ValueError(
+        #         "BlackBox's adversary strategy must be one of {N FGSM, T-RND FGSM, N I-FGSM, T-RND I-FGSM}"
+        #     )
 
 
 class BlackBox(AttackBase):
@@ -56,18 +55,41 @@ class BlackBox(AttackBase):
         bounds: Tuple[float, float] = (0, 1),
         iterations: int = 6,
         lmbda: float = 0.1,
-        adversary_strategy: str = "N FGSM",
+        # adversary_strategy: str = "N FGSM",
         *args: Union[int, bool, Path],
         **kwargs: Union[int, bool, Path],
     ):
+        """Implementation of BlackBox attack from .
+
+        Args:
+            victim_model (VictimModel): Victim model, which is the target of the attack, wrapped inside the VictimModel class.
+            substitute_model (TrainableModel): Substitue model, which the attack will train.
+            bounds (Tuple[float, float], optional): Bounds for Deepfool attack represented as tuple (min, max). Defaults to (0, 1).
+            iterations (int, optional): For how many iterations should the attack run. Defaults to 6.
+            lmbda (float, optional): Lambda that should be used in the Jacobian augmentation. Defaults to 0.1.
+            training_epochs (int, optional): Number of training epochs for which the substitute model should be trained. Defaults to 1000.
+            patience (int, optional): Patience for the early stopping during training of substiute model. If specified early stopping will be used. Defaults to None.
+            evaluation_frequency (int, optional): Evalution frequency if validation set is available during training of a substitute model. Some attacks will automatically create validation set from adversary dataset if the user did not specify it himself. Defaults to None.
+            precision (int, optional): Number precision that should be used. Currently only used in the pytorch-lighting trainer. Defaults to 32.
+            use_accuracy (bool, optional): Whether to use accuracy during validation for checkpointing or F1-score, which is used by default. Defaults to False.
+            save_loc (Path, optional): Location where log and other files created during the attack should be saved. Defaults to Path("./cache/").
+            gpu (int, optional): Id of the gpu that should be used for the training. Defaults to None.
+            num_workers (int, optional): Number of workers that should be used for data loaders. Defaults to 1.
+            batch_size (int, optional): Batch size that should be used throughout the attack. Defaults to 32.
+            seed (int, optional): Seed that should be used to initialize random generators, to help with reproducibility of results. Defaults to None.
+            deterministic (bool, optional): Whether training should tried to be deterministic. Defaults to False.
+            debug (bool, optional): Adds additional details to the log file and also performs all testing, training with only one batch. Defaults to False.
+        """
         super().__init__(victim_model, substitute_model, *args, **kwargs)
-        self.attack_settings = BlackBoxSettings(
-            iterations, bounds, lmbda, adversary_strategy
-        )
+        self.attack_settings = BlackBoxSettings(iterations, bounds, lmbda)
 
     @classmethod
-    def _get_attack_parser(cls) -> ArgumentParser:
-        parser = ArgumentParser(description="BlackBox attack")
+    def _get_attack_parser(
+        cls, parser: Optional[ArgumentParser] = None
+    ) -> ArgumentParser:
+        parser = (
+            ArgumentParser(description="BlackBox attack") if parser is None else parser
+        )
         parser.add_argument(
             "--iterations",
             default=6,
@@ -84,11 +106,11 @@ class BlackBox(AttackBase):
         return parser
 
     def _select_adversary_attack(self) -> fb.attacks.Attack:
-        if self.attack_settings.adversary_strategy == "N FGSM":
+        if self.attack_settings._adversary_strategy == "N FGSM":
             return fb.attacks.FGSM()
-        elif self.attack_settings.adversary_strategy == "T-RND FGSM":
+        elif self.attack_settings._adversary_strategy == "T-RND FGSM":
             return fb.attacks.LinfBasicIterativeAttack(rel_stepsize=1, steps=1)
-        elif self.attack_settings.adversary_strategy in ["N I-FGSM", "T-RND I-FGSM"]:
+        elif self.attack_settings._adversary_strategy in ["N I-FGSM", "T-RND I-FGSM"]:
             return fb.attacks.LinfBasicIterativeAttack(
                 steps=11, abs_stepsize=self.attack_settings.lmbda / 11
             )
@@ -124,7 +146,7 @@ class BlackBox(AttackBase):
 
             labels = get_class_labels(y_thief)
             criterion = fb.criteria.Misclassification(labels)
-            if "T-RND" in self.attack_settings.adversary_strategy:
+            if "T-RND" in self.attack_settings._adversary_strategy:
                 targets = []
                 for label in labels:
                     classes = np.arange(self._victim_model.num_classes, dtype=np.int64)
