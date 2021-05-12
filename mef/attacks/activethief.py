@@ -241,7 +241,8 @@ class ActiveThief(AttackBase):
                 .transpose(0, 1)
             )
             # For each unlabeled samples we keep only the minimal distance
-            dist_mat = torch.minimum(dist_mat, new_centers_dists)[0]
+            for new_center_dists in new_centers_dists:
+                dist_mat = torch.minimum(dist_mat, new_center_dists)
 
         return torch.cat(selected_points).detach().cpu().numpy()
 
