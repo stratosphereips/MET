@@ -133,8 +133,14 @@ class ActiveThief(AttackBase):
         self._selected_samples = dd(list)
 
     @classmethod
-    def _get_attack_parser(cls, parser:Optional[ArgumentParser]=None) -> ArgumentParser:
-        parser = ArgumentParser(description="ActiveThief attack") if parser is None else parser
+    def _get_attack_parser(
+        cls, parser: Optional[ArgumentParser] = None
+    ) -> ArgumentParser:
+        parser = (
+            ArgumentParser(description="ActiveThief attack")
+            if parser is None
+            else parser
+        )
         parser.add_argument(
             "--selection_strategy",
             default="entropy",
@@ -211,13 +217,17 @@ class ActiveThief(AttackBase):
 
         # For each unlabeled sample we want to keep only minimal distance
         dist_mat, _ = dist_mat.min(dim=-1)
-        dist_mat = dist_mat.reshape(-1, 1)
 
         selected_points = []
-        for _ in tqdm(range(k), desc="Selecting best points"):
+        for _ in tqdm(
+            range(k // self.attack_settings.centers_per_iteration),
+            desc="Selecting best points",
+        ):
             # Get index for maximum minimal distance from current center
             # and make it new center
-            min_max_idxs = dist_mat.argsort(dim=0, descending=True)[:1]
+            min_max_idxs = dist_mat.argsort(descending=True)[
+                : self.attack_settings.centers_per_iteration
+            ]
             selected_points.append(min_max_idxs)
             new_centers = preds_sub_rest[min_max_idxs]
 
@@ -225,13 +235,15 @@ class ActiveThief(AttackBase):
                 new_centers = new_centers.cuda(self.base_settings.gpu)
 
             # Calculate distances for new center from unlabeled samples
-            new_centers_dists = torch.cdist(pred_sub_rest, new_centers, p=2).squeeze(
-                dim=0
+            new_centers_dists = (
+                torch.cdist(pred_sub_rest, new_centers, p=2)
+                .squeeze(dim=0)
+                .transpose(0, 1)
             )
             # For each unlabeled samples we keep only the minimal distance
-            dist_mat = torch.minimum(dist_mat, new_centers_dists)
+            dist_mat = torch.minimum(dist_mat, new_centers_dists)[0]
 
-        return torch.stack(selected_points, dim=0).detach().cpu().numpy()
+        return torch.cat(selected_points).detach().cpu().numpy()
 
     def _kcenter_strategy(
         self, k: int, preds_sub_rest: torch.Tensor, init_centers: torch.Tensor
@@ -292,7 +304,7 @@ class ActiveThief(AttackBase):
                 # For each y we update minimal distance
                 min_dists, _ = torch.min(min_dists, dim=-1)
 
-        return torch.stack(selected_points).detach().cpu().numpy()
+        return torch.cat(selected_points).detach().cpu().numpy()
 
     def _deepfool_strategy(self, k: int, data_rest: CustomLabelDataset) -> np.ndarray:
         self._substitute_model.eval()
@@ -384,6 +396,13 @@ class ActiveThief(AttackBase):
                 self.attack_settings.k, preds_sub_div_best, init_centers
             )
             selected_points = idxs_div_best[idxs_kcenter_best]
+
+        selected_points = np.unique(selected_points)
+        if len(selected_points) != self.attack_settings.k:
+            self._logger.error(
+                f"Big problem! The number of selected points {len(selected_points)}, while it should be {self.attack_settings.k}."
+            )
+            raise ValueError()
 
         return selected_points
 
