@@ -63,6 +63,7 @@ class _GeneratorOptimizedDataset(IterableDataset):
         max_iterations: int,
         threshold_type: str,
         threshold_value: float,
+        find_additional: bool,
     ):
         self._generator = generator
         self._victim_model = victim_model
@@ -75,17 +76,22 @@ class _GeneratorOptimizedDataset(IterableDataset):
         self._threshold_type = threshold_type
         self._threshold_value = threshold_value
 
+        self._find_additional = find_additional
+
     @staticmethod
     def _loss(y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         return (y_hat - y).pow(2).sum()
 
     def _optimization_condition(self, c: float, it: int) -> bool:
-        if self._threshold_type == "loss":
-            # Loss threshold
-            return c >= self._threshold_value and it < self._max_iterations
+        if it < self._max_iterations:
+            if self._threshold_type == "loss":
+                # Loss threshold
+                return c >= self._threshold_value
+            else:
+                # Confidence threshold
+                return c < self._threshold_value
         else:
-            # Confidence threshold
-            return c < self._threshold_value and it < self._max_iterations
+            return False
 
     def __len__(self) -> int:
         return self._batches_per_epoch
@@ -118,8 +124,8 @@ class _GeneratorOptimizedDataset(IterableDataset):
                 losses = torch.stack([self._loss(y_hat, y) for y_hat in y_hats])
                 sorted_losses, sorted_idx = torch.sort(losses)
                 # Select min
-                image = images[sorted_idx[0]]
-                label = y_hats[sorted_idx[0]]
+                image_best = images[sorted_idx[0]]
+                label_best = y_hats[sorted_idx[0]]
 
                 # select k (elite size) fittest specimens
                 specimens = specimens[sorted_idx[:10]]
@@ -139,11 +145,25 @@ class _GeneratorOptimizedDataset(IterableDataset):
                 c = (
                     sorted_losses[0]
                     if self._threshold_type == "loss"
-                    else label[target_label]
+                    else label_best[target_label]
                 )
 
-            batch.append(image)
-            labels.append(label)
+            batch.append(image_best)
+            labels.append(label_best)
+
+            if self._find_additional:
+                # Check rest of the generated images in the last batch to see whether there is additional image which complies with selection condition.
+                if it < self._max_iterations:
+                    for idx in range(1, self._population_size):
+                        specimen_idx = sorted_idx[idx]
+                        specimen_c = (
+                            sorted_losses[idx]
+                            if self._threshold_type == "loss"
+                            else y_hats[specimen_idx][target_label]
+                        )
+                        if not self._optimization_condition(specimen_c, it):
+                            batch.append(images[specimen_idx])
+                            labels.append(y_hats[specimen_idx])
 
         return torch.stack(batch), torch.stack(labels)
 
@@ -153,7 +173,7 @@ class _GeneratorOptimizedDataset(IterableDataset):
             yield images, labels
 
     def __iter__(self) -> Iterator[Tuple[torch.Tensor, torch.Tensor]]:
-        # Generates batch_size * 100 labels each training epoch
+        # Generates batch_size * batches_per_epoch labels each training epoch
         return iter(self._get_sample())
 
 
@@ -167,6 +187,7 @@ class RipperSettings(AttackSettings):
     max_iterations: int
     threshold_type: str
     threshold_value: float
+    find_additional: bool
     save_dataset: bool
     dataset_save_loc: Path
 
@@ -178,6 +199,7 @@ class RipperSettings(AttackSettings):
         max_iterations: int,
         threshold_type: str,
         threshold_value: float,
+        find_addtional: bool,
         save_dataset: bool,
         dataset_save_loc: str,
     ):
@@ -187,6 +209,7 @@ class RipperSettings(AttackSettings):
         self.max_iterations = max_iterations
         self.threshold_type = threshold_type.lower()
         self.threshold_value = threshold_value
+        self.find_additional = find_addtional
         self.save_dataset = save_dataset
         self.dataset_save_loc = Path(dataset_save_loc)
 
@@ -214,6 +237,7 @@ class Ripper(AttackBase):
         max_iterations: int = 10,
         threshold_type: str = "loss",
         threshold_value: float = 0.02,
+        find_additional: bool = False,
         save_dataset: bool = False,
         dataset_save_loc: str = "./cache",
         *args: Union[int, bool, Path],
@@ -227,6 +251,7 @@ class Ripper(AttackBase):
             max_iterations,
             threshold_type,
             threshold_value,
+            find_additional,
             save_dataset,
             dataset_save_loc,
         )
@@ -266,13 +291,18 @@ class Ripper(AttackBase):
             "--threshold_type",
             default="loss",
             type=str,
-            help="Type of threhold for the evolutionary algorithm. Can be one of {loss, confidence} (Default: loss)",
+            help="Type of threhold for the evolutionary algorithm. Can be one of {loss, confidence}. (Default: loss)",
         )
         parser.add_argument(
             "--threshold_value",
             default=0.02,
             type=float,
             help="Value for threshold. (Default: 0.02)",
+        )
+        parser.add_argument(
+            "--find_additional",
+            action="store_true",
+            help="After finding new sample for the batch, try to check rest of the samples and see whether some of them also complies with the optimization condition. (Default: False)",
         )
         parser.add_argument(
             "--save_dataset",
@@ -343,6 +373,7 @@ class Ripper(AttackBase):
                 self.attack_settings.max_iterations,
                 self.attack_settings.threshold_type,
                 self.attack_settings.threshold_value,
+                self.attack_settings.find_additional,
             )
 
     def _check_args(self, test_set: Dataset, val_set: Optional[Dataset] = None) -> None:
@@ -374,7 +405,8 @@ class Ripper(AttackBase):
         if self.attack_settings.save_dataset:
             # Since we are generating samples once we have to change batches per epoch so we get equal number of samples
             self.attack_settings.batches_per_epoch = (
-                self.attack_settings.batches_per_epoch * self.trainer_settings.training_epochs
+                self.attack_settings.batches_per_epoch
+                * self.trainer_settings.training_epochs
             )
 
         # For consistency between attacks the student dataset is called
