@@ -107,6 +107,7 @@ if __name__ == "__main__":
         args.max_iterations,
         args.threshold_type,
         args.threshold_value,
+        args.find_additional,
         args.save_dataset,
         args.dataset_save_loc,
     )
