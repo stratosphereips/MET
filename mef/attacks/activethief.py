@@ -213,10 +213,10 @@ class ActiveThief(AttackBase):
             init_centers = init_centers.cuda(self.base_settings.gpu)
             pred_sub_rest = preds_sub_rest.cuda(self.base_settings.gpu)
         # Calculate distances from unlabeled samples to intial centers
-        dist_mat = torch.cdist(pred_sub_rest, init_centers, p=2)
+        min_dists = torch.cdist(pred_sub_rest, init_centers, p=2)
 
         # For each unlabeled sample we want to keep only minimal distance
-        dist_mat, _ = dist_mat.min(dim=-1)
+        min_dists, _ = min_dists.min(dim=-1)
 
         selected_points = []
         for _ in tqdm(
@@ -225,9 +225,11 @@ class ActiveThief(AttackBase):
         ):
             # Get index for maximum minimal distance from current center
             # and make it new center
-            min_max_idxs = dist_mat.argsort(descending=True)[
+            min_max_idxs = min_dists.argsort(descending=True)[
                 : self.attack_settings.centers_per_iteration
             ]
+            # We zero out the selected points' distances
+            min_dists[min_max_idxs] = 0
             selected_points.append(min_max_idxs)
             new_centers = preds_sub_rest[min_max_idxs]
 
@@ -235,14 +237,10 @@ class ActiveThief(AttackBase):
                 new_centers = new_centers.cuda(self.base_settings.gpu)
 
             # Calculate distances for new center from unlabeled samples
-            new_centers_dists = (
-                torch.cdist(pred_sub_rest, new_centers, p=2)
-                .squeeze(dim=0)
-                .transpose(0, 1)
-            )
+            new_centers_dists = torch.cdist(pred_sub_rest, new_centers, p=2)
+            new_centers_min_dists, _ = torch.min(new_centers_dists, dim=-1)
             # For each unlabeled samples we keep only the minimal distance
-            for new_center_dists in new_centers_dists:
-                dist_mat = torch.minimum(dist_mat, new_center_dists)
+            min_dists = torch.minimum(min_dists, new_centers_min_dists)
 
         return torch.cat(selected_points).detach().cpu().numpy()
 
@@ -277,12 +275,12 @@ class ActiveThief(AttackBase):
             range(k // self.attack_settings.centers_per_iteration),
             desc="Selecting best points",
         ):
-            min_dists_max_idxs = torch.argsort(min_dists, dim=-1, descending=True)[
+            min_max_idxs = min_dists.argsort(descending=True)[
                 : self.attack_settings.centers_per_iteration
             ]
-
-            selected_points.append(min_dists_max_idxs)
-            new_centers = preds_sub_rest[min_dists_max_idxs]
+            min_dists[min_max_idxs] = 0
+            selected_points.append(min_max_idxs)
+            new_centers = preds_sub_rest[min_max_idxs]
 
             if self.base_settings.gpu is not None:
                 new_centers = new_centers.cuda(self.base_settings.gpu)
@@ -296,14 +294,11 @@ class ActiveThief(AttackBase):
 
                     batch_dists = torch.cdist(preds_rest_batch, new_centers, p=2)
                     batch_dists_min_vals, _ = torch.min(batch_dists, dim=-1)
-
                     new_centers_dists_min_vals.append(batch_dists_min_vals)
 
-                min_dists = torch.stack(
-                    [min_dists, torch.cat(new_centers_dists_min_vals)], dim=1
-                )
                 # For each y we update minimal distance
-                min_dists, _ = torch.min(min_dists, dim=-1)
+                new_centers_dists_min_vals = torch.cat(new_centers_dists_min_vals)
+                min_dists = torch.minimum(min_dists, new_centers_dists_min_vals)
 
         return torch.cat(selected_points).detach().cpu().numpy()
 
