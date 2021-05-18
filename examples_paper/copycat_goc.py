@@ -11,12 +11,12 @@ from torchvision.transforms import transforms as T
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
-from mef.attacks.copycat import CopyCat
-from mef.utils.experiment import train_victim_model
-from mef.utils.ios import mkdir_if_missing
-from mef.utils.pytorch.datasets.vision import ImageNet1000, Stl10, Cifar10
-from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
-from mef.utils.pytorch.models.vision import Vgg
+from met.attacks.copycat import CopyCat
+from met.utils.experiment import train_victim_model
+from met.utils.ios import mkdir_if_missing
+from met.utils.pytorch.datasets.vision import Cifar10, ImageNet1000, Stl10
+from met.utils.pytorch.lightning.module import TrainableModel, VictimModel
+from met.utils.pytorch.models.vision import Vgg
 
 NUM_CLASSES = 9
 

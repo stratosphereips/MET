@@ -9,15 +9,14 @@ from torchvision.transforms import transforms as T
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
-from mef.utils.pytorch.models.generators import Sngan
-from mef.attacks.ripper import Ripper
-from mef.utils.experiment import train_victim_model
-from mef.utils.ios import mkdir_if_missing
-from mef.utils.pytorch.datasets.vision import FashionMnist
-from mef.utils.pytorch.lighting.module import Generator, TrainableModel, VictimModel
-from mef.utils.pytorch.functional import soft_cross_entropy
-from mef.utils.pytorch.models.vision import LeNet, HalfLeNet
-from mef.utils.pytorch.blocks import ConvBlock, MaxPoolLayer
+from met.attacks.ripper import Ripper
+from met.utils.experiment import train_victim_model
+from met.utils.ios import mkdir_if_missing
+from met.utils.pytorch.datasets.vision import FashionMnist
+from met.utils.pytorch.functional import soft_cross_entropy
+from met.utils.pytorch.lightning.module import Generator, TrainableModel, VictimModel
+from met.utils.pytorch.models.generators import Sngan
+from met.utils.pytorch.models.vision import HalfLeNet, LeNet
 
 LATENT_DIM = 128
 DIMS = (1, 32, 32)

@@ -7,10 +7,10 @@ import torchvision.transforms as T
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
-from mef.utils.experiment import train_victim_model
-from mef.utils.pytorch.datasets import split_dataset
-from mef.utils.pytorch.datasets.vision.oimodular import OIModular
-from mef.utils.pytorch.models.vision import SimpleNet, ResNet
+from met.utils.experiment import train_victim_model
+from met.utils.pytorch.datasets import split_dataset
+from met.utils.pytorch.datasets.vision.oimodular import OIModular
+from met.utils.pytorch.models.vision import ResNet, SimpleNet
 
 
 def getr_args():

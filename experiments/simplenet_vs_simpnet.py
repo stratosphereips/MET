@@ -7,9 +7,9 @@ import torchvision.transforms as T
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
-from mef.utils.experiment import train_victim_model
-from mef.utils.pytorch.datasets.vision import Cifar10
-from mef.utils.pytorch.models.vision import SimpNet, SimpleNet
+from met.utils.experiment import train_victim_model
+from met.utils.pytorch.datasets.vision import Cifar10
+from met.utils.pytorch.models.vision import SimpleNet, SimpNet
 
 NUM_CLASSES = 10
 EPOCHS = 1000

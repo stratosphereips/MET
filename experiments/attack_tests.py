@@ -4,21 +4,21 @@ import sys
 from argparse import ArgumentParser
 from collections import namedtuple
 from pathlib import Path
-from typing import Dict, Tuple, Any
+from typing import Any, Dict, Tuple
 
 import numpy as np
 import torch
 import torchvision.transforms as T
 from pytorch_lightning import seed_everything
-from torch.utils.data import Dataset, Subset, ConcatDataset
+from torch.utils.data import ConcatDataset, Dataset, Subset
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
-from mef.attacks.base import AttackBase
-from mef.attacks import ActiveThief, BlackBox, CopyCat, KnockOff, Ripper
-from mef.utils.experiment import train_victim_model
-from mef.utils.pytorch.datasets import split_dataset
-from mef.utils.pytorch.datasets.vision import (
+from met.attacks import ActiveThief, BlackBox, CopyCat, KnockOff, Ripper
+from met.attacks.base import AttackBase
+from met.utils.experiment import train_victim_model
+from met.utils.pytorch.datasets import split_dataset
+from met.utils.pytorch.datasets.vision import (
     GTSRB,
     Caltech256,
     Cifar10,
@@ -27,10 +27,10 @@ from mef.utils.pytorch.datasets.vision import (
     ImageNet1000,
     Stl10,
 )
-from mef.utils.pytorch.functional import soft_cross_entropy
-from mef.utils.pytorch.lighting.module import Generator, TrainableModel, VictimModel
-from mef.utils.pytorch.models.generators import Sngan
-from mef.utils.pytorch.models.vision import GenericCNN, ResNet, SimpleNet
+from met.utils.pytorch.functional import soft_cross_entropy
+from met.utils.pytorch.lightning.module import Generator, TrainableModel, VictimModel
+from met.utils.pytorch.models.generators import Sngan
+from met.utils.pytorch.models.vision import GenericCNN, ResNet, SimpleNet
 
 VICT_TRAINING_EPOCHS = 200
 SUB_TRAINING_EPOCHS = 100
@@ -173,6 +173,27 @@ DATASET_INFOS = {
     ),
 }
 
+ATTACKS_DICT = {
+    "active-thief": ActiveThief,
+    "blackbox": BlackBox,
+    "copycat": CopyCat,
+    "knockoff-nets": KnockOff,
+    "blackbox-ripper": Ripper,
+}
+ATTACKS_CONFIG = {
+    "active-thief": {
+        "iterations": 10,
+        "save_samples": True,
+        "val_size": 0,
+        "centers_per_iteration": 5,
+        "bounds": BOUNDS,
+    },
+    "blackbox": {"iterations": 6, "bounds": BOUNDS},
+    "copycat": {},
+    "knockoff-nets": {"save_samples": True},
+    "blackbox-ripper": {},
+}
+
 TEST_SETTINGS = (
     TestSettings(
         "comparison_of_attacks_on_most_popular_datasets_from_paper",
@@ -240,27 +261,6 @@ TEST_SETTINGS = (
         ],
     ),
 )
-
-ATTACKS_DICT = {
-    "active-thief": ActiveThief,
-    "blackbox": BlackBox,
-    "copycat": CopyCat,
-    "knockoff-nets": KnockOff,
-    "blackbox-ripper": Ripper,
-}
-ATTACKS_CONFIG = {
-    "active-thief": {
-        "iterations": 10,
-        "save_samples": True,
-        "val_size": 0,
-        "centers_per_iteration": 5,
-        "bounds": BOUNDS,
-    },
-    "blackbox": {"iterations": 6, "bounds": BOUNDS},
-    "copycat": {},
-    "knockoff-nets": {"save_samples": True},
-    "blackbox-ripper": {},
-}
 
 
 def get_args():

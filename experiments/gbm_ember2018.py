@@ -11,9 +11,9 @@ from sklearn.preprocessing import StandardScaler
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
-from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
-from mef.attacks import ActiveThief, KnockOff
-from mef.utils.ios import mkdir_if_missing
+from met.attacks import ActiveThief
+from met.utils.ios import mkdir_if_missing
+from met.utils.pytorch.lightning.module import TrainableModel, VictimModel
 
 NUM_CLASSES = 2
 

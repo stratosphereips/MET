@@ -7,17 +7,16 @@ import torch.nn.functional as F
 from pytorch_lightning import seed_everything
 from torch.utils.data import ConcatDataset
 from torchvision.transforms import transforms as T
-import numpy as np
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
-from mef.attacks.knockoff import KnockOff
-from mef.utils.experiment import train_victim_model
-from mef.utils.ios import mkdir_if_missing
-from mef.utils.pytorch.datasets.vision import ImageNet1000, Caltech256
-from mef.utils.pytorch.functional import soft_cross_entropy
-from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
-from mef.utils.pytorch.models.vision import ResNet
+from met.attacks.knockoff import KnockOff
+from met.utils.experiment import train_victim_model
+from met.utils.ios import mkdir_if_missing
+from met.utils.pytorch.datasets.vision import Caltech256, ImageNet1000
+from met.utils.pytorch.functional import soft_cross_entropy
+from met.utils.pytorch.lightning.module import TrainableModel, VictimModel
+from met.utils.pytorch.models.vision import ResNet
 
 NUM_CLASSES = 256
 DIMS = (3, 224, 224)

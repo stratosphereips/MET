@@ -2,22 +2,21 @@ import os
 import sys
 from pathlib import Path
 
-from pytorch_lightning import seed_everything
 import torch
 import torch.nn.functional as F
+from pytorch_lightning import seed_everything
 from torchvision.transforms import transforms as T
-from torch.utils.data import ConcatDataset
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
-from mef.attacks import ActiveThief, CopyCat
-from mef.utils.experiment import train_victim_model
-from mef.utils.ios import mkdir_if_missing
-from mef.utils.pytorch.datasets import split_dataset
-from mef.utils.pytorch.datasets.vision import ImageNet1000, Cifar10
-from mef.utils.pytorch.functional import soft_cross_entropy
-from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
-from mef.utils.pytorch.models.vision.GenericCNN import GenericCNN
+from met.attacks import ActiveThief
+from met.utils.experiment import train_victim_model
+from met.utils.ios import mkdir_if_missing
+from met.utils.pytorch.datasets import split_dataset
+from met.utils.pytorch.datasets.vision import Cifar10, ImageNet1000
+from met.utils.pytorch.functional import soft_cross_entropy
+from met.utils.pytorch.lightning.module import TrainableModel, VictimModel
+from met.utils.pytorch.models.vision.GenericCNN import GenericCNN
 
 IMAGENET_TRAIN_SIZE = 100000
 IMAGENET_VAL_SIZE = 20000

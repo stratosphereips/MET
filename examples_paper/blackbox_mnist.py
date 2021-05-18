@@ -6,19 +6,19 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from pytorch_lightning import seed_everything
-from torch.utils.data import Subset, DataLoader
+from torch.utils.data import DataLoader, Subset
 from torchvision.transforms import transforms as T
 
 sys.path.append(os.path.join(os.path.dirname(sys.path[0])))
 
-from mef.attacks.blackbox import BlackBox
-from mef.utils.experiment import train_victim_model
-from mef.utils.ios import mkdir_if_missing
-from mef.utils.pytorch.blocks import ConvBlock, MaxPoolLayer
-from mef.utils.pytorch.datasets import split_dataset
-from mef.utils.pytorch.datasets.vision import Mnist
-from mef.utils.pytorch.lighting.module import TrainableModel, VictimModel
-from mef.utils.pytorch.models.vision import GenericCNN
+from met.attacks.blackbox import BlackBox
+from met.utils.experiment import train_victim_model
+from met.utils.ios import mkdir_if_missing
+from met.utils.pytorch.blocks import ConvBlock, MaxPoolLayer
+from met.utils.pytorch.datasets import split_dataset
+from met.utils.pytorch.datasets.vision import Mnist
+from met.utils.pytorch.lightning.module import TrainableModel, VictimModel
+from met.utils.pytorch.models.vision import GenericCNN
 
 NUM_CLASSES = 10
 SAMPLES_PER_CLASS = 10
