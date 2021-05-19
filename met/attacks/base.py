@@ -164,7 +164,7 @@ class AttackBase(ABC):
         Returns:
             ArgumentParser: Parser containing the parameters of the attack and tool.
         """
-        parser = cls._get_attack_parserparser
+        parser = cls._get_attack_parser(parser)
         cls._add_base_args(parser)
         cls._add_trainer_args(parser)
 
