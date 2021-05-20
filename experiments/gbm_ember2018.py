@@ -87,27 +87,30 @@ class EmberSubsitute(nn.Module):
 
 
 def prepare_ember2018_data(data_dir):
+    # Load training set
     X_train_path = Path(data_dir).joinpath("X_train.dat")
     y_train_path = Path(data_dir).joinpath("y_train.dat")
     y_train = np.memmap(y_train_path, dtype=np.float32, mode="r")
     N = y_train.shape[0]
     X_train = np.memmap(X_train_path, dtype=np.float32, mode="r", shape=(N, 2381))
 
-    train_rows = y_train == -1  # read training dataset
+    # Read unlabeled samples
+    train_rows = y_train == -1
     X_train = X_train[train_rows]
     y_train = y_train[train_rows]
 
+    # Load test set
     X_test_path = Path(data_dir).joinpath("X_test.dat")
     y_test_path = Path(data_dir).joinpath("y_test.dat")
     y_test = np.memmap(y_test_path, dtype=np.float32, mode="readwrite").astype(np.int32)
     N = y_test.shape[0]
     X_test = np.memmap(X_test_path, dtype=np.float32, mode="readwrite", shape=(N, 2381))
 
-    scaler = StandardScaler()
-    scaler = scaler.fit(X_train)
-
     adversary_dataset = NumpyDataset(X_train, y_train)
     test_set = NumpyDataset(X_test, y_test)
+
+    scaler = StandardScaler()
+    scaler = scaler.fit(X_train)
 
     return adversary_dataset, test_set, scaler
 
