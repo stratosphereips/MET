@@ -117,9 +117,9 @@ class BlackBox(AttackBase):
             )
 
     def _create_synthetic_samples(self, query_sets: List[Dataset]) -> torch.Tensor:
-        thief_dataset = ConcatDataset(query_sets)
+        adversary_dataset = ConcatDataset(query_sets)
         loader = DataLoader(
-            dataset=thief_dataset,
+            dataset=adversary_dataset,
             pin_memory=True if self.base_settings.gpu is not None else False,
             num_workers=self.base_settings.num_workers,
             batch_size=self.base_settings.batch_size,
@@ -176,7 +176,7 @@ class BlackBox(AttackBase):
             self._logger.error("Test set must be Pytorch's dataset.")
             raise TypeError()
 
-        self._thief_dataset = sub_data
+        self._adversary_dataset = sub_data
         self._test_set = test_set
 
         return
@@ -189,7 +189,7 @@ class BlackBox(AttackBase):
         real_budget = len(sub_data) * (2 ** self.attack_settings.iterations)
         self._logger.info("BlackBox's attack budget: {}".format(real_budget))
 
-        query_data = self._thief_dataset
+        query_data = self._adversary_dataset
         y_query_set = self._get_predictions(self._victim_model, query_data)
         query_sets = [CustomLabelDataset(query_data, y_query_set)]
         for it in range(self.attack_settings.iterations + 1):

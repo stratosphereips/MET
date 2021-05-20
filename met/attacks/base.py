@@ -67,7 +67,7 @@ class AttackBase(ABC):
         self._logger: Logger
         # Datasets
         self._test_set: Dataset
-        self._thief_dataset: Dataset
+        self._adversary_dataset: Dataset
 
         # Models
         self._victim_model = victim_model

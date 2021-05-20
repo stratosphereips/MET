@@ -53,7 +53,7 @@ def set_up(args):
         transform=transform,
         seed=args.seed,
     )
-    thief_dataset = imagenet_train
+    adversary_dataset = imagenet_train
     val_dataset = imagenet_val
 
     train_set, val_set = split_dataset(train_set, 0.2)
@@ -85,7 +85,7 @@ def set_up(args):
         soft_cross_entropy,
     )
 
-    return victim_model, substitute_model, thief_dataset, test_set, val_dataset
+    return victim_model, substitute_model, adversary_dataset, test_set, val_dataset
 
 
 if __name__ == "__main__":
@@ -106,7 +106,7 @@ if __name__ == "__main__":
 
     mkdir_if_missing(args.save_loc)
 
-    victim_model, substitute_model, thief_dataset, test_set, val_dataset = set_up(args)
+    victim_model, substitute_model, adversary_dataset, test_set, val_dataset = set_up(args)
 
     af = ActiveThief(
         victim_model,
@@ -134,4 +134,4 @@ if __name__ == "__main__":
     af.trainer_settings.precision = args.precision
     af.trainer_settings.use_accuracy = args.accuracy
 
-    af(thief_dataset, test_set, val_dataset)
+    af(adversary_dataset, test_set, val_dataset)

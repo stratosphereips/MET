@@ -322,7 +322,7 @@ class Ripper(AttackBase):
         labels_filepath = self.attack_settings.dataset_save_loc.joinpath("labels.pl")
         if not self.attack_settings.dataset_save_loc.joinpath("complete").exists():
             self.attack_settings.dataset_save_loc.mkdir(parents=True, exist_ok=True)
-            dataset_loader = DataLoader(dataset=self._thief_dataset)
+            dataset_loader = DataLoader(dataset=self._adversary_dataset)
             all_labels = []
             i = 0
             for images, labels in tqdm(
@@ -411,14 +411,14 @@ class Ripper(AttackBase):
 
         # For consistency between attacks the student dataset is called
         # thief dataset
-        self._thief_dataset = self._get_student_dataset()
+        self._adversary_dataset = self._get_student_dataset()
 
         if self.attack_settings.save_dataset:
-            self._thief_dataset = self._create_dataset()
+            self._adversary_dataset = self._create_dataset()
 
         # Random and optimized datasets rise warnings with number of workes and __len__
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            self._train_substitute_model(self._thief_dataset, self._val_set)
+            self._train_substitute_model(self._adversary_dataset, self._val_set)
 
         return

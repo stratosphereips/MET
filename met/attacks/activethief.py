@@ -408,7 +408,7 @@ class ActiveThief(AttackBase):
         if not isinstance(sub_data, Dataset):
             self._logger.error("Substitute dataset must be Pytorch's dataset.")
             raise TypeError()
-        self._thief_dataset = sub_data
+        self._adversary_dataset = sub_data
 
         if not isinstance(test_set, Dataset):
             self._logger.error("Test set must be Pytorch's dataset.")
@@ -434,7 +434,7 @@ class ActiveThief(AttackBase):
                     : self.attack_settings.val_size
                 ]
                 idxs_rest = np.sort(np.setdiff1d(idxs_rest, selected_points))
-                val_set = Subset(self._thief_dataset, selected_points)
+                val_set = Subset(self._adversary_dataset, selected_points)
                 y_val = self._get_predictions(self._victim_model, val_set)
             else:
                 idxs_val = np.arange(len(self._val_dataset))
@@ -473,7 +473,7 @@ class ActiveThief(AttackBase):
         # Get budget of the attack
         self._logger.info(f"ActiveThief's attack budget: {self.attack_settings.budget}")
 
-        idxs_rest = np.arange(len(self._thief_dataset))
+        idxs_rest = np.arange(len(self._adversary_dataset))
         idxs_rest, val_set = self._prepare_val_set(idxs_rest)
 
         # Step 1: attacker picks random subset of initial seed samples
@@ -484,7 +484,7 @@ class ActiveThief(AttackBase):
             : self.attack_settings.init_seed_size
         ]
         idxs_rest = np.sort(np.setdiff1d(idxs_rest, selected_points))
-        query_set = Subset(self._thief_dataset, selected_points)
+        query_set = Subset(self._adversary_dataset, selected_points)
         y_query = self._get_predictions(self._victim_model, query_set)
         query_sets.append(CustomLabelDataset(query_set, y_query))
         if self.attack_settings.save_samples:
@@ -523,7 +523,7 @@ class ActiveThief(AttackBase):
 
             # Step 4: Approximate labels are obtained for remaining samples
             # using the substitute
-            data_rest = Subset(self._thief_dataset, idxs_rest)
+            data_rest = Subset(self._adversary_dataset, idxs_rest)
             # Random strategy doesn't require predictions for the rest
             # of thief dataset
             if self.attack_settings.selection_strategy != "random":
@@ -541,7 +541,7 @@ class ActiveThief(AttackBase):
             selected_points = self._select_samples(data_rest, ConcatDataset(query_sets))
             idxs_query = idxs_rest[np.unique(selected_points)]
             idxs_rest = np.sort(np.setdiff1d(idxs_rest, idxs_query))
-            query_set = Subset(self._thief_dataset, idxs_query)
+            query_set = Subset(self._adversary_dataset, idxs_query)
 
             # Step 2: Attacker queries current picked samples to secret
             # model for labeling

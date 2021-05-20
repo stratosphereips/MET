@@ -175,7 +175,7 @@ class AtlasThief(AttackBase):
             self._logger.error("Test set must be Pytorch's dataset.")
             raise TypeError()
 
-        self._thief_dataset = sub_data
+        self._adversary_dataset = sub_data
         self._test_set = test_set
 
         return
@@ -188,13 +188,13 @@ class AtlasThief(AttackBase):
             "AtlasThief's attack budget: {}".format(self.attack_settings.budget)
         )
 
-        idxs_rest = np.arange(len(self._thief_dataset))
+        idxs_rest = np.arange(len(self._adversary_dataset))
 
         # Prepare validation set
         self._logger.info("Preparing validation dataset")
         idxs_val = np.random.permutation(idxs_rest)[: self.attack_settings.val_size]
         idxs_rest = np.setdiff1d(idxs_rest, idxs_val)
-        val_set = Subset(self._thief_dataset, idxs_val)
+        val_set = Subset(self._adversary_dataset, idxs_val)
         y_val = self._get_predictions(self._victim_model, val_set)
         val_set = CustomLabelDataset(val_set, y_val)
 
@@ -218,7 +218,7 @@ class AtlasThief(AttackBase):
             : self.attack_settings.init_seed_size
         ]
         idxs_rest = np.setdiff1d(idxs_rest, idxs_query)
-        query_set = Subset(self._thief_dataset, idxs_query)
+        query_set = Subset(self._adversary_dataset, idxs_query)
         y_query = self._get_predictions(self._victim_model, query_set)
         query_sets.append(CustomLabelDataset(query_set, y_query))
 
@@ -261,11 +261,11 @@ class AtlasThief(AttackBase):
                     self.attack_settings.k
                 )
             )
-            data_rest = Subset(self._thief_dataset, idxs_rest)
+            data_rest = Subset(self._adversary_dataset, idxs_rest)
             idxs_query = self._atlas_strategy(data_rest, val_set)
             idxs_query = idxs_rest[idxs_query]
             idxs_rest = np.setdiff1d(idxs_rest, idxs_query)
-            query_set = Subset(self._thief_dataset, idxs_query)
+            query_set = Subset(self._adversary_dataset, idxs_query)
 
             # Step 2: Attacker queries current picked samples to secret
             # model for labeling

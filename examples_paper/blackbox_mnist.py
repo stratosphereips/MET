@@ -87,7 +87,7 @@ def set_up(args):
     idx_pre_attacker = np.random.permutation(len(pre_attacker_set))
     idx_pre_attacker = np.setdiff1d(idx_pre_attacker, idx_adversary)
 
-    thief_dataset = Subset(pre_attacker_set, idx_adversary)
+    adversary_dataset = Subset(pre_attacker_set, idx_adversary)
 
     train_victim_model(
         victim_model,
@@ -114,7 +114,7 @@ def set_up(args):
         F.cross_entropy,
     )
 
-    return victim_model, substitute_model, thief_dataset, test_set
+    return victim_model, substitute_model, adversary_dataset, test_set
 
 
 if __name__ == "__main__":
@@ -132,7 +132,7 @@ if __name__ == "__main__":
 
     mkdir_if_missing(args.save_loc)
 
-    victim_model, substitute_model, thief_dataset, test_set = set_up(args)
+    victim_model, substitute_model, adversary_dataset, test_set = set_up(args)
     bb = BlackBox(victim_model, substitute_model, BOUNDS, args.iterations, args.lmbda)
 
     # Baset settings
@@ -149,4 +149,4 @@ if __name__ == "__main__":
     bb.trainer_settings.precision = args.precision
     bb.trainer_settings.use_accuracy = args.accuracy
 
-    bb(thief_dataset, test_set)
+    bb(adversary_dataset, test_set)

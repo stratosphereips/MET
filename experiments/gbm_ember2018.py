@@ -106,10 +106,10 @@ def prepare_ember2018_data(data_dir):
     scaler = StandardScaler()
     scaler = scaler.fit(X_train)
 
-    thief_dataset = NumpyDataset(X_train, y_train)
+    adversary_dataset = NumpyDataset(X_train, y_train)
     test_set = NumpyDataset(X_test, y_test)
 
-    return thief_dataset, test_set, scaler
+    return adversary_dataset, test_set, scaler
 
 
 if __name__ == "__main__":
@@ -124,7 +124,7 @@ if __name__ == "__main__":
     mkdir_if_missing(args.save_loc)
 
     # Prepare data
-    thief_dataset, test_set, scaler = prepare_ember2018_data(args.ember2018_data_dir)
+    adversary_dataset, test_set, scaler = prepare_ember2018_data(args.ember2018_data_dir)
 
     # Prepare models
     victim_model = Ember2018(args.ember2018_model_dir, args.seed)
@@ -159,4 +159,4 @@ if __name__ == "__main__":
     attack.trainer_settings.precision = args.precision
     attack.trainer_settings.use_accuracy = args.accuracy
 
-    attack(thief_dataset, test_set)
+    attack(adversary_dataset, test_set)

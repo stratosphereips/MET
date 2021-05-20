@@ -176,7 +176,7 @@ if __name__ == "__main__":
 
     mkdir_if_missing(args.save_loc)
 
-    victim_model, substitute_model, thief_dataset, test_set = set_up(args)
+    victim_model, substitute_model, adversary_dataset, test_set = set_up(args)
     copycat = CopyCat(victim_model, substitute_model)
 
     # Baset settings
@@ -194,7 +194,7 @@ if __name__ == "__main__":
     copycat.trainer_settings.use_accuracy = args.accuracy
 
     print("CopyCat attack with NPD dataset")
-    copycat(thief_dataset[0], test_set)
+    copycat(adversary_dataset[0], test_set)
 
     print("CopyCat attack with PD dataset")
-    copycat(thief_dataset[1], test_set)
+    copycat(adversary_dataset[1], test_set)

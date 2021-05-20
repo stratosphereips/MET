@@ -158,9 +158,9 @@ class KnockOff(AttackBase):
             "Selecting random sample from thief dataset of "
             "size {}".format(self.attack_settings.budget)
         )
-        idx_x = np.arange(len(self._thief_dataset))
+        idx_x = np.arange(len(self._adversary_dataset))
         idx_sampled = np.random.permutation(idx_x)[: self.attack_settings.budget]
-        selected_data = Subset(self._thief_dataset, idx_sampled)
+        selected_data = Subset(self._adversary_dataset, idx_sampled)
 
         self._logger.info("Getting fake labels from victim model")
         y = self._get_predictions(self._victim_model, selected_data)
@@ -186,7 +186,7 @@ class KnockOff(AttackBase):
         if self.attack_settings.save_samples:
             self._selected_samples["idxs"].extend(idx_sampled)
 
-        return Subset(self._thief_dataset, idx_sampled)
+        return Subset(self._adversary_dataset, idx_sampled)
 
     def _online_train(self, data: Dataset) -> None:
         self._substitute_model.train()
@@ -266,11 +266,11 @@ class KnockOff(AttackBase):
 
     def _adaptive_strategy(self) -> ConcatDataset:
         # Get substitute dataset labels
-        if hasattr(self._thief_dataset, "targets"):
-            self._y = self._thief_dataset.targets
+        if hasattr(self._adversary_dataset, "targets"):
+            self._y = self._adversary_dataset.targets
         else:
             loader = DataLoader(
-                dataset=self._thief_dataset,
+                dataset=self._adversary_dataset,
                 pin_memory=True if self.base_settings.gpu is not None else False,
                 num_workers=self.base_settings.num_workers,
                 batch_size=self.base_settings.batch_size,
@@ -386,7 +386,7 @@ class KnockOff(AttackBase):
             self._logger.error("Test set must be Pytorch's dataset.")
             raise TypeError()
 
-        self._thief_dataset = sub_data
+        self._adversary_dataset = sub_data
         self._test_set = test_set
 
         return

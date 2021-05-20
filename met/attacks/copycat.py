@@ -53,7 +53,7 @@ class CopyCat(AttackBase):
             self._logger.error("Test set must be Pytorch's dataset.")
             raise TypeError()
 
-        self._thief_dataset = sub_data
+        self._adversary_dataset = sub_data
         self._test_set = test_set
 
         return
@@ -62,14 +62,14 @@ class CopyCat(AttackBase):
         self._check_args(sub_data, test_set)
         self._logger.info("########### Starting CopyCat attack ###########")
         self._logger.info(
-            "CopyCat's attack budget: {}".format(len(self._thief_dataset))
+            "CopyCat's attack budget: {}".format(len(self._adversary_dataset))
         )
 
         # Get stolen labels from victim model
         self._logger.info("Getting stolen labels")
-        stolen_labels = self._get_predictions(self._victim_model, self._thief_dataset)
+        stolen_labels = self._get_predictions(self._victim_model, self._adversary_dataset)
 
-        synthetic_dataset = CustomLabelDataset(self._thief_dataset, stolen_labels)
+        synthetic_dataset = CustomLabelDataset(self._adversary_dataset, stolen_labels)
 
         train_set = synthetic_dataset
         val_set = None
