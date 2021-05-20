@@ -1,6 +1,9 @@
 from pathlib import Path
+from typing import Any
 
+import numpy as np
 import torch
+from pl_bolts.datamodules.sklearn_datamodule import SklearnDataset
 from torch.utils.data import Dataset, random_split
 
 
@@ -56,3 +59,14 @@ class SavedDataset(Dataset):
 
     def __len__(self):
         return len(self.targets)
+
+
+class NumpyDataset(SklearnDataset):
+    def __init__(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        X_transform: Any = None,
+        y_transform: Any = None,
+    ) -> None:
+        super().__init__(X, y, X_transform, y_transform)
