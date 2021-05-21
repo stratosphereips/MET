@@ -24,6 +24,7 @@ pytorch-lightning-bolts = "0.3.0"
 dataclasses = "0.6"
 Pillow = "8.1.2"
 scikit-learn = "0.24.1"
+tensorflow = "2.2.0"
 
 [tool.poetry.dev-dependencies]
 numpy = "1.20.1"
@@ -43,6 +44,7 @@ pytorch-lightning-bolts = "0.3.0"
 dataclasses = "0.6"
 Pillow = "8.1.2"
 scikit-learn = "0.24.1"
+tensorflow = "2.2.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
