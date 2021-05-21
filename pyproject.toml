@@ -1,0 +1,50 @@
+[tool.poetry]
+name = "met"
+version = "0.1.0"
+description = ""
+authors = ["Vit Karafiat <karafvit@fel.cvut.cz>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+numpy = "1.20.1"
+pytorch-lightning = "1.2.5"
+botocore = "1.20.37"
+torchvision = "0.9.0"
+tqdm = "4.59.0"
+torch = "1.8.0"
+requests = "2.25.1"
+foolbox = "3.3.1"
+torchmetrics = "0.2.0"
+boto3 = "1.17.36"
+torch-mimicry = "0.1.16"
+lightgbm = "3.2.0"
+pandas = "1.2.3"
+pytorch-lightning-bolts = "0.3.0"
+dataclasses = "0.6"
+Pillow = "8.1.2"
+scikit-learn = "0.24.1"
+
+[tool.poetry.dev-dependencies]
+python = "^3.8"
+numpy = "1.20.1"
+pytorch-lightning = "1.2.5"
+botocore = "1.20.37"
+torchvision = "0.9.0"
+tqdm = "4.59.0"
+torch = "1.8.0"
+requests = "2.25.1"
+foolbox = "3.3.1"
+torchmetrics = "0.2.0"
+boto3 = "1.17.36"
+torch-mimicry = "0.1.16"
+lightgbm = "3.2.0"
+pandas = "1.2.3"
+pytorch-lightning-bolts = "0.3.0"
+dataclasses = "0.6"
+Pillow = "8.1.2"
+scikit-learn = "0.24.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
