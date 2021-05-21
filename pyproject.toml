@@ -45,8 +45,7 @@ pytorch-lightning-bolts = "0.3.0"
 dataclasses = "0.6"
 Pillow = "8.1.2"
 scikit-learn = "0.24.1"
-tensorflow = "2.2.0"
-scipy = "1.4.1"
+tensorflow = "*"
 
 
 [build-system]
