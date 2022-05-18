@@ -1,4 +1,4 @@
-# Malware Extraction Tool
+# Model Extraction Tool (MET)
 
 This tool was created by Vit Karafiat, MSc as part of his master thesis:  
 [Machine learning privacy: analysis and implementation of model extraction attacks](https://dspace.cvut.cz/handle/10467/95288) 
